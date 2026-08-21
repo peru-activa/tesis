@@ -8,7 +8,7 @@
     "node": "24.x"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "check:no-ai": "node scripts/check-no-ai.mjs",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
@@ -27,4 +27,3 @@
     "typescript": "5.9.3"
   }
 }
-
