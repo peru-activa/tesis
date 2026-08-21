@@ -1,0 +1,30 @@
+{
+  "name": "@peru-activa/tesis",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Núcleo determinístico de recomendación de talleres con confirmación humana",
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check:no-ai": "node scripts/check-no-ai.mjs",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "node --import tsx --test 'test/**/*.test.ts'",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify": "npm run check:no-ai && npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "express": "5.1.0",
+    "zod": "4.1.11"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.3",
+    "@types/node": "24.7.2",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  }
+}
+
