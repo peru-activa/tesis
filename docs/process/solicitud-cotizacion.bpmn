@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  id="Definitions_SolicitudCotizacion"
+  targetNamespace="https://peruactiva.pe/tesis">
+  <bpmn:collaboration id="Collaboration_SolicitudCotizacion">
+    <bpmn:participant id="Participant_Cliente" name="Cliente" processRef="Process_Cliente" />
+    <bpmn:participant id="Participant_PeruActiva" name="Perú Activa" processRef="Process_PeruActiva" />
+    <bpmn:messageFlow id="MessageFlow_Solicitud" sourceRef="Task_EnviarSolicitud" targetRef="StartEvent_SolicitudRecibida" />
+    <bpmn:messageFlow id="MessageFlow_Cotizacion" sourceRef="Task_EnviarCotizacion" targetRef="CatchEvent_Cotizacion" />
+    <bpmn:messageFlow id="MessageFlow_Respuesta" sourceRef="Task_Responder" targetRef="CatchEvent_Respuesta" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Cliente" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_Necesidad" name="Necesidad identificada" />
+    <bpmn:task id="Task_Registrar" name="Registrar requerimiento" />
+    <bpmn:task id="Task_Revisar" name="Revisar datos" />
+    <bpmn:sendTask id="Task_EnviarSolicitud" name="Enviar solicitud" />
+    <bpmn:intermediateCatchEvent id="CatchEvent_Cotizacion" name="Recibir cotización">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="Task_Responder" name="Aceptar o rechazar" />
+    <bpmn:endEvent id="EndEvent_Cliente" name="Respuesta enviada" />
+    <bpmn:sequenceFlow id="Flow_C1" sourceRef="StartEvent_Necesidad" targetRef="Task_Registrar" />
+    <bpmn:sequenceFlow id="Flow_C2" sourceRef="Task_Registrar" targetRef="Task_Revisar" />
+    <bpmn:sequenceFlow id="Flow_C3" sourceRef="Task_Revisar" targetRef="Task_EnviarSolicitud" />
+    <bpmn:sequenceFlow id="Flow_C4" sourceRef="Task_EnviarSolicitud" targetRef="CatchEvent_Cotizacion" />
+    <bpmn:sequenceFlow id="Flow_C5" sourceRef="CatchEvent_Cotizacion" targetRef="Task_Responder" />
+    <bpmn:sequenceFlow id="Flow_C6" sourceRef="Task_Responder" targetRef="EndEvent_Cliente" />
+  </bpmn:process>
+  <bpmn:process id="Process_PeruActiva" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_SolicitudRecibida" name="Solicitud recibida">
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:task id="Task_Evaluar" name="Evaluar requerimiento" />
+    <bpmn:task id="Task_DefinirCotizacion" name="Definir tela, precio y condiciones" />
+    <bpmn:sendTask id="Task_EnviarCotizacion" name="Enviar cotización" />
+    <bpmn:intermediateCatchEvent id="CatchEvent_Respuesta" name="Recibir respuesta">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="Gateway_Aceptada" name="¿Aceptada?" />
+    <bpmn:task id="Task_ConfirmarPedido" name="Confirmar pedido" />
+    <bpmn:task id="Task_Cerrar" name="Cerrar solicitud" />
+    <bpmn:endEvent id="EndEvent_Confirmado" name="Pedido confirmado" />
+    <bpmn:endEvent id="EndEvent_Rechazado" name="Solicitud rechazada" />
+    <bpmn:sequenceFlow id="Flow_P1" sourceRef="StartEvent_SolicitudRecibida" targetRef="Task_Evaluar" />
+    <bpmn:sequenceFlow id="Flow_P2" sourceRef="Task_Evaluar" targetRef="Task_DefinirCotizacion" />
+    <bpmn:sequenceFlow id="Flow_P3" sourceRef="Task_DefinirCotizacion" targetRef="Task_EnviarCotizacion" />
+    <bpmn:sequenceFlow id="Flow_P4" sourceRef="Task_EnviarCotizacion" targetRef="CatchEvent_Respuesta" />
+    <bpmn:sequenceFlow id="Flow_P5" sourceRef="CatchEvent_Respuesta" targetRef="Gateway_Aceptada" />
+    <bpmn:sequenceFlow id="Flow_P6" name="Sí" sourceRef="Gateway_Aceptada" targetRef="Task_ConfirmarPedido" />
+    <bpmn:sequenceFlow id="Flow_P7" name="No" sourceRef="Gateway_Aceptada" targetRef="Task_Cerrar" />
+    <bpmn:sequenceFlow id="Flow_P8" sourceRef="Task_ConfirmarPedido" targetRef="EndEvent_Confirmado" />
+    <bpmn:sequenceFlow id="Flow_P9" sourceRef="Task_Cerrar" targetRef="EndEvent_Rechazado" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -32,8 +32,11 @@ async function sourceFiles(directory) {
   return files.flat().filter((path) => ['.ts', '.tsx', '.js', '.mjs'].includes(extname(path)));
 }
 
-const sourceDirectory = fileURLToPath(new URL('../src', import.meta.url));
-for (const file of await sourceFiles(sourceDirectory)) {
+const sourceDirectories = [
+  fileURLToPath(new URL('../src', import.meta.url)),
+  fileURLToPath(new URL('../web/src', import.meta.url)),
+];
+for (const file of (await Promise.all(sourceDirectories.map(sourceFiles))).flat()) {
   const source = await readFile(file, 'utf8');
   for (const dependency of forbiddenDependencies) {
     const escaped = dependency.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
