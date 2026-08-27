@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: tesis
+      POSTGRES_USER: tesis
+      POSTGRES_PASSWORD: tesis_local
+    ports:
+      - "5434:5432"
+    volumes:
+      - tesis-postgres:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tesis -d tesis"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  tesis-postgres:
