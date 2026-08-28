@@ -12,6 +12,7 @@ describe('AddGarmentSelect', () => {
 
     expect(screen.queryByRole('button')).toBeNull();
     const select = screen.getByRole('combobox', { name: 'Agregar prenda' });
+    expect(screen.queryByRole('option', { name: 'Buzo' })).toBeNull();
     await user.selectOptions(select, 'polo');
 
     expect(onAdd).toHaveBeenCalledOnce();
