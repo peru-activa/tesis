@@ -45,6 +45,24 @@ La demostración separa la solicitud del cliente, el precio definido por Perú
 Activa y la aceptación o rechazo posterior. Su alcance está documentado en
 [`docs/entregas/semana-03.md`](docs/entregas/semana-03.md).
 
+El portal usa rutas separadas por actor y una entrada automática:
+
+- Entrada por rol: `http://localhost:5173/demo`.
+- Cliente — formulario: `http://localhost:5173/nueva-solicitud`.
+- Cliente — pedidos actuales y anteriores: `http://localhost:5173/mis-pedidos`.
+- Perú Activa: `http://localhost:5173/peru-activa`.
+- Taller proveedor: `http://localhost:5173/taller`.
+- Evidencia R5: `http://localhost:5173/evidencia-r5`.
+
+En la primera aparecen las solicitudes nuevas y, después de aceptar una
+cotización de una sola prenda, la orden evaluada. La bandeja del taller y
+WhatsApp usan una notificación canónica; el mensaje de WhatsApp sigue siendo
+únicamente una vista previa local.
+
+Cada solicitud de la bandeja de Perú Activa abre su propio detalle en
+`/peru-activa/pedidos/COT-XXXXXXXX`. Esa pantalla reutiliza el
+resumen mostrado al cliente y permite registrar la cotización manualmente.
+
 Durante el desarrollo:
 
 - Portal React: `http://localhost:5173`
@@ -60,15 +78,54 @@ npm start
 
 El portal queda disponible en `http://localhost:3100/portal`.
 
+## Identidad local y Cloudflare Access
+
+El desarrollo reutiliza el patrón de OpenTextil: la aplicación no administra
+contraseñas. En producción, la API valida el JWT firmado que Cloudflare Access
+entrega en `Cf-Access-Jwt-Assertion`, incluido su emisor y audiencia. El correo
+verificado identifica al propietario de cada solicitud; por ello un cliente
+solo puede listar y abrir sus propios pedidos. El correo configurado en
+`PERU_ACTIVA_EMAIL` obtiene el rol operativo para cotizar y confirmar talleres.
+
+En local, `.env` define `LOCAL_CLIENT_EMAIL` y
+`LOCAL_PERU_ACTIVA_EMAIL`. Los cinco talleres simulados ingresan con estos
+números reproducibles:
+
+- `900000001`
+- `900000002`
+- `900000003`
+- `900000004`
+- `900000005`
+
+El ingreso por número es solamente identificación local para la demostración;
+no es autenticación segura. Antes de producción requiere verificación por OTP
+de WhatsApp o SMS. Cloudflare Access protege el acceso por correo, no verifica
+la posesión de un teléfono.
+
+La demostración externa autorizada está disponible en
+`https://pedidos.opentextil.com`. Cloudflare Access usa el proveedor “Código
+por correo” y el backend valida `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` y
+`PERU_ACTIVA_EMAIL`. El túnel apunta al artefacto compilado local en el puerto
+3101; por ello el portal solo permanece disponible mientras el Mac, el backend
+y el conector estén encendidos. La operación y reversión se documentan en
+[`docs/operations/cloudflare-access-local.md`](docs/operations/cloudflare-access-local.md).
+
 ## PostgreSQL
 
-Sin `DATABASE_URL`, el piloto conserva pedidos temporalmente en memoria. Con
-PostgreSQL disponible:
+Los comandos `npm run dev` y `npm start` cargan automáticamente el archivo local
+ignorado `.env`. En la instalación local auditada contiene `DATABASE_URL` para
+PostgreSQL 17 en el puerto 5432. Los pedidos y cotizaciones persisten al
+reiniciar el backend.
+
+Como alternativa reproducible con Docker:
 
 ```bash
 docker compose up -d postgres
 DATABASE_URL=postgresql://tesis:tesis_local@localhost:5434/tesis npm run dev
 ```
+
+Si `DATABASE_URL` no existe, el backend usa memoria únicamente como respaldo
+para pruebas aisladas; ese modo no conserva información después de reiniciar.
 
 El esquema reproducible está en [`db/schema.sql`](db/schema.sql). Los datos de
 la demostración son simulados y están rotulados como tales en el portal.

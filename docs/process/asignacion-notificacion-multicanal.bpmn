@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  id="Definitions_AsignacionMulticanal"
+  targetNamespace="https://peruactiva.pe/tesis">
+  <bpmn:collaboration id="Collaboration_AsignacionMulticanal">
+    <bpmn:participant id="Participant_PeruActiva" name="Perú Activa" processRef="Process_PeruActiva" />
+    <bpmn:participant id="Participant_Sistema" name="Sistema de asignación" processRef="Process_Sistema" />
+    <bpmn:participant id="Participant_Taller" name="Taller proveedor" processRef="Process_Taller" />
+    <bpmn:messageFlow id="MessageFlow_Evaluar" sourceRef="Task_SolicitarEvaluacion" targetRef="StartEvent_Evaluacion" />
+    <bpmn:messageFlow id="MessageFlow_Propuesta" sourceRef="Task_PublicarPropuesta" targetRef="CatchEvent_Propuesta" />
+    <bpmn:messageFlow id="MessageFlow_Confirmacion" sourceRef="Task_Confirmar" targetRef="CatchEvent_Confirmacion" />
+    <bpmn:messageFlow id="MessageFlow_Publicacion" sourceRef="Task_PublicarCanales" targetRef="StartEvent_AsignacionRecibida" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_PeruActiva" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_CotizacionAceptada" name="Cotización aceptada" />
+    <bpmn:sendTask id="Task_SolicitarEvaluacion" name="Solicitar evaluación automática" />
+    <bpmn:intermediateCatchEvent id="CatchEvent_Propuesta" name="Recibir propuesta explicada">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="Task_Confirmar" name="Confirmar taller propuesto" />
+    <bpmn:endEvent id="EndEvent_PeruActiva" name="Asignación confirmada" />
+    <bpmn:sequenceFlow id="Flow_PA1" sourceRef="StartEvent_CotizacionAceptada" targetRef="Task_SolicitarEvaluacion" />
+    <bpmn:sequenceFlow id="Flow_PA2" sourceRef="Task_SolicitarEvaluacion" targetRef="CatchEvent_Propuesta" />
+    <bpmn:sequenceFlow id="Flow_PA3" sourceRef="CatchEvent_Propuesta" targetRef="Task_Confirmar" />
+    <bpmn:sequenceFlow id="Flow_PA4" sourceRef="Task_Confirmar" targetRef="EndEvent_PeruActiva" />
+  </bpmn:process>
+  <bpmn:process id="Process_Sistema" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_Evaluacion" name="Pedido recibido">
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:businessRuleTask id="Task_Filtrar" name="Filtrar talleres inviables" />
+    <bpmn:businessRuleTask id="Task_Ordenar" name="Ordenar talleres elegibles" />
+    <bpmn:exclusiveGateway id="Gateway_Factible" name="¿Existe candidato?" />
+    <bpmn:sendTask id="Task_PublicarPropuesta" name="Publicar propuesta y explicación" />
+    <bpmn:intermediateCatchEvent id="CatchEvent_Confirmacion" name="Recibir confirmación">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="Task_GuardarAsignacion" name="Guardar asignación" />
+    <bpmn:sendTask id="Task_PublicarCanales" name="Publicar web y vista previa WhatsApp" />
+    <bpmn:endEvent id="EndEvent_Publicado" name="Canales actualizados" />
+    <bpmn:endEvent id="EndEvent_SinCandidato" name="Revisión requerida" />
+    <bpmn:sequenceFlow id="Flow_S1" sourceRef="StartEvent_Evaluacion" targetRef="Task_Filtrar" />
+    <bpmn:sequenceFlow id="Flow_S2" sourceRef="Task_Filtrar" targetRef="Task_Ordenar" />
+    <bpmn:sequenceFlow id="Flow_S3" sourceRef="Task_Ordenar" targetRef="Gateway_Factible" />
+    <bpmn:sequenceFlow id="Flow_S4" name="Sí" sourceRef="Gateway_Factible" targetRef="Task_PublicarPropuesta" />
+    <bpmn:sequenceFlow id="Flow_S5" name="No" sourceRef="Gateway_Factible" targetRef="EndEvent_SinCandidato" />
+    <bpmn:sequenceFlow id="Flow_S6" sourceRef="Task_PublicarPropuesta" targetRef="CatchEvent_Confirmacion" />
+    <bpmn:sequenceFlow id="Flow_S7" sourceRef="CatchEvent_Confirmacion" targetRef="Task_GuardarAsignacion" />
+    <bpmn:sequenceFlow id="Flow_S8" sourceRef="Task_GuardarAsignacion" targetRef="Task_PublicarCanales" />
+    <bpmn:sequenceFlow id="Flow_S9" sourceRef="Task_PublicarCanales" targetRef="EndEvent_Publicado" />
+  </bpmn:process>
+  <bpmn:process id="Process_Taller" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_AsignacionRecibida" name="Asignación publicada">
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:task id="Task_ConsultarWeb" name="Consultar especificaciones en web" />
+    <bpmn:endEvent id="EndEvent_Taller" name="Pedido visible" />
+    <bpmn:sequenceFlow id="Flow_T1" sourceRef="StartEvent_AsignacionRecibida" targetRef="Task_ConsultarWeb" />
+    <bpmn:sequenceFlow id="Flow_T2" sourceRef="Task_ConsultarWeb" targetRef="EndEvent_Taller" />
+  </bpmn:process>
+</bpmn:definitions>

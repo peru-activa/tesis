@@ -26,6 +26,7 @@ export interface FabricOption {
   specification: string;
   image: string;
   alt: string;
+  previewKind?: 'swatch' | 'garment';
 }
 
 export const poloCollars: readonly PoloCollarOption[] = [
@@ -131,6 +132,27 @@ export const fabricsByProduct: Record<Product, readonly FabricOption[]> = {
       specification: 'Composición principal: poliéster',
       image: '/catalog/buzo-microtec-referencial.png',
       alt: 'Conjunto de buzo gris referencial en tela Microtec',
+      previewKind: 'garment',
+    },
+    {
+      name: 'Interfil perchado',
+      title: 'Interfil',
+      description: 'Poliéster perchado',
+      benefit: 'Abrigo y resistencia para conjuntos deportivos',
+      specification: 'Cara de poliéster e interior perchado',
+      image: '/catalog/buzo-interfil-referencial.webp',
+      alt: 'Conjunto de buzo azul marino referencial en tela Interfil',
+      previewKind: 'garment',
+    },
+    {
+      name: 'Golfín',
+      title: 'Golfín',
+      description: 'Tela deportiva',
+      benefit: 'Acabado ligero para uso deportivo',
+      specification: 'Especificación técnica por confirmar con Perú Activa',
+      image: '/catalog/buzo-golfin-referencial.webp',
+      alt: 'Conjunto de buzo azul marino referencial en tela Golfín',
+      previewKind: 'garment',
     },
   ],
 };

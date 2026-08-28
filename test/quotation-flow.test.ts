@@ -4,10 +4,17 @@ import type { AddressInfo } from 'node:net';
 import { after, before, describe, it } from 'node:test';
 import { createApp } from '../src/app.js';
 import { MemoryOrderStore } from '../src/data/order-store.js';
+import { week03SimulatedWorkshops } from '../src/data/week-03-assignment-scenarios.js';
 import { MemoryQuotationStore } from '../src/infrastructure/quotation-store.js';
 
 let server: Server;
 let baseUrl: string;
+const quotationEvents: Array<{ id: string; status: string }> = [];
+const orderEvents: Array<{ id: string; source?: { quotationId: string } }> = [];
+const peruActivaHeaders = {
+  'content-type': 'application/json',
+  'x-demo-actor': 'peru_activa',
+};
 
 const draft = {
   customer: {
@@ -48,6 +55,8 @@ before(async () => {
     createApp({
       orderStore: new MemoryOrderStore(),
       quotationStore: new MemoryQuotationStore(),
+      onQuotationUpdated: (quotation) => quotationEvents.push(quotation),
+      onOrderUpdated: (order) => orderEvents.push(order),
     }),
   );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -73,6 +82,12 @@ describe('quotation request flow', () => {
     assert.equal(created.request.status, 'pending_quote');
     assert.equal(created.request.quotation, undefined, 'the form must not generate a price');
 
+    const detailResponse = await fetch(`${baseUrl}/v1/quotation-requests/${created.request.id}`);
+    assert.equal(detailResponse.status, 200);
+    const detail = await detailResponse.json();
+    assert.equal(detail.request.id, created.request.id);
+    assert.deepEqual(detail.request.request, draft);
+
     const prematureDecision = await fetch(
       `${baseUrl}/v1/quotation-requests/${created.request.id}/decision`,
       {
@@ -87,9 +102,10 @@ describe('quotation request flow', () => {
       `${baseUrl}/v1/quotation-requests/${created.request.id}/quotation`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: peruActivaHeaders,
         body: JSON.stringify({
           totalPricePEN: 1_920,
+          lineItems: [{ garmentIndex: 0, unitPricePEN: 60 }],
           selectedFabric: 'Zanetti 100 % poliéster',
           validUntil: '2026-09-05',
           conditions: 'Incluye confección y un bordado por prenda.',
@@ -100,6 +116,7 @@ describe('quotation request flow', () => {
     const quoted = await quotedResponse.json();
     assert.equal(quoted.request.status, 'quoted');
     assert.equal(quoted.request.quotation.totalPricePEN, 1_920);
+    assert.equal(quoted.request.quotation.lineItems[0].unitPricePEN, 60);
 
     const acceptedResponse = await fetch(
       `${baseUrl}/v1/quotation-requests/${created.request.id}/decision`,
@@ -112,6 +129,110 @@ describe('quotation request flow', () => {
     assert.equal(acceptedResponse.status, 200);
     const accepted = await acceptedResponse.json();
     assert.equal(accepted.request.status, 'accepted');
+    assert.equal(accepted.request.production.status, 'recommended');
+    assert.equal(accepted.request.production.orderIds.length, 1);
+
+    const ordersResponse = await fetch(`${baseUrl}/v1/orders`, {
+      headers: { 'x-demo-actor': 'peru_activa' },
+    });
+    const orders = await ordersResponse.json();
+    const productionOrder = orders.orders.find(
+      (order: { id: string }) => order.id === accepted.request.production.orderIds[0],
+    );
+    assert.equal(productionOrder.source.quotationId, accepted.request.id);
+    assert.equal(productionOrder.status, 'recommended');
+    assert.equal(productionOrder.draft.material, 'poliéster');
+    assert.equal(productionOrder.draft.sizes.M, 14);
+    assert.ok(productionOrder.recommendation.candidates.length > 0);
+
+    const workshop = week03SimulatedWorkshops.find(
+      (item) => item.id === productionOrder.recommendation.candidates[0].workshopId,
+    );
+    assert.ok(workshop?.contactPhone);
+    const confirmationResponse = await fetch(
+      `${baseUrl}/v1/orders/${productionOrder.id}/confirm`,
+      {
+        method: 'POST',
+        headers: peruActivaHeaders,
+        body: JSON.stringify({ workshopId: workshop.id }),
+      },
+    );
+    assert.equal(confirmationResponse.status, 200);
+
+    const assignedTrackingResponse = await fetch(
+      `${baseUrl}/v1/my-orders/${created.request.id}`,
+    );
+    const assignedTracking = await assignedTrackingResponse.json();
+    assert.equal(assignedTracking.item.productionOrders[0].status, 'assigned');
+
+    const unauthorizedWorkshop = week03SimulatedWorkshops.find(
+      (item) => item.id !== workshop.id,
+    );
+    assert.ok(unauthorizedWorkshop?.contactPhone);
+    const unauthorizedStatusResponse = await fetch(
+      `${baseUrl}/v1/orders/${productionOrder.id}/status`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-demo-workshop-phone': unauthorizedWorkshop.contactPhone,
+        },
+        body: JSON.stringify({ status: 'in_production' }),
+      },
+    );
+    assert.equal(unauthorizedStatusResponse.status, 404);
+
+    const productionStatusResponse = await fetch(
+      `${baseUrl}/v1/orders/${productionOrder.id}/status`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-demo-workshop-phone': workshop.contactPhone,
+        },
+        body: JSON.stringify({ status: 'in_production' }),
+      },
+    );
+    assert.equal(productionStatusResponse.status, 200);
+
+    const completedStatusResponse = await fetch(
+      `${baseUrl}/v1/orders/${productionOrder.id}/status`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-demo-workshop-phone': workshop.contactPhone,
+        },
+        body: JSON.stringify({ status: 'completed' }),
+      },
+    );
+    assert.equal(completedStatusResponse.status, 200);
+
+    const completedTrackingResponse = await fetch(
+      `${baseUrl}/v1/my-orders/${created.request.id}`,
+    );
+    const completedTracking = await completedTrackingResponse.json();
+    assert.equal(completedTracking.item.productionOrders[0].status, 'completed');
+
+    const repeatedCompletionResponse = await fetch(
+      `${baseUrl}/v1/orders/${productionOrder.id}/status`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-demo-workshop-phone': workshop.contactPhone,
+        },
+        body: JSON.stringify({ status: 'completed' }),
+      },
+    );
+    assert.equal(repeatedCompletionResponse.status, 409);
+    assert.deepEqual(
+      quotationEvents
+        .filter((event) => event.id === accepted.request.id)
+        .map((event) => event.status),
+      ['pending_quote', 'quoted', 'accepted'],
+    );
+    assert.ok(orderEvents.some((event) => event.source?.quotationId === accepted.request.id));
   });
 
   it('rejects a request when the size distribution differs from the total', async () => {
@@ -199,6 +320,42 @@ describe('quotation request flow', () => {
       ],
       ['polo', 'buzo'],
     );
+
+    const quoteResponse = await fetch(
+      `${baseUrl}/v1/quotation-requests/${payload.request.id}/quotation`,
+      {
+        method: 'POST',
+        headers: peruActivaHeaders,
+        body: JSON.stringify({
+          totalPricePEN: 1,
+          lineItems: [
+            { garmentIndex: 0, unitPricePEN: 60 },
+            { garmentIndex: 1, unitPricePEN: 80 },
+          ],
+          selectedFabric: 'Microtec poliéster',
+          validUntil: '2026-09-05',
+          conditions: 'Cotización simulada para dos prendas.',
+        }),
+      },
+    );
+    assert.equal(quoteResponse.status, 200);
+    const quote = await quoteResponse.json();
+    assert.equal(quote.request.quotation.totalPricePEN, 4_480);
+    assert.deepEqual(quote.request.quotation.lineItems, [
+      { garmentIndex: 0, unitPricePEN: 60 },
+      { garmentIndex: 1, unitPricePEN: 80 },
+    ]);
+    const decisionResponse = await fetch(
+      `${baseUrl}/v1/quotation-requests/${payload.request.id}/decision`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ decision: 'accepted' }),
+      },
+    );
+    const decision = await decisionResponse.json();
+    assert.equal(decision.request.production.status, 'requires_scope_decision');
+    assert.deepEqual(decision.request.production.orderIds, []);
   });
 
   it('does not require a design when the garment has no customization', async () => {

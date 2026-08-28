@@ -26,3 +26,5 @@ CREATE TABLE IF NOT EXISTS thesis_quotation_requests (
 
 CREATE INDEX IF NOT EXISTS thesis_quotation_requests_status_idx
   ON thesis_quotation_requests(status);
+CREATE INDEX IF NOT EXISTS thesis_quotation_requests_owner_subject_idx
+  ON thesis_quotation_requests ((payload->'owner'->>'subject'));

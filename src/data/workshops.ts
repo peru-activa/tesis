@@ -4,9 +4,18 @@ export const simulatedWorkshops: Workshop[] = [
   {
     id: 'workshop-b',
     displayName: 'Taller B',
+    contactPhone: '900000002',
     products: ['polo'],
     materials: ['algodón', 'dry-fit', 'poliéster'],
-    processes: ['design', 'cutting', 'sewing', 'printing', 'embroidery', 'sublimation', 'finishing'],
+    processes: [
+      'design',
+      'cutting',
+      'sewing',
+      'printing',
+      'embroidery',
+      'sublimation',
+      'finishing',
+    ],
     minimumUnits: 20,
     maximumUnits: 300,
     availableCapacity: 240,
@@ -19,6 +28,7 @@ export const simulatedWorkshops: Workshop[] = [
   {
     id: 'workshop-a',
     displayName: 'Taller A',
+    contactPhone: '900000001',
     products: ['polo'],
     materials: ['algodón', 'poliéster'],
     processes: ['design', 'cutting', 'sewing', 'printing', 'embroidery', 'finishing'],
@@ -34,6 +44,7 @@ export const simulatedWorkshops: Workshop[] = [
   {
     id: 'workshop-c',
     displayName: 'Taller C',
+    contactPhone: '900000003',
     products: ['polo'],
     materials: ['algodón', 'dry-fit'],
     processes: ['cutting', 'sewing', 'sublimation'],

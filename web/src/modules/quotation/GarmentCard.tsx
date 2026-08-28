@@ -77,9 +77,7 @@ export function GarmentCard({
   }
 
   return (
-    <section
-      className={`quote-garment-row ${garment.product === 'polo' && !optionsExpanded ? 'completed' : ''}`}
-    >
+    <section className={`quote-garment-row ${!optionsExpanded ? 'completed' : ''}`}>
       <div className="quote-garment-row-head">
         <strong>{title}</strong>
         <button
@@ -93,98 +91,96 @@ export function GarmentCard({
       </div>
       <div className="quote-garment-row-body">
         <div className="quote-garment-config">
-          {garment.product === 'buzo' && (
-            <div className="quote-garment-basics single">
-              <QuantityInput quantity={garment.quantity} onChange={onChangeQuantity} />
+          <div className="quote-garment-options-scroll" ref={optionsScrollRef}>
+            <div className="quote-visual-options">
+              {!optionsExpanded ? (
+                <div className="quote-completed-controls">
+                  <QuantityInput quantity={garment.quantity} onChange={onChangeQuantity} />
+                  <button
+                    type="button"
+                    className="quote-edit-options"
+                    onClick={() => setEditorMode(garment.product === 'polo' ? 'collar' : 'fabric')}
+                  >
+                    Cambiar opciones
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {garment.product === 'polo' && (
+                    <>
+                      <CollarPicker
+                        inputName={`${garmentKey}-collar`}
+                        options={collarOptions}
+                        selected={selectedCollar}
+                        expanded={editorMode === 'collar' || !selectedCollar}
+                        onEdit={() => setEditorMode('collar')}
+                        onPreview={setPreviewedCollar}
+                        onSelect={selectCollar}
+                      />
+                      {selectedCollar && (
+                        <div ref={cutSectionRef}>
+                          <TextOptionPicker
+                            inputName={`${garmentKey}-cut`}
+                            legend="Corte"
+                            summaryLabel="Corte"
+                            options={cutOptions}
+                            selected={selectedCut}
+                            expanded={editorMode === 'cut' || !selectedCut}
+                            onEdit={() => setEditorMode('cut')}
+                            onSelect={selectCut}
+                          />
+                        </div>
+                      )}
+                      {selectedCollar && selectedCut && (
+                        <div ref={sleeveSectionRef}>
+                          <TextOptionPicker
+                            inputName={`${garmentKey}-sleeve`}
+                            legend="Tipo de manga"
+                            summaryLabel="Manga"
+                            options={sleeveOptions}
+                            selected={selectedSleeve}
+                            expanded={editorMode === 'sleeve' || !selectedSleeve}
+                            onEdit={() => setEditorMode('sleeve')}
+                            onSelect={selectSleeve}
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {(garment.product === 'buzo' ||
+                    (selectedCollar && selectedCut && selectedSleeve)) && (
+                    <div ref={fabricSectionRef}>
+                      <FabricPicker
+                        inputName={`${garmentKey}-fabric`}
+                        options={fabricOptions}
+                        selected={selectedFabric}
+                        selectedName={fabricName}
+                        isProposal={garment.fabric.mode === 'proposal'}
+                        isCustom={customFabric}
+                        isOpen={fabricPickerOpen}
+                        onToggle={toggleFabricPicker}
+                        onPreview={setPreviewedFabric}
+                        onSelect={selectFabric}
+                        onSelectProposal={selectFabricProposal}
+                        onSelectCustom={selectCustomFabric}
+                        onCustomNameChange={changeCustomFabricName}
+                        onCustomNameCommit={commitCustomFabric}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          )}
-          {garment.product === 'polo' && (
-            <div className="quote-garment-options-scroll" ref={optionsScrollRef}>
-              <div className="quote-visual-options">
-                {!optionsExpanded ? (
-                  <div className="quote-completed-controls">
-                    <QuantityInput quantity={garment.quantity} onChange={onChangeQuantity} />
-                    <button
-                      type="button"
-                      className="quote-edit-options"
-                      onClick={() => setEditorMode('collar')}
-                    >
-                      Cambiar opciones
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <CollarPicker
-                      inputName={`${garmentKey}-collar`}
-                      options={collarOptions}
-                      selected={selectedCollar}
-                      expanded={editorMode === 'collar' || !selectedCollar}
-                      onEdit={() => setEditorMode('collar')}
-                      onPreview={setPreviewedCollar}
-                      onSelect={selectCollar}
-                    />
-                    {selectedCollar && (
-                      <div ref={cutSectionRef}>
-                        <TextOptionPicker
-                          inputName={`${garmentKey}-cut`}
-                          legend="Corte"
-                          summaryLabel="Corte"
-                          options={cutOptions}
-                          selected={selectedCut}
-                          expanded={editorMode === 'cut' || !selectedCut}
-                          onEdit={() => setEditorMode('cut')}
-                          onSelect={selectCut}
-                        />
-                      </div>
-                    )}
-                    {selectedCollar && selectedCut && (
-                      <div ref={sleeveSectionRef}>
-                        <TextOptionPicker
-                          inputName={`${garmentKey}-sleeve`}
-                          legend="Tipo de manga"
-                          summaryLabel="Manga"
-                          options={sleeveOptions}
-                          selected={selectedSleeve}
-                          expanded={editorMode === 'sleeve' || !selectedSleeve}
-                          onEdit={() => setEditorMode('sleeve')}
-                          onSelect={selectSleeve}
-                        />
-                      </div>
-                    )}
-                    {selectedCollar && selectedCut && selectedSleeve && (
-                      <div ref={fabricSectionRef}>
-                        <FabricPicker
-                          inputName={`${garmentKey}-fabric`}
-                          options={fabricOptions}
-                          selected={selectedFabric}
-                          selectedName={fabricName}
-                          isProposal={garment.fabric.mode === 'proposal'}
-                          isCustom={customFabric}
-                          isOpen={fabricPickerOpen}
-                          onToggle={toggleFabricPicker}
-                          onPreview={setPreviewedFabric}
-                          onSelect={selectFabric}
-                          onSelectProposal={selectFabricProposal}
-                          onSelectCustom={selectCustomFabric}
-                          onCustomNameChange={changeCustomFabricName}
-                          onCustomNameCommit={commitCustomFabric}
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          )}
+          </div>
         </div>
         {previewImage && (
           <GarmentPreview
             garmentImage={previewImage}
             garmentAlt={previewAlt}
             title={previewTitle}
-            fabric={garment.product === 'polo' ? previewFabric : undefined}
+            fabric={previewFabric}
             fabricTitle={previewFabricTitle}
-            fabricMode={garment.product === 'polo' && fabricPickerOpen}
+            fabricMode={fabricPickerOpen}
           />
         )}
       </div>

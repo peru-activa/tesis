@@ -17,11 +17,15 @@ export function GarmentPreview({
   fabricTitle,
   fabricMode,
 }: GarmentPreviewProps) {
+  const fabricUsesGarmentPreview = fabric?.previewKind === 'garment';
+
   return (
-    <figure className={`quote-garment-preview ${fabricMode ? 'fabric-mode' : ''}`}>
+    <figure
+      className={`quote-garment-preview ${fabricMode ? 'fabric-mode' : ''} ${fabricUsesGarmentPreview ? 'garment-fabric-preview' : ''}`}
+    >
       <div className="quote-preview-media">
         <img className="quote-preview-garment" src={garmentImage} alt={garmentAlt} />
-        {fabricMode && fabric && (
+        {fabricMode && fabric && !fabricUsesGarmentPreview && (
           <img className="quote-preview-fabric-large" src={fabric.image} alt={fabric.alt} />
         )}
       </div>
@@ -42,7 +46,10 @@ export function GarmentPreview({
             </div>
           </div>
         ) : (
-          fabric && <img className="quote-preview-fabric" src={fabric.image} alt={fabric.alt} />
+          fabric &&
+          !fabricUsesGarmentPreview && (
+            <img className="quote-preview-fabric" src={fabric.image} alt={fabric.alt} />
+          )
         )}
       </figcaption>
     </figure>
