@@ -1,7 +1,7 @@
 import { recommendationRequestSchema, type Workshop } from '../domain/contracts.js';
 import { orderDraftSchema, type OrderDraft } from '../domain/orders.js';
 
-export const WEEK_03_DATASET_VERSION = 'r5-synthetic-v1';
+export const WEEK_03_DATASET_VERSION = 'r5-synthetic-v2';
 export const WEEK_03_SEED = 20_260_827;
 export const WEEK_03_EVALUATED_AT = '2026-08-27T09:00:00-05:00';
 
@@ -11,7 +11,7 @@ export const week03SimulatedWorkshops: Workshop[] = [
     displayName: 'Taller simulado A',
     contactPhone: '900000001',
     products: ['polo'],
-    materials: ['algodón', 'poliéster'],
+    materials: ['pima 20/1', 'pima 30/1'],
     processes: [
       'fabric_sourcing',
       'design',
@@ -40,8 +40,8 @@ export const week03SimulatedWorkshops: Workshop[] = [
     id: 'sim-workshop-b',
     displayName: 'Taller simulado B',
     contactPhone: '900000002',
-    products: ['polo', 'buzo'],
-    materials: ['algodón', 'dry-fit', 'poliéster'],
+    products: ['polo'],
+    materials: ['pima 20/1', 'piqué lacoste', 'zanetti'],
     processes: [
       'fabric_sourcing',
       'design',
@@ -72,8 +72,8 @@ export const week03SimulatedWorkshops: Workshop[] = [
     id: 'sim-workshop-c',
     displayName: 'Taller simulado C',
     contactPhone: '900000003',
-    products: ['polo', 'buzo'],
-    materials: ['dry-fit', 'poliéster'],
+    products: ['polo'],
+    materials: ['dry fit', 'win'],
     processes: [
       'design',
       'patternmaking',
@@ -99,7 +99,7 @@ export const week03SimulatedWorkshops: Workshop[] = [
     displayName: 'Taller simulado D',
     contactPhone: '900000004',
     products: ['polo'],
-    materials: ['algodón'],
+    materials: ['pima 20/1', 'pima 30/1'],
     processes: [
       'fabric_sourcing',
       'design',
@@ -125,8 +125,8 @@ export const week03SimulatedWorkshops: Workshop[] = [
     id: 'sim-workshop-e',
     displayName: 'Taller simulado E',
     contactPhone: '900000005',
-    products: ['polo', 'buzo'],
-    materials: ['algodón', 'poliéster'],
+    products: ['polo'],
+    materials: ['pima 20/1', 'piqué lacoste', 'zanetti'],
     processes: [
       'fabric_sourcing',
       'design',
@@ -165,7 +165,7 @@ function draft(overrides: Partial<OrderDraft> = {}): OrderDraft {
   return orderDraftSchema.parse({
     product: 'polo',
     quantity: 100,
-    material: 'algodón',
+    material: 'pima 20/1',
     color: 'Azul marino',
     sizes: { S: 20, M: 35, L: 30, XL: 15 },
     customization: 'printing',
@@ -191,7 +191,7 @@ export const week03AssignmentScenarios: Week03AssignmentScenario[] = [
     focus: 'Especialización en sublimación y material dry-fit.',
     draft: draft({
       quantity: 160,
-      material: 'dry-fit',
+      material: 'dry fit',
       color: 'Rojo',
       sizes: { S: 30, M: 50, L: 50, XL: 30 },
       customization: 'sublimation',
@@ -213,17 +213,16 @@ export const week03AssignmentScenarios: Week03AssignmentScenario[] = [
     requiredProcesses: ['design', 'cutting', 'sewing', 'embroidery', 'finishing'],
   },
   {
-    id: 'integrated-tracksuit',
-    title: 'Buzo integrado',
-    focus: 'Cobertura de producto, material y procesos para un buzo.',
+    id: 'lacoste-specialist',
+    title: 'Piqué Lacoste especializado',
+    focus: 'Solo compiten talleres que declararon trabajar esta tela específica.',
     draft: draft({
-      product: 'buzo',
       quantity: 120,
-      material: 'poliéster',
+      material: 'piqué lacoste',
       color: 'Gris',
       sizes: { S: 20, M: 40, L: 40, XL: 20 },
       requiredBy: '2026-09-18',
-      designReference: 'Logotipo estampado en casaca',
+      designReference: 'Logotipo estampado al pecho',
     }),
     requiredProcesses: ['design', 'cutting', 'sewing', 'printing', 'finishing'],
   },
@@ -241,9 +240,9 @@ export const week03AssignmentScenarios: Week03AssignmentScenario[] = [
     requiredProcesses: ['design', 'cutting', 'sewing', 'embroidery', 'finishing'],
   },
   {
-    id: 'insufficient-capacity',
-    title: 'Capacidad insuficiente',
-    focus: 'Ningún taller compatible dispone del volumen requerido.',
+    id: 'shared-capacity',
+    title: 'Capacidad compartida',
+    focus: 'Ningún taller cubre el volumen solo; se propone dividirlo entre dos talleres.',
     draft: draft({
       quantity: 450,
       color: 'Blanco',
@@ -265,7 +264,7 @@ export const week03AssignmentScenarios: Week03AssignmentScenario[] = [
     title: 'Material sin cobertura',
     focus: 'Todos los talleres se descartan por material no atendido.',
     draft: draft({
-      material: 'algodón',
+      material: 'pima 20/1',
       color: 'Crudo',
       designReference: 'Acabado sobre lona',
       notes: 'Escenario técnico: el motor recibe material lona.',

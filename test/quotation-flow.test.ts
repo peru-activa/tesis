@@ -141,7 +141,7 @@ describe('quotation request flow', () => {
     );
     assert.equal(productionOrder.source.quotationId, accepted.request.id);
     assert.equal(productionOrder.status, 'recommended');
-    assert.equal(productionOrder.draft.material, 'poliéster');
+    assert.equal(productionOrder.draft.material, 'zanetti');
     assert.equal(productionOrder.draft.sizes.M, 14);
     assert.ok(productionOrder.recommendation.candidates.length > 0);
 
@@ -149,25 +149,18 @@ describe('quotation request flow', () => {
       (item) => item.id === productionOrder.recommendation.candidates[0].workshopId,
     );
     assert.ok(workshop?.contactPhone);
-    const confirmationResponse = await fetch(
-      `${baseUrl}/v1/orders/${productionOrder.id}/confirm`,
-      {
-        method: 'POST',
-        headers: peruActivaHeaders,
-        body: JSON.stringify({ workshopId: workshop.id }),
-      },
-    );
+    const confirmationResponse = await fetch(`${baseUrl}/v1/orders/${productionOrder.id}/confirm`, {
+      method: 'POST',
+      headers: peruActivaHeaders,
+      body: JSON.stringify({ workshopId: workshop.id }),
+    });
     assert.equal(confirmationResponse.status, 200);
 
-    const assignedTrackingResponse = await fetch(
-      `${baseUrl}/v1/my-orders/${created.request.id}`,
-    );
+    const assignedTrackingResponse = await fetch(`${baseUrl}/v1/my-orders/${created.request.id}`);
     const assignedTracking = await assignedTrackingResponse.json();
     assert.equal(assignedTracking.item.productionOrders[0].status, 'assigned');
 
-    const unauthorizedWorkshop = week03SimulatedWorkshops.find(
-      (item) => item.id !== workshop.id,
-    );
+    const unauthorizedWorkshop = week03SimulatedWorkshops.find((item) => item.id !== workshop.id);
     assert.ok(unauthorizedWorkshop?.contactPhone);
     const unauthorizedStatusResponse = await fetch(
       `${baseUrl}/v1/orders/${productionOrder.id}/status`,
@@ -208,9 +201,7 @@ describe('quotation request flow', () => {
     );
     assert.equal(completedStatusResponse.status, 200);
 
-    const completedTrackingResponse = await fetch(
-      `${baseUrl}/v1/my-orders/${created.request.id}`,
-    );
+    const completedTrackingResponse = await fetch(`${baseUrl}/v1/my-orders/${created.request.id}`);
     const completedTracking = await completedTrackingResponse.json();
     assert.equal(completedTracking.item.productionOrders[0].status, 'completed');
 

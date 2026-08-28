@@ -9,16 +9,28 @@ export interface OrderStore {
   assign(
     id: string,
     assignment: OrderAssignment,
-    notification: WorkshopNotification,
+    notifications: WorkshopNotification[],
   ): Promise<PortalOrder | undefined>;
-  updateStatus(id: string, status: OrderStatus, occurredAt: string): Promise<PortalOrder | undefined>;
+  updateAllocationStatus(
+    id: string,
+    workshopId: string,
+    status: 'in_production' | 'completed',
+    occurredAt: string,
+  ): Promise<PortalOrder | undefined>;
+  updateStatus(
+    id: string,
+    status: OrderStatus,
+    occurredAt: string,
+  ): Promise<PortalOrder | undefined>;
 }
 
 export class MemoryOrderStore implements OrderStore {
   private readonly orders = new Map<string, PortalOrder>();
 
   async list(): Promise<PortalOrder[]> {
-    return [...this.orders.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    return [...this.orders.values()].sort((left, right) =>
+      right.createdAt.localeCompare(left.createdAt),
+    );
   }
 
   async get(id: string): Promise<PortalOrder | undefined> {
@@ -33,7 +45,7 @@ export class MemoryOrderStore implements OrderStore {
   async assign(
     id: string,
     assignment: OrderAssignment,
-    notification: WorkshopNotification,
+    notifications: WorkshopNotification[],
   ): Promise<PortalOrder | undefined> {
     const current = this.orders.get(id);
     if (!current) return undefined;
@@ -41,8 +53,48 @@ export class MemoryOrderStore implements OrderStore {
       ...current,
       status: 'assigned',
       assignment,
-      notification,
+      notification: notifications[0]!,
+      notifications,
       updatedAt: assignment.confirmedAt,
+    };
+    this.orders.set(id, updated);
+    return updated;
+  }
+
+  async updateAllocationStatus(
+    id: string,
+    workshopId: string,
+    status: 'in_production' | 'completed',
+    occurredAt: string,
+  ): Promise<PortalOrder | undefined> {
+    const current = this.orders.get(id);
+    if (!current?.assignment) return undefined;
+    const currentAllocations = current.assignment.allocations || [
+      {
+        workshopId: current.assignment.workshopId,
+        displayName: current.assignment.displayName,
+        quantity: current.draft.quantity,
+        status:
+          current.status === 'completed'
+            ? ('completed' as const)
+            : current.status === 'in_production'
+              ? ('in_production' as const)
+              : ('assigned' as const),
+      },
+    ];
+    const allocations = currentAllocations.map((allocation) =>
+      allocation.workshopId === workshopId ? { ...allocation, status } : allocation,
+    );
+    const orderStatus = allocations.every((allocation) => allocation.status === 'completed')
+      ? 'completed'
+      : allocations.some((allocation) => allocation.status !== 'assigned')
+        ? 'in_production'
+        : 'assigned';
+    const updated: PortalOrder = {
+      ...current,
+      status: orderStatus,
+      updatedAt: occurredAt,
+      assignment: { ...current.assignment, allocations },
     };
     this.orders.set(id, updated);
     return updated;
@@ -129,7 +181,7 @@ export class PostgresOrderStore implements OrderStore {
   async assign(
     id: string,
     assignment: OrderAssignment,
-    notification: WorkshopNotification,
+    notifications: WorkshopNotification[],
   ): Promise<PortalOrder | undefined> {
     const current = await this.get(id);
     if (!current) return undefined;
@@ -137,7 +189,8 @@ export class PostgresOrderStore implements OrderStore {
       ...current,
       status: 'assigned',
       assignment,
-      notification,
+      notification: notifications[0]!,
+      notifications,
       updatedAt: assignment.confirmedAt,
     };
     const client = await this.pool.connect();
@@ -159,6 +212,66 @@ export class PostgresOrderStore implements OrderStore {
       client.release();
     }
     return updated;
+  }
+
+  async updateAllocationStatus(
+    id: string,
+    workshopId: string,
+    status: 'in_production' | 'completed',
+    occurredAt: string,
+  ): Promise<PortalOrder | undefined> {
+    const current = await this.get(id);
+    if (!current?.assignment) return undefined;
+    const currentAllocations = current.assignment.allocations || [
+      {
+        workshopId: current.assignment.workshopId,
+        displayName: current.assignment.displayName,
+        quantity: current.draft.quantity,
+        status:
+          current.status === 'completed'
+            ? ('completed' as const)
+            : current.status === 'in_production'
+              ? ('in_production' as const)
+              : ('assigned' as const),
+      },
+    ];
+    const allocations = currentAllocations.map((allocation) =>
+      allocation.workshopId === workshopId ? { ...allocation, status } : allocation,
+    );
+    const orderStatus = allocations.every((allocation) => allocation.status === 'completed')
+      ? 'completed'
+      : allocations.some((allocation) => allocation.status !== 'assigned')
+        ? 'in_production'
+        : 'assigned';
+    const updated: PortalOrder = {
+      ...current,
+      status: orderStatus,
+      updatedAt: occurredAt,
+      assignment: { ...current.assignment, allocations },
+    };
+    await this.persistUpdate(updated);
+    return updated;
+  }
+
+  private async persistUpdate(updated: PortalOrder): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'UPDATE thesis_orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
+        [updated.id, updated.updatedAt, updated.status, updated],
+      );
+      await client.query(
+        'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
+        [updated.id, updated.status, updated.updatedAt],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async updateStatus(

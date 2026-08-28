@@ -2,15 +2,15 @@
 
 ## Trazabilidad
 
-| Elemento | Alcance del incremento |
-| --- | --- |
-| Objetivo específico | O2: implementar la asignación automática de pedidos a talleres externos. |
-| Resultados | R5, R7 y R8 parciales. |
-| Medio de verificación | Código fuente, contrato HTTP, interfaz ejecutable, eventos Socket.io y pruebas automatizadas. |
-| IOV preparado | Factibilidad, coincidencia de procesos, restricciones incumplidas y reproducibilidad con datos simulados. |
-| EDT | Diseño de arquitectura/contratos e interfaz; avance conectado de EDT1312 y EDT1313. |
-| Semana | Semana 3 del ciclo 2026-2. |
-| Evidencia | Dataset `r5-synthetic-v1`, ocho escenarios, pruebas y demostración local. |
+| Elemento              | Alcance del incremento                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| Objetivo específico   | O2: implementar la asignación automática de pedidos a talleres externos.                                  |
+| Resultados            | R5, R7 y R8 parciales.                                                                                    |
+| Medio de verificación | Código fuente, contrato HTTP, interfaz ejecutable, eventos Socket.io y pruebas automatizadas.             |
+| IOV preparado         | Factibilidad, coincidencia de procesos, restricciones incumplidas y reproducibilidad con datos simulados. |
+| EDT                   | Diseño de arquitectura/contratos e interfaz; avance conectado de EDT1312 y EDT1313.                       |
+| Semana                | Semana 3 del ciclo 2026-2.                                                                                |
+| Evidencia             | Dataset `r5-synthetic-v2`, ocho escenarios, pruebas y demostración local.                                 |
 
 Este incremento no demuestra los IOV finales de R5. No utiliza datos históricos
 autorizados, no implementa todavía el algoritmo genético final y no reporta
@@ -61,16 +61,17 @@ se conserva y será descartada de forma explicable si ningún taller la atiende.
 2. La API valida la entrada y ejecuta la línea base heurística.
 3. El motor descarta talleres inviables y ordena los elegibles.
 4. La interfaz muestra la propuesta, sus factores y las razones de descarte.
-5. Perú Activa confirma un taller que pertenece a la lista de candidatos.
-6. La API guarda la asignación y construye una notificación canónica.
-7. La proyección web queda publicada para el taller.
+5. Perú Activa confirma un plan calculado de uno, dos o tres talleres.
+6. La API guarda la asignación y construye una notificación por taller con su cantidad.
+7. La proyección web queda publicada únicamente para los talleres asignados.
 8. Se genera una vista previa local de WhatsApp con los mismos datos operativos.
 9. Socket.io publica el pedido actualizado y las vistas abiertas se refrescan.
 
 ### Flujos alternativos
 
-- Si no existe un taller elegible, la API devuelve las razones y no crea una
-  asignación.
+- Si ningún taller cubre el pedido, la API evalúa primero combinaciones de dos
+  talleres y luego de tres; si aún no existe capacidad suficiente, devuelve las
+  razones y no crea una asignación.
 - Si se intenta confirmar un taller descartado, la API rechaza la operación.
 - Si se reinicia el servicio sin PostgreSQL, los datos temporales se pierden.
 
@@ -102,14 +103,15 @@ en texto estructurado sin consultar ni duplicar reglas de negocio.
 
 ## Dataset reproducible
 
-`r5-synthetic-v1` contiene cinco talleres ficticios y ocho pedidos de frontera:
+`r5-synthetic-v2` contiene cinco talleres ficticios especializados por tela y
+ocho pedidos de frontera:
 
 1. polo equilibrado;
 2. prenda deportiva con sublimación;
 3. especialización en bordado;
-4. buzo con procesos integrados;
+4. Piqué Lacoste especializado;
 5. capacidad exactamente en el límite;
-6. capacidad insuficiente;
+6. capacidad compartida entre dos talleres;
 7. plazo incompatible;
 8. material sin cobertura.
 

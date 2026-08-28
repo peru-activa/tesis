@@ -14,7 +14,7 @@
 
 **Actor principal:** cliente de Perú Activa.
 
-**Necesidad:** comunicar un requerimiento de polos o buzos con información
+**Necesidad:** comunicar un requerimiento de polos con información
 suficiente para que Perú Activa prepare una cotización.
 
 **Precondición:** el cliente conoce la prenda, cantidad, tallas, color, diseño o
@@ -23,7 +23,7 @@ una propuesta.
 
 **Flujo principal:**
 
-1. El cliente selecciona polo o buzo.
+1. El cliente agrega uno o más tipos de polo.
 2. Registra variante, cantidad y distribución de tallas.
 3. Registra color, personalización, número de aplicaciones y referencia visual.
 4. Elige una tela conocida o solicita una propuesta.
@@ -50,7 +50,7 @@ una propuesta.
 
 ## Criterios de aceptación de R1 parcial
 
-- El formulario admite los tipos provisionales `polo` y `buzo`.
+- El formulario admite provisionalmente polos y sus variantes.
 - La suma de cantidades por talla coincide con la cantidad total.
 - No se puede enviar sin color, fecha, lugar de entrega o contacto.
 - La tela desconocida no bloquea la solicitud y queda identificada como una
@@ -88,11 +88,12 @@ cola del dashboard de Perú Activa mediante la invalidación
 aceptar una cotización de una sola prenda, el backend crea la orden de
 producción y ejecuta la evaluación sin una acción adicional.
 
-El motor filtra cinco talleres simulados por producto, material, procesos,
-capacidad, disponibilidad y plazo; después ordena únicamente los candidatos
-factibles mediante factores y pesos visibles. Perú Activa confirma humanamente
-uno de esos candidatos. El backend crea entonces una notificación canónica que
-alimenta la bandeja web del taller y la vista previa local de WhatsApp.
+El motor filtra cinco talleres simulados por producto, tela exacta, procesos,
+capacidad, disponibilidad y plazo. Si un taller no cubre la cantidad, evalúa
+planes de dos y, solo después, de tres talleres. Perú Activa confirma
+humanamente un plan y el backend crea una notificación por taller con la
+cantidad que le corresponde; esa información alimenta la bandeja web y la
+vista previa local de WhatsApp.
 
 ### Reproducción
 

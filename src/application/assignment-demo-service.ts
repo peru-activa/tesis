@@ -97,7 +97,8 @@ export class AssignmentDemoService {
       return {
         status: 'requires_scope_decision',
         orderIds: [],
-        message: 'La cotización contiene varias prendas; falta definir si se asignan juntas o por separado.',
+        message:
+          'La cotización contiene varias prendas; falta definir si se asignan juntas o por separado.',
         orders: [],
       };
     }
@@ -133,42 +134,54 @@ export class AssignmentDemoService {
       status: hasCandidate ? 'recommended' : 'no_eligible_workshop',
       orderIds: [order.id],
       message: hasCandidate
-        ? 'Orden creada y evaluada automáticamente; Perú Activa debe confirmar el taller.'
+        ? 'Orden creada y evaluada automáticamente; Perú Activa debe confirmar el plan de asignación.'
         : 'Orden creada, pero ningún taller simulado cumple todas las restricciones.',
       orders: [order],
     };
   }
 
-  async confirm(orderId: string, workshopId: string): Promise<PortalOrder> {
+  async confirm(orderId: string, candidateId: string): Promise<PortalOrder> {
     const order = await this.orders.get(orderId);
     if (!order) throw new AssignmentFlowError('order_not_found');
 
     const candidate = order.recommendation.candidates.find(
-      (item) => item.workshopId === workshopId,
+      (item) => item.candidateId === candidateId || item.workshopId === candidateId,
     );
     if (!candidate) throw new AssignmentFlowError('workshop_not_recommended');
 
     const confirmedAt = this.now();
     const assignment: OrderAssignment = {
+      candidateId: candidate.candidateId,
       workshopId: candidate.workshopId,
       displayName: candidate.displayName,
       confirmedAt,
+      allocations: candidate.allocations.map((allocation) => ({
+        workshopId: allocation.workshopId,
+        displayName: allocation.displayName,
+        quantity: allocation.quantity,
+        status: 'assigned',
+      })),
     };
-    const notification = createWorkshopNotification({
-      orderId: order.id,
-      draft: order.draft,
-      assignment,
-      requiredProcesses: order.requiredProcesses,
-      publishedAt: confirmedAt,
-    });
-    const updated = await this.orders.assign(order.id, assignment, notification);
+    const notifications = assignment.allocations.map((allocation) =>
+      createWorkshopNotification({
+        orderId: order.id,
+        draft: order.draft,
+        assignment,
+        workshopId: allocation.workshopId,
+        requiredProcesses: order.requiredProcesses,
+        publishedAt: confirmedAt,
+      }),
+    );
+    const updated = await this.orders.assign(order.id, assignment, notifications);
     if (!updated) throw new AssignmentFlowError('order_not_found');
     return updated;
   }
 
   async notifications() {
     const orders = await this.orders.list();
-    return orders.flatMap((order) => (order.notification ? [order.notification] : []));
+    return orders.flatMap(
+      (order) => order.notifications || (order.notification ? [order.notification] : []),
+    );
   }
 
   async updateWorkshopStatus(
@@ -178,14 +191,24 @@ export class AssignmentDemoService {
   ): Promise<PortalOrder> {
     const order = await this.orders.get(orderId);
     if (!order) throw new AssignmentFlowError('order_not_found');
-    if (order.assignment?.workshopId !== workshopId) {
+    const allocation =
+      order.assignment?.allocations?.find((item) => item.workshopId === workshopId) ||
+      (order.assignment?.workshopId === workshopId
+        ? { workshopId, status: order.status }
+        : undefined);
+    if (!allocation) {
       throw new AssignmentFlowError('workshop_not_assigned');
     }
-    const expected = order.status === 'assigned' ? 'in_production' : 'completed';
-    if (status !== expected || !['assigned', 'in_production'].includes(order.status)) {
+    const expected = allocation.status === 'assigned' ? 'in_production' : 'completed';
+    if (status !== expected || !['assigned', 'in_production'].includes(allocation.status)) {
       throw new AssignmentFlowError('invalid_order_transition');
     }
-    const updated = await this.orders.updateStatus(orderId, status, this.now());
+    const updated = await this.orders.updateAllocationStatus(
+      orderId,
+      workshopId,
+      status,
+      this.now(),
+    );
     if (!updated) throw new AssignmentFlowError('order_not_found');
     return updated;
   }

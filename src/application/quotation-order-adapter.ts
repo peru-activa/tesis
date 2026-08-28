@@ -33,11 +33,9 @@ export function adaptAcceptedQuotation(
       garment.designReference || garment.designAttachment?.name || 'Sin referencia de diseño',
     requiredBy: quotation.request.delivery.requiredBy,
     deliveryDistrict: quotation.request.delivery.location,
-    notes: [
-      `Modelo: ${garment.model}`,
-      garment.customizationDetails,
-      quotation.request.notes,
-    ].filter(Boolean).join(' · '),
+    notes: [`Modelo: ${garment.model}`, garment.customizationDetails, quotation.request.notes]
+      .filter(Boolean)
+      .join(' · '),
   });
   return { draft, requiredProcesses };
 }
@@ -72,12 +70,11 @@ export function fabricCategory(value: string): string {
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLocaleLowerCase('es-PE');
-  if (normalized.includes('dry') || normalized.includes('deportivo')) return 'dry-fit';
-  if (['poliester', 'zanetti', 'microtec', 'win'].some((term) => normalized.includes(term))) {
-    return 'poliéster';
-  }
-  if (['algodon', 'pima', 'pique', 'lacoste', 'jersey'].some((term) => normalized.includes(term))) {
-    return 'algodón';
-  }
+  if (normalized.includes('pima 20/1')) return 'pima 20/1';
+  if (normalized.includes('pima 30/1')) return 'pima 30/1';
+  if (normalized.includes('pique') || normalized.includes('lacoste')) return 'piqué lacoste';
+  if (normalized.includes('dry')) return 'dry fit';
+  if (normalized.includes('win')) return 'win';
+  if (normalized.includes('zanetti')) return 'zanetti';
   return value.trim().toLocaleLowerCase('es-PE');
 }

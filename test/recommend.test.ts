@@ -68,6 +68,11 @@ describe('recommendWorkshops', () => {
 
     assert.equal(result.candidates.length, 2);
     assert.equal(result.candidates[0]?.workshopId, 'workshop-b');
+    assert.equal(result.candidates[0]?.candidateId, 'workshop-b');
+    assert.deepEqual(
+      result.candidates[0]?.allocations.map((item) => item.quantity),
+      [100],
+    );
     assert.equal(result.candidates[0]?.rank, 1);
     assert.equal(result.rejected.length, 1);
     assert.equal(result.rejected[0]?.workshopId, 'workshop-c');
@@ -75,8 +80,47 @@ describe('recommendWorkshops', () => {
     assert.equal(result.requiresHumanConfirmation, true);
   });
 
+  it('combines two compatible workshops only when none can cover the order alone', () => {
+    const result = recommendWorkshops(
+      recommendationRequestSchema.parse({
+        ...input,
+        order: { ...input.order, quantity: 250 },
+        workshops: input.workshops.map((workshop) => ({
+          ...workshop,
+          maximumUnits: 160,
+          availableCapacity: 160,
+        })),
+      }),
+    );
+
+    assert.ok(result.candidates.length > 0);
+    assert.equal(result.candidates[0]?.allocations.length, 2);
+    assert.equal(
+      result.candidates[0]?.allocations.reduce((sum, item) => sum + item.quantity, 0),
+      250,
+    );
+    assert.ok(result.candidates[0]?.allocations.every((item) => item.quantity <= 160));
+  });
+
+  it('does not combine more than three workshops', () => {
+    const result = recommendWorkshops(
+      recommendationRequestSchema.parse({
+        ...input,
+        order: { ...input.order, quantity: 650 },
+        workshops: Array.from({ length: 4 }, (_, index) => ({
+          ...input.workshops[0]!,
+          id: `small-${index + 1}`,
+          displayName: `Taller pequeño ${index + 1}`,
+          maximumUnits: 200,
+          availableCapacity: 200,
+        })),
+      }),
+    );
+
+    assert.equal(result.candidates.length, 0);
+  });
+
   it('is deterministic for the same input', () => {
     assert.deepEqual(recommendWorkshops(input), recommendWorkshops(input));
   });
 });
-
