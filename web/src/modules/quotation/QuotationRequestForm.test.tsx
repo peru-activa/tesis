@@ -66,7 +66,7 @@ describe('QuotationRequestForm', () => {
       'Indica una cantidad válida para la talla',
     );
 
-    await user.type(sizeQuantity, '20');
-    expect(screen.getByText('20 de 20')).toBeTruthy();
+    await user.type(screen.getByRole('spinbutton', { name: 'Cantidad para talla 16' }), '20');
+    expect(await screen.findByText('20 de 20')).toBeTruthy();
   });
 });

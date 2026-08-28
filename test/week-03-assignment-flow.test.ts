@@ -30,7 +30,7 @@ describe('flujo multicanal simulado de Semana 3', () => {
     assert.equal(response.status, 200);
     const payload = await response.json();
     assert.equal(payload.simulated, true);
-    assert.equal(payload.datasetVersion, 'r5-synthetic-v1');
+    assert.equal(payload.datasetVersion, 'r5-synthetic-v2');
     assert.equal(payload.seed, 20_260_827);
     assert.equal(payload.workshops.length, 5);
     assert.equal(payload.scenarios.length, 8);
@@ -50,7 +50,7 @@ describe('flujo multicanal simulado de Semana 3', () => {
     const evaluated = await runResponse.json();
     assert.equal(evaluated.order.status, 'recommended');
     assert.equal(evaluated.order.recommendation.candidates[0].workshopId, 'sim-workshop-b');
-    assert.equal(evaluated.order.simulation.datasetVersion, 'r5-synthetic-v1');
+    assert.equal(evaluated.order.simulation.datasetVersion, 'r5-synthetic-v2');
 
     const confirmationResponse = await fetch(`${baseUrl}/v1/orders/${evaluated.order.id}/confirm`, {
       method: 'POST',
@@ -89,20 +89,35 @@ describe('flujo multicanal simulado de Semana 3', () => {
     assert.deepEqual(differentWorkshop.notifications, []);
   });
 
-  it('conserva los descartes cuando no existe un taller factible', async () => {
+  it('divide un pedido grande entre dos talleres compatibles y notifica a cada uno', async () => {
     const response = await fetch(
-      `${baseUrl}/v1/demos/week-03/assignment-scenarios/insufficient-capacity/run`,
+      `${baseUrl}/v1/demos/week-03/assignment-scenarios/shared-capacity/run`,
       { method: 'POST' },
     );
-    assert.equal(response.status, 422);
+    assert.equal(response.status, 201);
     const payload = await response.json();
-    assert.equal(payload.error, 'no_eligible_workshops');
-    assert.equal(payload.result.candidates.length, 0);
-    assert.equal(payload.result.rejected.length, 5);
-    assert.ok(
-      payload.result.rejected.some((workshop: { reasons: string[] }) =>
-        workshop.reasons.includes('capacidad disponible insuficiente'),
+    const plan = payload.order.recommendation.candidates[0];
+    assert.equal(plan.allocations.length, 2);
+    assert.equal(
+      plan.allocations.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0),
+      450,
+    );
+
+    const confirmationResponse = await fetch(`${baseUrl}/v1/orders/${payload.order.id}/confirm`, {
+      method: 'POST',
+      headers: peruActivaHeaders,
+      body: JSON.stringify({ candidateId: plan.candidateId }),
+    });
+    assert.equal(confirmationResponse.status, 200);
+    const confirmed = await confirmationResponse.json();
+    assert.equal(confirmed.order.assignment.allocations.length, 2);
+    assert.equal(confirmed.order.notifications.length, 2);
+    assert.equal(
+      confirmed.order.notifications.reduce(
+        (sum: number, item: { content: { quantity: number } }) => sum + item.content.quantity,
+        0,
       ),
+      450,
     );
   });
 });

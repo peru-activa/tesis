@@ -6,8 +6,17 @@ import './multichannel.css';
 
 export type MultichannelView = 'peru-activa' | 'taller' | 'evidencia';
 type Candidate = {
+  candidateId: string;
   workshopId: string;
   displayName: string;
+  allocations: Array<{
+    workshopId: string;
+    displayName: string;
+    quantity: number;
+    availableCapacity: number;
+    effectiveLeadTimeDays: number;
+    estimatedCost: number;
+  }>;
   rank: number;
   score: number;
   dimensions: Record<'delivery' | 'cost' | 'reliability' | 'quality' | 'evidence', number>;
@@ -57,7 +66,17 @@ type Order = {
   status: 'registered' | 'recommended' | 'assigned' | 'in_production' | 'completed';
   draft: Scenario['draft'] & { color: string; sizes: Record<string, number> };
   recommendation: { candidates: Candidate[]; rejected: Rejected[] };
-  assignment?: { workshopId: string; displayName: string };
+  assignment?: {
+    candidateId: string;
+    workshopId: string;
+    displayName: string;
+    allocations: Array<{
+      workshopId: string;
+      displayName: string;
+      quantity: number;
+      status: 'assigned' | 'in_production' | 'completed';
+    }>;
+  };
   notification?: Notification;
   simulation?: { datasetVersion: string; scenarioId: string; seed: number };
   source?: { type: 'quotation'; quotationId: string; garmentIndex: number };
@@ -166,7 +185,14 @@ export function MultichannelDemo({
       setNotifications(inbox.notifications);
       setQuotations(quotationQueue.requests);
       setOrders(orderList.orders);
-      setOrder(orderList.orders.find((item: Order) => item.source?.type === 'quotation'));
+      const currentOrder =
+        view === 'evidencia'
+          ? orderList.orders[0]
+          : orderList.orders.find((item: Order) => item.source?.type === 'quotation');
+      setOrder(currentOrder);
+      if (view === 'evidencia' && currentOrder?.simulation?.scenarioId) {
+        setSelectedScenario(currentOrder.simulation.scenarioId);
+      }
     });
 
     const apiOrigin =
@@ -180,7 +206,14 @@ export function MultichannelDemo({
       ]).then(([orderList, inbox]) => {
         setOrders(orderList.orders || []);
         setNotifications(inbox.notifications || []);
-        setOrder((orderList.orders || []).find((item: Order) => item.source?.type === 'quotation'));
+        const currentOrder =
+          view === 'evidencia'
+            ? (orderList.orders || [])[0]
+            : (orderList.orders || []).find((item: Order) => item.source?.type === 'quotation');
+        setOrder(currentOrder);
+        if (view === 'evidencia' && currentOrder?.simulation?.scenarioId) {
+          setSelectedScenario(currentOrder.simulation.scenarioId);
+        }
       });
     });
     socket.on('quotations.changed', () => {
@@ -222,14 +255,14 @@ export function MultichannelDemo({
     ]);
   }
 
-  async function confirm(workshopId: string) {
+  async function confirm(candidateId: string) {
     if (!order) return;
     setBusy(true);
     setError('');
     const response = await actorFetch(`/v1/orders/${order.id}/confirm`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ workshopId }),
+      body: JSON.stringify({ candidateId }),
     });
     const payload = await response.json();
     setBusy(false);
@@ -245,10 +278,7 @@ export function MultichannelDemo({
     await refreshNotifications();
   }
 
-  async function updateWorkshopStatus(
-    orderId: string,
-    status: 'in_production' | 'completed',
-  ) {
+  async function updateWorkshopStatus(orderId: string, status: 'in_production' | 'completed') {
     if (!workshopPhone) return;
     setBusy(true);
     setError('');
@@ -389,7 +419,12 @@ export function MultichannelDemo({
 }
 
 export function WorkshopAccessPage() {
-  const [phone, setPhone] = useState(() => sessionStorage.getItem('pa-workshop-phone') || '');
+  const [phone, setPhone] = useState(() => {
+    const demoPhone = new URLSearchParams(window.location.search).get('telefono') || '';
+    return /^9\d{8}$/.test(demoPhone)
+      ? demoPhone
+      : sessionStorage.getItem('pa-workshop-phone') || '';
+  });
   const [draft, setDraft] = useState('');
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [error, setError] = useState('');
@@ -531,10 +566,7 @@ function IncomingQueue({
                 </div>
                 <QuotationState quotation={quotation} />
                 {quotation.status === 'pending_quote' || quotation.status === 'quoted' ? (
-                  <a
-                    className="mc-open-quotation"
-                    href={`/peru-activa/pedidos/${quotation.id}`}
-                  >
+                  <a className="mc-open-quotation" href={`/peru-activa/pedidos/${quotation.id}`}>
                     {quotation.status === 'pending_quote' ? 'Abrir y cotizar' : 'Ver cotización'}
                   </a>
                 ) : linkedOrder ? (
@@ -753,7 +785,10 @@ function CandidateList({
     <div className="mc-candidates">
       <div className="mc-result-note">
         <b>{order.id}</b>
-        <span>Se encontraron {order.recommendation.candidates.length} talleres disponibles</span>
+        <span>
+          Se encontraron {order.recommendation.candidates.length}{' '}
+          {order.recommendation.candidates.length === 1 ? 'plan factible' : 'planes factibles'}
+        </span>
       </div>
       {order.recommendation.candidates[0] && (
         <CandidateCard
@@ -765,10 +800,10 @@ function CandidateList({
       )}
       {order.recommendation.candidates.length > 1 && (
         <details className="mc-alternatives">
-          <summary>Ver otros talleres disponibles</summary>
+          <summary>Ver otros planes factibles</summary>
           {order.recommendation.candidates.slice(1).map((candidate) => (
             <CandidateCard
-              key={candidate.workshopId}
+              key={candidate.candidateId}
               candidate={candidate}
               busy={busy}
               onConfirm={onConfirm}
@@ -809,6 +844,18 @@ function CandidateCard({
               <li key={reason}>{reason}</li>
             ))}
           </ul>
+          <div className="mc-allocation-grid" aria-label="Distribución propuesta">
+            {candidate.allocations.map((allocation) => (
+              <div key={allocation.workshopId}>
+                <b>{allocation.displayName}</b>
+                <span>{allocation.quantity} unidades</span>
+                <small>
+                  {allocation.effectiveLeadTimeDays} días · capacidad disponible{' '}
+                  {allocation.availableCapacity}
+                </small>
+              </div>
+            ))}
+          </div>
           <div className="mc-score-bars">
             {Object.entries(candidate.dimensions).map(([dimension, value]) => (
               <div key={dimension}>
@@ -825,9 +872,9 @@ function CandidateCard({
         <button
           className={recommended ? 'mc-primary' : 'mc-secondary'}
           disabled={busy}
-          onClick={() => onConfirm(candidate.workshopId)}
+          onClick={() => onConfirm(candidate.candidateId)}
         >
-          Elegir este taller
+          Confirmar este plan
         </button>
       </div>
     </article>
@@ -878,6 +925,7 @@ function WorkshopView({
             key={notification.id}
             notification={notification}
             order={orders.find((order) => order.id === notification.content.orderId)}
+            workshopId={notification.content.workshopId}
             busy={busy}
             onStatusChange={onStatusChange}
           />
@@ -920,11 +968,13 @@ function WorkshopView({
 function WorkshopOrder({
   notification,
   order,
+  workshopId,
   busy,
   onStatusChange,
 }: {
   notification: Notification;
   order?: Order;
+  workshopId: string;
   busy: boolean;
   onStatusChange: (orderId: string, status: 'in_production' | 'completed') => void;
 }) {
@@ -936,7 +986,11 @@ function WorkshopOrder({
           <p className="mc-kicker">NUEVA ORDEN ASIGNADA</p>
           <h3>{content.orderId}</h3>
         </div>
-        <span>{workshopStatusLabel(order?.status)}</span>
+        <span>
+          {workshopStatusLabel(
+            order?.assignment?.allocations.find((item) => item.workshopId === workshopId)?.status,
+          )}
+        </span>
       </header>
       <div className="mc-order-hero">
         <strong>{content.quantity}</strong>
@@ -977,7 +1031,8 @@ function WorkshopOrder({
           <dd>{content.deliveryDistrict}</dd>
         </div>
       </dl>
-      {order?.status === 'assigned' && (
+      {order?.assignment?.allocations.find((item) => item.workshopId === workshopId)?.status ===
+        'assigned' && (
         <button
           className="mc-primary workshop-status-action"
           disabled={busy}
@@ -986,7 +1041,8 @@ function WorkshopOrder({
           Empezar producción
         </button>
       )}
-      {order?.status === 'in_production' && (
+      {order?.assignment?.allocations.find((item) => item.workshopId === workshopId)?.status ===
+        'in_production' && (
         <button
           className="mc-primary workshop-status-action"
           disabled={busy}
@@ -999,7 +1055,7 @@ function WorkshopOrder({
   );
 }
 
-function workshopStatusLabel(status?: Order['status']) {
+function workshopStatusLabel(status?: 'assigned' | 'in_production' | 'completed') {
   if (status === 'in_production') return 'En producción';
   if (status === 'completed') return 'Terminado';
   return 'Nuevo';

@@ -83,12 +83,23 @@ export type Weights = z.infer<typeof weightsSchema>;
 export type DimensionScores = Record<keyof Weights, number>;
 
 export interface RankedCandidate {
+  candidateId: string;
   workshopId: string;
   displayName: string;
+  allocations: WorkshopAllocation[];
   rank: number;
   score: number;
   dimensions: DimensionScores;
   reasons: string[];
+}
+
+export interface WorkshopAllocation {
+  workshopId: string;
+  displayName: string;
+  quantity: number;
+  availableCapacity: number;
+  effectiveLeadTimeDays: number;
+  estimatedCost: number;
 }
 
 export interface RejectedCandidate {

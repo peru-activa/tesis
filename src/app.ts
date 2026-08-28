@@ -17,11 +17,7 @@ import {
   type AuthenticatedIdentity,
 } from './domain/identity.js';
 import { recommendationRequestSchema } from './domain/contracts.js';
-import {
-  orderDraftSchema,
-  workshopOrderStatusSchema,
-  type PortalOrder,
-} from './domain/orders.js';
+import { orderDraftSchema, workshopOrderStatusSchema, type PortalOrder } from './domain/orders.js';
 import type { QuotationRequest } from './domain/quotation-requests.js';
 import { recommendWorkshops } from './domain/recommend.js';
 import { createQuotationRouter } from './http/quotation-routes.js';
@@ -29,7 +25,14 @@ import { resolveIdentity } from './infrastructure/access-identity.js';
 import { createQuotationStore, type QuotationStore } from './infrastructure/quotation-store.js';
 
 const webDirectory = fileURLToPath(new URL('../public/app/', import.meta.url));
-const confirmationSchema = z.object({ workshopId: z.string().min(1) });
+const confirmationSchema = z
+  .object({
+    candidateId: z.string().min(1).optional(),
+    workshopId: z.string().min(1).optional(),
+  })
+  .refine((value) => value.candidateId || value.workshopId, {
+    message: 'Se requiere el identificador del plan de asignación.',
+  });
 
 const openApiDocument = {
   openapi: '3.0.3',
@@ -239,7 +242,9 @@ export function createApp(options: AppOptions = {}): express.Express {
       const quotations = await quotationService.listOwnedBy(identity.subject, identity.email || '');
       const quotation = quotations.find((item) => item.id === request.params.quotationId);
       if (!quotation) {
-        response.status(404).json({ ok: false, error: 'not_found', message: 'Pedido no encontrado.' });
+        response
+          .status(404)
+          .json({ ok: false, error: 'not_found', message: 'Pedido no encontrado.' });
         return;
       }
       response.json({
@@ -288,15 +293,11 @@ export function createApp(options: AppOptions = {}): express.Express {
     response.sendFile('index.html', { root: webDirectory }),
   );
   app.get('/demo/semana-3', (_request, response) => response.redirect('/nueva-solicitud'));
-  app.get('/demo/semana-3/mis-pedidos', (_request, response) =>
-    response.redirect('/mis-pedidos'),
-  );
+  app.get('/demo/semana-3/mis-pedidos', (_request, response) => response.redirect('/mis-pedidos'));
   app.get('/demo/semana-3/mis-pedidos/:quotationId', (request, response) =>
     response.redirect(`/mis-pedidos/${request.params.quotationId}`),
   );
-  app.get('/demo/semana-3/peru-activa', (_request, response) =>
-    response.redirect('/peru-activa'),
-  );
+  app.get('/demo/semana-3/peru-activa', (_request, response) => response.redirect('/peru-activa'));
   app.get('/demo/semana-3/peru-activa/pedidos/:quotationId', (request, response) =>
     response.redirect(`/peru-activa/pedidos/${request.params.quotationId}`),
   );
@@ -304,9 +305,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.get('/demo/semana-3/evidencia-r5', (_request, response) =>
     response.redirect('/evidencia-r5'),
   );
-  app.get('/demo/asignacion-multicanal', (_request, response) =>
-    response.redirect('/peru-activa'),
-  );
+  app.get('/demo/asignacion-multicanal', (_request, response) => response.redirect('/peru-activa'));
   app.get('/portal', (_request, response) =>
     response.sendFile('index.html', { root: webDirectory }),
   );
@@ -393,7 +392,12 @@ export function createApp(options: AppOptions = {}): express.Express {
         orders:
           identity.role === 'peru_activa'
             ? orders
-            : orders.filter((order) => order.assignment?.workshopId === identity.workshopId),
+            : orders.filter(
+                (order) =>
+                  order.assignment?.allocations?.some(
+                    (allocation) => allocation.workshopId === identity.workshopId,
+                  ) || order.assignment?.workshopId === identity.workshopId,
+              ),
         simulated: true,
       });
     });
@@ -467,7 +471,10 @@ export function createApp(options: AppOptions = {}): express.Express {
         return;
       }
       try {
-        const updated = await assignmentService.confirm(request.params.id, parsed.data.workshopId);
+        const updated = await assignmentService.confirm(
+          request.params.id,
+          parsed.data.candidateId || parsed.data.workshopId || '',
+        );
         options.onOrderUpdated?.(updated);
         response.json({ ok: true, order: updated });
       } catch (error) {
@@ -546,9 +553,7 @@ async function runIdentityAction(
     if (error instanceof AccessAuthorizationError) {
       const status =
         error.code === 'configuration_error' ? 500 : error.code === 'unauthenticated' ? 401 : 403;
-      response
-        .status(status)
-        .json({ ok: false, error: error.code, message: error.message });
+      response.status(status).json({ ok: false, error: error.code, message: error.message });
       return;
     }
     throw error;

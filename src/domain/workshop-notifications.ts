@@ -56,18 +56,24 @@ export function createWorkshopNotification(input: {
   orderId: string;
   draft: OrderDraft;
   assignment: OrderAssignment;
+  workshopId: string;
   requiredProcesses: Process[];
   publishedAt: string;
 }): WorkshopNotification {
+  const allocation = input.assignment.allocations.find(
+    (item) => item.workshopId === input.workshopId,
+  );
+  if (!allocation) throw new Error('El taller no pertenece al plan confirmado.');
+  const sizes = allocateSizes(input.draft.sizes, input.draft.quantity, allocation.quantity);
   const content: WorkshopNotificationContent = {
     orderId: input.orderId,
-    workshopId: input.assignment.workshopId,
-    workshopName: input.assignment.displayName,
+    workshopId: allocation.workshopId,
+    workshopName: allocation.displayName,
     product: input.draft.product,
-    quantity: input.draft.quantity,
+    quantity: allocation.quantity,
     material: input.draft.material,
     color: input.draft.color,
-    sizes: input.draft.sizes,
+    sizes,
     requiredProcesses: input.requiredProcesses,
     customization: input.draft.customization,
     designReference: input.draft.designReference,
@@ -91,7 +97,7 @@ export function createWorkshopNotification(input: {
   ].join('\n');
 
   return {
-    id: `NOT-${input.orderId}`,
+    id: `NOT-${input.orderId}-${allocation.workshopId}`,
     version: 1,
     simulated: true,
     publishedAt: input.publishedAt,
@@ -101,4 +107,34 @@ export function createWorkshopNotification(input: {
       whatsapp: { status: 'preview_only', generatedAt: input.publishedAt, messageText },
     },
   };
+}
+
+function allocateSizes(
+  sizes: OrderDraft['sizes'],
+  totalQuantity: number,
+  assignedQuantity: number,
+): OrderDraft['sizes'] {
+  const entries = Object.entries(sizes);
+  const provisional = entries.map(([size, units]) => {
+    const exact = (units / totalQuantity) * assignedQuantity;
+    return { size, units: Math.floor(exact), fraction: exact - Math.floor(exact) };
+  });
+  let remaining = assignedQuantity - provisional.reduce((sum, item) => sum + item.units, 0);
+  provisional
+    .sort((left, right) => right.fraction - left.fraction || left.size.localeCompare(right.size))
+    .forEach((item) => {
+      if (remaining > 0) {
+        item.units += 1;
+        remaining -= 1;
+      }
+    });
+  return Object.fromEntries(
+    provisional
+      .sort(
+        (left, right) =>
+          entries.findIndex(([size]) => size === left.size) -
+          entries.findIndex(([size]) => size === right.size),
+      )
+      .map(({ size, units }) => [size, units]),
+  );
 }
