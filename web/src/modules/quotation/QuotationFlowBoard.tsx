@@ -7,6 +7,7 @@ import {
   type SellerQuotationDraft,
 } from '../../../../src/domain/quotation-requests';
 import { dateAfter, ErrorMessage, InputField, StepTitle } from './QuoteUi';
+import { QuotationPriceBreakdown } from './QuotationPriceBreakdown';
 import type { QuotationRequest } from './types';
 
 export function QuotationFlowBoard({
@@ -166,6 +167,7 @@ export function QuotationFlowBoard({
               <small className="block text-slate-500">Precio definido por Perú Activa</small>
             </div>
           </div>
+          <QuotationPriceBreakdown request={request} />
           {error && <ErrorMessage>{error}</ErrorMessage>}
           <div className="mt-7 flex flex-wrap justify-end gap-3">
             <button
@@ -194,9 +196,14 @@ export function QuotationFlowBoard({
             <h2>{accepted ? 'Pedido confirmado' : 'Cotización rechazada'}</h2>
             <p>
               {accepted
-                ? 'El pedido ya puede pasar a la asignación automática de un taller, con confirmación humana posterior.'
+                ? request.production?.message || 'La aceptación quedó registrada.'
                 : 'La solicitud se cierra sin crear un pedido de producción.'}
             </p>
+            {accepted && request.production?.orderIds[0] && (
+              <a className="quote-secondary mt-4 inline-flex" href="/peru-activa">
+                Abrir mesa de Perú Activa →
+              </a>
+            )}
           </div>
         </section>
       )}

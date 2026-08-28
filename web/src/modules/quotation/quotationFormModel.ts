@@ -1,13 +1,11 @@
 import type { FieldPath } from 'react-hook-form';
 import type { QuotationRequestDraft } from '../../../../src/domain/quotation-requests';
-import { fabricsByProduct, type Product } from './quotationCatalog';
+import type { Product } from './quotationCatalog';
 
 export type Garment = QuotationRequestDraft['garment'];
 export type GarmentPath = 'garment' | `additionalGarments.${number}`;
 
 export function createEmptyGarment(product: Product): Garment {
-  const defaultFabric = product === 'polo' ? '' : (fabricsByProduct[product][0]?.name ?? '');
-
   return {
     product,
     model: '',
@@ -17,7 +15,7 @@ export function createEmptyGarment(product: Product): Garment {
     quantity: 20,
     sizes: [],
     color: '',
-    fabric: { mode: 'specified', name: defaultFabric },
+    fabric: { mode: 'specified', name: '' },
     customization: 'embroidery',
     applicationCount: 1,
     customizationDetails: '',

@@ -3,8 +3,8 @@ import { useFormContext, useWatch } from 'react-hook-form';
 import type { QuotationRequestDraft } from '../../../../src/domain/quotation-requests';
 import { readDesignAttachment } from './designAttachment';
 import { Choice, dateAfter, InputField, StepTitle } from './QuoteUi';
-import { fabricsByProduct, poloCuts, poloSleeves } from './quotationCatalog';
 import { garmentField, type Garment, type GarmentPath } from './quotationFormModel';
+import { QuotationRequestSummary } from './QuotationRequestSummary';
 import { SizeBreakdownEditor } from './SizeBreakdownEditor';
 
 type Customization = QuotationRequestDraft['garment']['customization'];
@@ -62,88 +62,17 @@ export function DesignStep({ path, number }: { path: GarmentPath; number: string
   const { register, setValue, control } = useFormContext<QuotationRequestDraft>();
   const garment = useWatch({ control, name: path }) as Garment;
   const [attachmentError, setAttachmentError] = useState('');
-  const fabrics = fabricsByProduct[garment.product];
-  const catalogNames = new Set(fabrics.map((option) => option.name));
-  const customFabric =
-    garment.fabric.mode === 'specified' && !catalogNames.has(garment.fabric.name);
 
   return (
     <>
       <StepTitle
         number={number}
         title={`¿Cómo debe quedar el ${garment.product}?`}
-        description={
-          garment.product === 'polo'
-            ? 'Elige el color y la personalización.'
-            : 'Elige el color, la tela y la personalización.'
-        }
+        description="Elige el color y la personalización."
       />
       <InputField label="Color">
         <input {...register(garmentField(path, 'color'))} placeholder="Ejemplo: azul marino" />
       </InputField>
-      {garment.product === 'buzo' && (
-        <>
-          <fieldset className="mt-6">
-            <legend className="quote-field-label">Tela</legend>
-            <div className="quote-fabric-options mt-2">
-              {fabrics.map((option) => (
-                <Choice
-                  key={option.name}
-                  selected={
-                    garment.fabric.mode === 'specified' && garment.fabric.name === option.name
-                  }
-                  onClick={() =>
-                    setValue(
-                      garmentField(path, 'fabric'),
-                      { mode: 'specified', name: option.name },
-                      { shouldValidate: true },
-                    )
-                  }
-                >
-                  <strong>{option.title}</strong>
-                  <small>{option.description}</small>
-                </Choice>
-              ))}
-              <Choice
-                selected={garment.fabric.mode === 'proposal'}
-                onClick={() =>
-                  setValue(
-                    garmentField(path, 'fabric'),
-                    { mode: 'proposal' },
-                    {
-                      shouldValidate: true,
-                    },
-                  )
-                }
-              >
-                <strong>No sé cuál elegir</strong>
-                <small>Perú Activa me recomendará una</small>
-              </Choice>
-              <Choice
-                selected={customFabric}
-                onClick={() =>
-                  setValue(
-                    garmentField(path, 'fabric'),
-                    { mode: 'specified', name: '' },
-                    { shouldValidate: true },
-                  )
-                }
-              >
-                <strong>Otra tela</strong>
-                <small>No aparece en la lista</small>
-              </Choice>
-            </div>
-          </fieldset>
-          {customFabric && (
-            <InputField label="¿Qué tela necesitas?">
-              <input
-                {...register(garmentField(path, 'fabric.name'))}
-                placeholder="Escribe el nombre de la tela"
-              />
-            </InputField>
-          )}
-        </>
-      )}
       <fieldset className="mt-6">
         <legend className="quote-field-label">Personalización</legend>
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -251,7 +180,7 @@ export function DesignStep({ path, number }: { path: GarmentPath; number: string
   );
 }
 
-export function ContactStep({ number }: { number: string }) {
+export function ContactStep({ number, email }: { number: string; email?: string }) {
   const { register } = useFormContext<QuotationRequestDraft>();
 
   return (
@@ -282,8 +211,8 @@ export function ContactStep({ number }: { number: string }) {
             <input {...register('customer.businessName')} />
           </InputField>
         </div>
-        <InputField label="Correo o teléfono">
-          <input {...register('customer.contact')} />
+        <InputField label={email ? 'Correo de acceso' : 'Correo o teléfono'}>
+          <input readOnly={Boolean(email)} {...register('customer.contact')} />
         </InputField>
       </div>
     </>
@@ -292,7 +221,6 @@ export function ContactStep({ number }: { number: string }) {
 
 export function ReviewStep({ number }: { number: string }) {
   const draft = useFormContext<QuotationRequestDraft>().getValues();
-  const garments = [draft.garment, ...draft.additionalGarments];
 
   return (
     <>
@@ -301,53 +229,7 @@ export function ReviewStep({ number }: { number: string }) {
         title="Revisa antes de enviar"
         description="Confirma que los datos estén correctos."
       />
-      <div className="mt-7 grid gap-4">
-        {garments.map((garment, index) => {
-          const cutLabel = poloCuts.find((option) => option.value === garment.cut)?.label;
-          const sleeveLabel = poloSleeves.find((option) => option.value === garment.sleeve)?.label;
-
-          return (
-            <section className="quote-review-garment" key={`${garment.product}-${index}`}>
-              <h3>
-                {garment.product === 'polo' ? 'Polos' : 'Buzos'} · {garment.quantity}
-              </h3>
-              <p>
-                {garment.product === 'polo'
-                  ? [garment.model, cutLabel, sleeveLabel, garment.color]
-                      .filter(Boolean)
-                      .join(' · ')
-                  : `${garment.model} para ${garment.audience} · ${garment.color}`}
-              </p>
-              <p>
-                {garment.fabric.mode === 'proposal' ? 'Tela por recomendar' : garment.fabric.name} ·{' '}
-                {customizationLabels[garment.customization]}
-              </p>
-              {garment.designAttachment && <p>Adjunto: {garment.designAttachment.name}</p>}
-            </section>
-          );
-        })}
-      </div>
-      <dl className="mt-5 divide-y divide-slate-200 border-y border-slate-200">
-        <div className="grid gap-1 py-4 sm:grid-cols-[150px_minmax(0,1fr)]">
-          <dt className="quote-field-label">Entrega</dt>
-          <dd className="m-0 text-sm font-semibold">
-            {draft.delivery.requiredBy} · {draft.delivery.location}
-          </dd>
-        </div>
-        <div className="grid gap-1 py-4 sm:grid-cols-[150px_minmax(0,1fr)]">
-          <dt className="quote-field-label">Contacto</dt>
-          <dd className="m-0 text-sm font-semibold">
-            {draft.customer.contactName} · {draft.customer.businessName}
-          </dd>
-        </div>
-      </dl>
-      <div className="quote-price-note">
-        <span>S/ —</span>
-        <div>
-          <strong>El precio se enviará después.</strong>
-          <p>No se calcula automáticamente con este formulario.</p>
-        </div>
-      </div>
+      <QuotationRequestSummary draft={draft} />
     </>
   );
 }

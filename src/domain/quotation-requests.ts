@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { QuotationOwner } from './identity.js';
 
 export const productSchema = z.enum(['polo', 'buzo']);
 export const audienceSchema = z.enum(['caballero', 'dama', 'unisex']);
@@ -184,6 +185,16 @@ export const quotationRequestDraftSchema = z.object({
 
 export const sellerQuotationDraftSchema = z.object({
   totalPricePEN: z.number().positive().max(10_000_000),
+  lineItems: z
+    .array(
+      z.object({
+        garmentIndex: z.number().int().nonnegative().max(4),
+        unitPricePEN: z.number().positive().max(1_000_000),
+      }),
+    )
+    .min(1)
+    .max(5)
+    .optional(),
   selectedFabric: z.string().trim().min(2).max(80),
   validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   conditions: z.string().trim().min(3).max(500),
@@ -212,9 +223,15 @@ export interface QuotationRequest {
   createdAt: string;
   updatedAt: string;
   status: QuotationStatus;
+  owner?: QuotationOwner;
   request: QuotationRequestDraft;
   quotation?: SellerQuotation;
   buyerDecision?: BuyerDecision;
+  production?: {
+    status: 'recommended' | 'no_eligible_workshop' | 'requires_scope_decision';
+    orderIds: string[];
+    message: string;
+  };
 }
 
 function isActualIsoDate(value: string): boolean {

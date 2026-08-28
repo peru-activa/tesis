@@ -5,13 +5,13 @@ Estados permitidos: `no iniciado`, `parcial`, `demostrado` y `validado`.
 | Resultado | Estado | Módulo o artefacto actual | Verificación disponible | Pendiente principal |
 | --- | --- | --- | --- | --- |
 | R1 | parcial | `web/src/App.tsx`, `src/domain/orders.ts` | Prueba integrada de registro y validación de tallas | Validación con Perú Activa y clientes piloto |
-| R2 | parcial | Vista de seguimiento y Socket.io | Compilación y flujo integrado básico | Medición de actualización menor a 2 s y validación con clientes |
+| R2 | parcial | Historial aislado por cliente, detalle de estado y señales Socket.io sin datos del pedido | `access-control.test.ts` y flujo integrado de estados asignado/en producción/terminado | Medición de actualización menor a 2 s y validación con clientes |
 | R3 | no iniciado | — | — | Pruebas de usabilidad y registro de problemas resueltos |
-| R4 | parcial | `db/schema.sql`, `PostgresOrderStore` | Prueba del contrato en memoria | Pruebas PostgreSQL, carga, latencia e historial piloto |
-| R5 | parcial | `src/domain/recommend.ts` | `recommend.test.ts`, demo Semana 2 | Algoritmo genético y pruebas con datos históricos autorizados |
+| R4 | parcial | `db/schema.sql`, `PostgresOrderStore`, prueba local de reinicio del 27/08/2026 | Persistencia PostgreSQL local comprobada con una solicitud simulada | Pruebas de carga, latencia e historial piloto |
+| R5 | parcial | `src/domain/recommend.ts`, dataset `r5-synthetic-v1` con cinco talleres y ocho escenarios | `recommend.test.ts`, `week-03-assignment-flow.test.ts`, demo multicanal | Comparación con algoritmo genético y pruebas con datos históricos autorizados |
 | R6 | no iniciado | — | — | Línea base manual y reporte comparativo de tiempos |
-| R7 | parcial | Portal, API y motor heurístico | `orders.test.ts` | Integrar algoritmo genético y medir asignación automática |
-| R8 | parcial | Pruebas unitarias e integradas | `npm test`, demo Semana 2 | Cobertura, logs y validación de talleres |
+| R7 | parcial | Formulario conectado a la cola de Perú Activa; propietario autenticado; aceptación de una prenda crea orden evaluada; confirmación humana y bandeja web/WhatsApp | `access-control.test.ts`, `quotation-flow.test.ts`, `orders.test.ts`, `week-03-assignment-flow.test.ts` | Activar Cloudflare en infraestructura, resolver varias prendas, integrar algoritmo genético y medir asignación automática |
+| R8 | parcial | Pruebas unitarias e integradas de filtrado, ordenamiento y publicación multicanal | Pruebas dirigidas y demos Semana 2/3 | Cobertura, logs y validación de talleres |
 | R9 | no iniciado | — | — | Métricas antes/después del piloto |
 | R10 | no iniciado | — | — | Retroalimentación y regresión posterior al piloto |
 | R11 | no iniciado | — | — | Encuestas a tres clientes y cinco talleres |

@@ -51,12 +51,10 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
   const hasFabricSelection =
     garment.fabric.mode === 'proposal' || Boolean(fabricName?.trim().length);
   const configurationComplete =
-    garment.product === 'polo' &&
-    Boolean(selectedCollar) &&
-    Boolean(selectedCut) &&
-    Boolean(selectedSleeve) &&
+    (garment.product === 'buzo' ||
+      (Boolean(selectedCollar) && Boolean(selectedCut) && Boolean(selectedSleeve))) &&
     hasFabricSelection;
-  const optionsExpanded = garment.product === 'polo' && editorMode !== 'complete';
+  const optionsExpanded = editorMode !== 'complete';
   const productLabel = garment.product === 'polo' ? 'Polo' : 'Buzo';
   const fabricLabel =
     garment.fabric.mode === 'proposal'
@@ -73,7 +71,7 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
         ]
           .filter(Boolean)
           .join(' · ')
-      : productLabel;
+      : [productLabel, !optionsExpanded ? fabricLabel : undefined].filter(Boolean).join(' · ');
   const previewFabricTitle =
     previewedFabric?.title ??
     (garment.fabric.mode === 'proposal'
@@ -85,17 +83,17 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
       ? longSleeve
         ? previewCollar.longSleeveImage
         : previewCollar.image
-      : (fabricOptions[0]?.image ?? '');
+      : (previewFabric?.image ?? '');
   const previewAlt =
     garment.product === 'polo'
       ? longSleeve
         ? previewCollar.longSleeveAlt
         : previewCollar.alt
-      : (fabricOptions[0]?.alt ?? '');
+      : (previewFabric?.alt ?? '');
   const previewTitle =
     garment.product === 'polo'
       ? [previewCollar.value, selectedSleeve?.label].filter(Boolean).join(' · ')
-      : (fabricOptions[0]?.title ?? productLabel);
+      : productLabel;
 
   useEffect(() => {
     const target =
@@ -191,7 +189,11 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
   function toggleFabricPicker() {
     setEditorMode((mode) => {
       if (mode !== 'fabric') return 'fabric';
-      return configurationComplete ? 'complete' : 'sleeve';
+      if (configurationComplete) {
+        setPreviewedFabric(undefined);
+        return 'complete';
+      }
+      return garment.product === 'polo' ? 'sleeve' : 'fabric';
     });
   }
 
@@ -257,10 +259,11 @@ function initialEditorMode(
   hasSleeve: boolean,
   hasCatalogFabric: boolean,
 ): EditorMode {
-  if (garment.product !== 'polo') return 'complete';
-  if (!hasCollar) return 'collar';
-  if (!hasCut) return 'cut';
-  if (!hasSleeve) return 'sleeve';
+  if (garment.product === 'polo') {
+    if (!hasCollar) return 'collar';
+    if (!hasCut) return 'cut';
+    if (!hasSleeve) return 'sleeve';
+  }
   if (garment.fabric.mode === 'proposal') return 'complete';
   if (hasCatalogFabric || garment.fabric.name.trim().length >= 2) return 'complete';
   return 'fabric';

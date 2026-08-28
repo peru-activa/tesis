@@ -1,11 +1,17 @@
 import { Pool } from 'pg';
-import type { OrderAssignment, PortalOrder } from '../domain/orders.js';
+import type { OrderAssignment, OrderStatus, PortalOrder } from '../domain/orders.js';
+import type { WorkshopNotification } from '../domain/workshop-notifications.js';
 
 export interface OrderStore {
   list(): Promise<PortalOrder[]>;
   get(id: string): Promise<PortalOrder | undefined>;
   create(order: PortalOrder): Promise<PortalOrder>;
-  assign(id: string, assignment: OrderAssignment): Promise<PortalOrder | undefined>;
+  assign(
+    id: string,
+    assignment: OrderAssignment,
+    notification: WorkshopNotification,
+  ): Promise<PortalOrder | undefined>;
+  updateStatus(id: string, status: OrderStatus, occurredAt: string): Promise<PortalOrder | undefined>;
 }
 
 export class MemoryOrderStore implements OrderStore {
@@ -24,15 +30,32 @@ export class MemoryOrderStore implements OrderStore {
     return order;
   }
 
-  async assign(id: string, assignment: OrderAssignment): Promise<PortalOrder | undefined> {
+  async assign(
+    id: string,
+    assignment: OrderAssignment,
+    notification: WorkshopNotification,
+  ): Promise<PortalOrder | undefined> {
     const current = this.orders.get(id);
     if (!current) return undefined;
     const updated: PortalOrder = {
       ...current,
       status: 'assigned',
       assignment,
+      notification,
       updatedAt: assignment.confirmedAt,
     };
+    this.orders.set(id, updated);
+    return updated;
+  }
+
+  async updateStatus(
+    id: string,
+    status: OrderStatus,
+    occurredAt: string,
+  ): Promise<PortalOrder | undefined> {
+    const current = this.orders.get(id);
+    if (!current) return undefined;
+    const updated = { ...current, status, updatedAt: occurredAt };
     this.orders.set(id, updated);
     return updated;
   }
@@ -103,13 +126,18 @@ export class PostgresOrderStore implements OrderStore {
     return order;
   }
 
-  async assign(id: string, assignment: OrderAssignment): Promise<PortalOrder | undefined> {
+  async assign(
+    id: string,
+    assignment: OrderAssignment,
+    notification: WorkshopNotification,
+  ): Promise<PortalOrder | undefined> {
     const current = await this.get(id);
     if (!current) return undefined;
     const updated: PortalOrder = {
       ...current,
       status: 'assigned',
       assignment,
+      notification,
       updatedAt: assignment.confirmedAt,
     };
     const client = await this.pool.connect();
@@ -122,6 +150,35 @@ export class PostgresOrderStore implements OrderStore {
       await client.query(
         'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
         [id, updated.status, updated.updatedAt],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    return updated;
+  }
+
+  async updateStatus(
+    id: string,
+    status: OrderStatus,
+    occurredAt: string,
+  ): Promise<PortalOrder | undefined> {
+    const current = await this.get(id);
+    if (!current) return undefined;
+    const updated = { ...current, status, updatedAt: occurredAt };
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'UPDATE thesis_orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
+        [id, occurredAt, status, updated],
+      );
+      await client.query(
+        'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
+        [id, status, occurredAt],
       );
       await client.query('COMMIT');
     } catch (error) {

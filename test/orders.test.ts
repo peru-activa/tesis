@@ -9,6 +9,10 @@ let server: Server;
 let baseUrl: string;
 
 const requiredBy = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
+const peruActivaHeaders = {
+  'content-type': 'application/json',
+  'x-demo-actor': 'peru_activa',
+};
 const draft = {
   product: 'polo',
   quantity: 100,
@@ -30,13 +34,17 @@ before(async () => {
 });
 
 after(async () => {
-  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
 });
 
 describe('portal order flow', () => {
   it('registers, recommends and confirms a simulated order', async () => {
     const createdResponse = await fetch(`${baseUrl}/v1/orders`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(draft),
+      method: 'POST',
+      headers: peruActivaHeaders,
+      body: JSON.stringify(draft),
     });
     assert.equal(createdResponse.status, 201);
     const created = await createdResponse.json();
@@ -45,7 +53,7 @@ describe('portal order flow', () => {
 
     const confirmationResponse = await fetch(`${baseUrl}/v1/orders/${created.order.id}/confirm`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: peruActivaHeaders,
       body: JSON.stringify({ workshopId: created.order.recommendation.candidates[0].workshopId }),
     });
     assert.equal(confirmationResponse.status, 200);
@@ -53,7 +61,9 @@ describe('portal order flow', () => {
     assert.equal(confirmed.order.status, 'assigned');
     assert.equal(confirmed.order.assignment.displayName, 'Taller B');
 
-    const listResponse = await fetch(`${baseUrl}/v1/orders`);
+    const listResponse = await fetch(`${baseUrl}/v1/orders`, {
+      headers: { 'x-demo-actor': 'peru_activa' },
+    });
     const list = await listResponse.json();
     assert.equal(list.orders.length, 1);
     assert.equal(list.orders[0].id, created.order.id);
@@ -62,7 +72,7 @@ describe('portal order flow', () => {
   it('rejects a size breakdown that does not match the quantity', async () => {
     const response = await fetch(`${baseUrl}/v1/orders`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: peruActivaHeaders,
       body: JSON.stringify({ ...draft, sizes: { S: 10, M: 10, L: 10, XL: 10 } }),
     });
     assert.equal(response.status, 400);

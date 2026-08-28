@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Access" targetNamespace="https://peruactiva.example/tesis">
+  <bpmn:process id="Process_ClientAccess" name="Acceso y seguimiento del cliente" isExecutable="false">
+    <bpmn:startEvent id="Start_Link" name="Cliente abre el enlace" />
+    <bpmn:task id="Task_VerifyEmail" name="Access verifica el correo" />
+    <bpmn:exclusiveGateway id="Gateway_Valid" name="¿Identidad válida?" />
+    <bpmn:task id="Task_LoadOwned" name="Backend consulta pedidos del propietario" />
+    <bpmn:task id="Task_ShowHistory" name="Portal muestra pedidos actuales y pasados" />
+    <bpmn:endEvent id="End_Authorized" name="Seguimiento disponible" />
+    <bpmn:endEvent id="End_Denied" name="Acceso denegado" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Link" targetRef="Task_VerifyEmail" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_VerifyEmail" targetRef="Gateway_Valid" />
+    <bpmn:sequenceFlow id="Flow_3" name="Sí" sourceRef="Gateway_Valid" targetRef="Task_LoadOwned" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Task_LoadOwned" targetRef="Task_ShowHistory" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_ShowHistory" targetRef="End_Authorized" />
+    <bpmn:sequenceFlow id="Flow_6" name="No" sourceRef="Gateway_Valid" targetRef="End_Denied" />
+  </bpmn:process>
+</bpmn:definitions>

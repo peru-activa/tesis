@@ -10,11 +10,11 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    port: 5173,
+    port: Number(process.env.WEB_PORT || 5173),
     proxy: {
-      '/v1': 'http://localhost:3100',
-      '/health': 'http://localhost:3100',
-      '/socket.io': { target: 'http://localhost:3100', ws: true },
+      '/v1': process.env.API_ORIGIN || 'http://localhost:3100',
+      '/health': process.env.API_ORIGIN || 'http://localhost:3100',
+      '/socket.io': { target: process.env.API_ORIGIN || 'http://localhost:3100', ws: true },
     },
   },
 });

@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { FormProvider, useForm, useWatch, type FieldPath } from 'react-hook-form';
 import {
   quotationRequestDraftSchema,
@@ -22,6 +22,7 @@ interface QuotationRequestFormProps {
   busy: boolean;
   error: string;
   onSubmit: (draft: QuotationRequestDraft) => Promise<void>;
+  authenticatedEmail?: string;
 }
 
 interface FormStep {
@@ -30,7 +31,12 @@ interface FormStep {
   content: React.ReactNode;
 }
 
-export function QuotationRequestForm({ busy, error, onSubmit }: QuotationRequestFormProps) {
+export function QuotationRequestForm({
+  busy,
+  error,
+  onSubmit,
+  authenticatedEmail,
+}: QuotationRequestFormProps) {
   const form = useForm<QuotationRequestDraft>({
     resolver: zodResolver(quotationRequestDraftSchema),
     defaultValues: createEmptyDraft(dateAfter(14)),
@@ -50,6 +56,12 @@ export function QuotationRequestForm({ busy, error, onSubmit }: QuotationRequest
         })),
       ]
     : [];
+
+  useEffect(() => {
+    if (authenticatedEmail) {
+      form.setValue('customer.contact', authenticatedEmail, { shouldValidate: true });
+    }
+  }, [authenticatedEmail, form]);
   const detailSteps = garments.reduce<FormStep[]>((result, garment, index) => {
     result.push(...createGarmentSteps(garment.path, garment.product, index + 1, 2 + result.length));
     return result;
@@ -103,7 +115,9 @@ export function QuotationRequestForm({ busy, error, onSubmit }: QuotationRequest
     {
       label: 'Entrega',
       fields: contactFields,
-      content: <ContactStep number={formatStepNumber(contactStepNumber)} />,
+      content: (
+        <ContactStep number={formatStepNumber(contactStepNumber)} email={authenticatedEmail} />
+      ),
     },
     {
       label: 'Revisión',
