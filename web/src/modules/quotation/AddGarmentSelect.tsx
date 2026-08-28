@@ -1,5 +1,10 @@
 import type { Product } from './quotationCatalog';
 
+const availableProducts = [{ value: 'polo', label: 'Polo' }] as const satisfies ReadonlyArray<{
+  value: Product;
+  label: string;
+}>;
+
 interface AddGarmentSelectProps {
   disabled: boolean;
   another?: boolean;
@@ -21,8 +26,11 @@ export function AddGarmentSelect({ disabled, another = false, onAdd }: AddGarmen
         <option value="" disabled hidden>
           {another ? '+ Agregar otra prenda' : '+ Agregar prenda'}
         </option>
-        <option value="polo">Polo</option>
-        <option value="buzo">Buzo</option>
+        {availableProducts.map((product) => (
+          <option value={product.value} key={product.value}>
+            {product.label}
+          </option>
+        ))}
       </select>
     </div>
   );
