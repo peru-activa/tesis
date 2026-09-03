@@ -11,6 +11,7 @@ import { QuotationService } from './application/quotation-service.js';
 import { createOrderStore, type OrderStore } from './data/order-store.js';
 import { week02Demo } from './data/week-02-demo.js';
 import { week03DeclaredWorkshops } from './data/week-03-assignment-scenarios.js';
+import { createWorkshopStore, type WorkshopStore } from './data/workshop-store.js';
 import {
   AccessAuthorizationError,
   requireRole,
@@ -209,6 +210,7 @@ const openApiDocument = {
 export interface AppOptions {
   orderStore?: OrderStore;
   quotationStore?: QuotationStore;
+  workshopStore?: WorkshopStore;
   onOrderUpdated?: (order: PortalOrder) => void;
   onQuotationUpdated?: (quotation: QuotationRequest) => void;
 }
@@ -217,7 +219,8 @@ export function createApp(options: AppOptions = {}): express.Express {
   const app = express();
   const orderStore = options.orderStore ?? createOrderStore();
   const quotationStore = options.quotationStore ?? createQuotationStore();
-  const assignmentService = new AssignmentDemoService(orderStore);
+  const workshopStore = options.workshopStore ?? createWorkshopStore(week03DeclaredWorkshops);
+  const assignmentService = new AssignmentDemoService(orderStore, workshopStore);
   const quotationService = new QuotationService(quotationStore, undefined, {
     ...(options.onQuotationUpdated ? { onUpdated: options.onQuotationUpdated } : {}),
     onAccepted: async (quotation) => {
@@ -353,8 +356,8 @@ export function createApp(options: AppOptions = {}): express.Express {
     });
   });
 
-  app.get('/v1/demos/week-03/assignment-scenarios', (_request, response) => {
-    response.json({ ok: true, ...assignmentService.catalog() });
+  app.get('/v1/demos/week-03/assignment-scenarios', async (_request, response) => {
+    response.json({ ok: true, ...(await assignmentService.catalog()) });
   });
 
   app.post('/v1/demos/week-03/assignment-scenarios/:scenarioId/run', async (request, response) => {
@@ -384,12 +387,15 @@ export function createApp(options: AppOptions = {}): express.Express {
     }
   });
 
-  app.post('/v1/demos/week-03/assignment-scenarios/:scenarioId/compare', (request, response) => {
+  app.post('/v1/demos/week-03/assignment-scenarios/:scenarioId/compare', async (request, response) => {
     try {
       const optionsInput = assignmentScenarioOptionsSchema.parse(request.body || {});
       response.json({
         ok: true,
-        ...assignmentService.compareScenario(request.params.scenarioId, optionsInput.fabricBuyer),
+        ...(await assignmentService.compareScenario(
+          request.params.scenarioId,
+          optionsInput.fabricBuyer,
+        )),
       });
     } catch (error) {
       if (error instanceof AssignmentFlowError && error.code === 'scenario_not_found') {
@@ -472,7 +478,7 @@ export function createApp(options: AppOptions = {}): express.Express {
           ],
           requiredBy: `${parsed.data.requiredBy}T18:00:00-05:00`,
         },
-        workshops: week03DeclaredWorkshops,
+        workshops: await workshopStore.list(),
       });
       const recommendation = recommendWorkshops(recommendationRequest);
       if (recommendation.candidates.length === 0) {

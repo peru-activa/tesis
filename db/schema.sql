@@ -16,6 +16,15 @@ CREATE TABLE IF NOT EXISTS thesis_order_status_history (
 CREATE INDEX IF NOT EXISTS thesis_orders_status_idx ON thesis_orders(status);
 CREATE INDEX IF NOT EXISTS thesis_order_history_order_idx ON thesis_order_status_history(order_id, occurred_at);
 
+CREATE TABLE IF NOT EXISTS thesis_workshops (
+  id text PRIMARY KEY,
+  updated_at timestamptz NOT NULL,
+  payload jsonb NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS thesis_workshops_provider_type_idx
+  ON thesis_workshops ((payload->>'providerType'));
+
 CREATE TABLE IF NOT EXISTS thesis_quotation_requests (
   id text PRIMARY KEY,
   created_at timestamptz NOT NULL,

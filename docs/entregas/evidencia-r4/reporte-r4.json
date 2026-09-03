@@ -1,0 +1,53 @@
+{
+  "result": "R4",
+  "generatedAt": "2026-09-03T17:51:19.010Z",
+  "dataClassification": "simulated",
+  "database": "PostgreSQL 17",
+  "verification": {
+    "createdOrders": 100,
+    "storedOrdersAfterConnectionRestart": 100,
+    "missingOrders": 0,
+    "storageIntegrityPercent": 100,
+    "storedWorkshopSpecifications": 7,
+    "statusHistory": [
+      "recommended",
+      "assigned",
+      "in_production",
+      "completed"
+    ]
+  },
+  "latency": {
+    "limitMs": 500,
+    "maximumObservedMs": 5.531,
+    "queries": {
+      "orderById": {
+        "runs": 100,
+        "averageMs": 0.109,
+        "p95Ms": 0.174,
+        "maximumMs": 0.32
+      },
+      "orderList": {
+        "runs": 100,
+        "averageMs": 1.736,
+        "p95Ms": 1.996,
+        "maximumMs": 5.531
+      },
+      "orderStatusHistory": {
+        "runs": 100,
+        "averageMs": 0.12,
+        "p95Ms": 0.202,
+        "maximumMs": 0.412
+      },
+      "workshopById": {
+        "runs": 100,
+        "averageMs": 0.116,
+        "p95Ms": 0.178,
+        "maximumMs": 0.268
+      }
+    }
+  },
+  "iov": {
+    "allOrdersStoredWithoutLoss": true,
+    "frequentQueriesUnder500Ms": true
+  }
+}

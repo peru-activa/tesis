@@ -9,7 +9,7 @@ Cliente
   -> API Express: valida y guarda el pedido
   -> motor determinístico: filtra y ordena talleres
   -> Perú Activa: confirma el taller recomendado
-  -> PostgreSQL: conserva pedido, asignación e historial
+  -> PostgreSQL: conserva pedido, asignación, historial y especificaciones de talleres
   -> Socket.io: actualiza el seguimiento del cliente
 ```
 
@@ -24,6 +24,7 @@ Cliente
 - `src/http/quotation-routes.ts`: contrato HTTP de solicitudes, cotizaciones y
   decisiones.
 - `src/infrastructure/quotation-store.ts`: persistencia en memoria o PostgreSQL.
+- `src/data/workshop-store.ts`: persistencia de especificaciones técnicas de talleres.
 - `src/infrastructure/access-identity.ts`: validación del JWT de Cloudflare
   Access en producción e identidades reproducibles en local.
 - `src/domain/`: contratos, restricciones y ranking determinístico.
@@ -37,6 +38,10 @@ Cliente
 se usa `MemoryOrderStore`; al definir `DATABASE_URL`, se activa
 `PostgresOrderStore` con las mismas operaciones. Esto permite usar datos
 simulados sin convertir una estructura temporal en la base definitiva.
+
+Las especificaciones que consume el motor se obtienen mediante `WorkshopStore`.
+Al configurar PostgreSQL, el catálogo versionado se inserta o actualiza de forma
+idempotente y las consultas del algoritmo leen la copia centralizada.
 
 Cada solicitud conserva un propietario compuesto por el identificador estable
 y el correo verificados. Las consultas de seguimiento se filtran en PostgreSQL,
@@ -57,10 +62,11 @@ autorización, evitando difundir pedidos completos a otros clientes.
 
 - R1: formulario estandarizado de producto, material, tallas, diseño y entrega.
 - R2: seguimiento operativo de los pedidos registrados.
-- R4: esquema PostgreSQL y adaptador de persistencia.
+- R4: esquema PostgreSQL y adaptadores para pedidos, historial de estados y talleres.
 - R5: algoritmo funcional de recomendación.
 - R7: portal integrado con el algoritmo mediante API REST.
 - R8: pruebas unitarias e integradas del flujo.
 
-Esta correspondencia representa avance técnico. La validación con clientes y
-talleres piloto sigue siendo necesaria para declarar cada resultado completo.
+Esta correspondencia representa avance técnico. Cada resultado conserva sus
+propios IOV y requisitos de validación; R4 se verifica mediante integridad de
+almacenamiento y latencia, sin requerir una prueba de usabilidad.

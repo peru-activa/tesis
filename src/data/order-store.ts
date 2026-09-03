@@ -2,9 +2,15 @@ import { Pool } from 'pg';
 import type { OrderAssignment, OrderStatus, PortalOrder } from '../domain/orders.js';
 import type { WorkshopNotification } from '../domain/workshop-notifications.js';
 
+export interface OrderStatusHistoryEntry {
+  status: OrderStatus;
+  occurredAt: string;
+}
+
 export interface OrderStore {
   list(): Promise<PortalOrder[]>;
   get(id: string): Promise<PortalOrder | undefined>;
+  history(id: string): Promise<OrderStatusHistoryEntry[]>;
   create(order: PortalOrder): Promise<PortalOrder>;
   assign(
     id: string,
@@ -26,6 +32,7 @@ export interface OrderStore {
 
 export class MemoryOrderStore implements OrderStore {
   private readonly orders = new Map<string, PortalOrder>();
+  private readonly statusHistory = new Map<string, OrderStatusHistoryEntry[]>();
 
   async list(): Promise<PortalOrder[]> {
     return [...this.orders.values()].sort((left, right) =>
@@ -37,8 +44,15 @@ export class MemoryOrderStore implements OrderStore {
     return this.orders.get(id);
   }
 
+  async history(id: string): Promise<OrderStatusHistoryEntry[]> {
+    return [...(this.statusHistory.get(id) || [])];
+  }
+
   async create(order: PortalOrder): Promise<PortalOrder> {
     this.orders.set(order.id, order);
+    this.statusHistory.set(order.id, [
+      { status: order.status, occurredAt: order.createdAt },
+    ]);
     return order;
   }
 
@@ -58,6 +72,7 @@ export class MemoryOrderStore implements OrderStore {
       updatedAt: assignment.confirmedAt,
     };
     this.orders.set(id, updated);
+    this.recordStatus(id, updated.status, updated.updatedAt);
     return updated;
   }
 
@@ -97,6 +112,7 @@ export class MemoryOrderStore implements OrderStore {
       assignment: { ...current.assignment, allocations },
     };
     this.orders.set(id, updated);
+    this.recordStatus(id, updated.status, updated.updatedAt);
     return updated;
   }
 
@@ -109,7 +125,13 @@ export class MemoryOrderStore implements OrderStore {
     if (!current) return undefined;
     const updated = { ...current, status, updatedAt: occurredAt };
     this.orders.set(id, updated);
+    this.recordStatus(id, status, occurredAt);
     return updated;
+  }
+
+  private recordStatus(id: string, status: OrderStatus, occurredAt: string): void {
+    const current = this.statusHistory.get(id) || [];
+    this.statusHistory.set(id, [...current, { status, occurredAt }]);
   }
 }
 
@@ -153,6 +175,22 @@ export class PostgresOrderStore implements OrderStore {
       [id],
     );
     return result.rows[0]?.payload;
+  }
+
+  async history(id: string): Promise<OrderStatusHistoryEntry[]> {
+    await this.ready;
+    const result = await this.pool.query<{ status: OrderStatus; occurred_at: Date | string }>(
+      `SELECT status, occurred_at
+       FROM thesis_order_status_history
+       WHERE order_id = $1
+       ORDER BY occurred_at, id`,
+      [id],
+    );
+    return result.rows.map((row) => ({
+      status: row.status,
+      occurredAt:
+        row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at,
+    }));
   }
 
   async create(order: PortalOrder): Promise<PortalOrder> {

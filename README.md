@@ -114,8 +114,9 @@ y el conector estén encendidos. La operación y reversión se documentan en
 
 Los comandos `npm run dev` y `npm start` cargan automáticamente el archivo local
 ignorado `.env`. En la instalación local auditada contiene `DATABASE_URL` para
-PostgreSQL 17 en el puerto 5432. Los pedidos y cotizaciones persisten al
-reiniciar el backend.
+PostgreSQL 17 en el puerto 5432. Los pedidos, su historial de estados, las
+cotizaciones y las especificaciones técnicas de talleres persisten al reiniciar
+el backend.
 
 Como alternativa reproducible con Docker:
 
@@ -129,6 +130,11 @@ para pruebas aisladas; ese modo no conserva información después de reiniciar.
 
 El esquema reproducible está en [`db/schema.sql`](db/schema.sql). Los datos de
 la demostración son simulados y están rotulados como tales en el portal.
+
+La evidencia específica de R4 se reproduce con `npm run evidencia:r4`. El
+comando usa un esquema temporal aislado, comprueba que 100 pedidos se recuperen
+sin pérdida después de reabrir la conexión y mide la latencia de las consultas
+frecuentes frente al límite de 500 ms.
 
 ## Verificación
 

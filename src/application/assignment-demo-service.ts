@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { OrderStore } from '../data/order-store.js';
+import { MemoryWorkshopStore, type WorkshopStore } from '../data/workshop-store.js';
 import {
   findWeek03Scenario,
   recommendationForScenario,
@@ -41,17 +42,18 @@ export class AssignmentFlowError extends Error {
 export class AssignmentDemoService {
   constructor(
     private readonly orders: OrderStore,
+    private readonly workshops: WorkshopStore = new MemoryWorkshopStore(week03DeclaredWorkshops),
     private readonly now: () => string = () => new Date().toISOString(),
     private readonly createOrderId: () => string = () =>
       `PED-${randomUUID().slice(0, 8).toUpperCase()}`,
   ) {}
 
-  catalog() {
+  async catalog() {
     return {
       simulated: true as const,
       datasetVersion: WEEK_03_DATASET_VERSION,
       seed: WEEK_03_SEED,
-      workshops: week03DeclaredWorkshops,
+      workshops: await this.workshops.list(),
       scenarios: week03AssignmentScenarios,
     };
   }
@@ -62,10 +64,12 @@ export class AssignmentDemoService {
 
     const id = this.createOrderId();
     const request = recommendationForScenario(scenario, fabricBuyer);
+    const workshops = await this.workshops.list();
     const recommendation = recommendWorkshops(
       recommendationRequestSchema.parse({
         ...request,
         order: { ...request.order, id },
+        workshops,
       }),
     );
     if (recommendation.candidates.length === 0) {
@@ -90,10 +94,12 @@ export class AssignmentDemoService {
     return this.orders.create(order);
   }
 
-  compareScenario(scenarioId: string, fabricBuyer?: FabricBuyer) {
+  async compareScenario(scenarioId: string, fabricBuyer?: FabricBuyer) {
     const scenario = findWeek03Scenario(scenarioId);
     if (!scenario) throw new AssignmentFlowError('scenario_not_found');
     const request = recommendationForScenario(scenario, fabricBuyer);
+    const workshops = await this.workshops.list();
+    const centralizedRequest = recommendationRequestSchema.parse({ ...request, workshops });
     return {
       simulated: true as const,
       datasetVersion: WEEK_03_DATASET_VERSION,
@@ -102,9 +108,9 @@ export class AssignmentDemoService {
       request: {
         order: request.order,
         weights: request.weights,
-        workshopCount: request.workshops.length,
+        workshopCount: centralizedRequest.workshops.length,
       },
-      comparison: compareRecommendationAlgorithms(request, WEEK_03_SEED),
+      comparison: compareRecommendationAlgorithms(centralizedRequest, WEEK_03_SEED),
     };
   }
 
@@ -124,12 +130,13 @@ export class AssignmentDemoService {
 
     const id = this.createOrderId();
     const evaluatedAt = this.now();
+    const workshops = await this.workshops.list();
     const adapted = recommendationFromQuotation({
       orderId: id,
       quotation,
       garmentIndex: 0,
       evaluatedAt,
-      workshops: week03DeclaredWorkshops,
+      workshops,
     });
     const recommendation = recommendWorkshops(adapted.request);
     const hasCandidate = recommendation.candidates.length > 0;
