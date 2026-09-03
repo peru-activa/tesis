@@ -5,3 +5,12 @@ coverage/
 .env
 .DS_Store
 *.log
+__pycache__/
+*.py[cod]
+
+# Fuentes privadas: nunca publicar correos, adjuntos ni mapas de trazabilidad.
+.local-data/
+private/
+*.eml
+*.mbox
+*.msg

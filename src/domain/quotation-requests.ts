@@ -1,11 +1,19 @@
 import { z } from 'zod';
 import type { QuotationOwner } from './identity.js';
+import { fabricBuyerSchema, poloTypeSchema } from './contracts.js';
 
 export const productSchema = z.enum(['polo', 'buzo']);
 export const audienceSchema = z.enum(['caballero', 'dama', 'unisex']);
 export const sleeveSchema = z.enum(['manga_corta', 'manga_larga', 'no_aplica']);
 export const cutSchema = z.enum(['estandar', 'princesa_dama', 'no_aplica']);
-export const customizationSchema = z.enum(['none', 'embroidery', 'printing', 'sublimation']);
+export const customizationSchema = z.enum([
+  'none',
+  'embroidery',
+  'printing',
+  'sublimation',
+  'vinyl',
+]);
+const activeCustomizationSchema = z.enum(['embroidery', 'printing', 'sublimation', 'vinyl']);
 
 const sizesSchema = z
   .array(
@@ -67,6 +75,7 @@ const fabricSchema = z.discriminatedUnion('mode', [
 const garmentSchema = z
   .object({
     product: productSchema,
+    poloType: poloTypeSchema.optional(),
     model: z.string().trim().min(2, 'Elige o describe el modelo de la prenda.').max(100),
     audience: audienceSchema,
     sleeve: sleeveSchema,
@@ -80,6 +89,8 @@ const garmentSchema = z
     color: z.string().trim().min(2, 'Indica el color de la prenda.').max(80),
     fabric: fabricSchema,
     customization: customizationSchema,
+    additionalCustomizations: z.array(activeCustomizationSchema).max(3).optional(),
+    patternMode: z.enum(['standard', 'new']).optional(),
     applicationCount: z
       .number('Indica cuántos logos o diseños se aplicarán.')
       .int('La cantidad de logos o diseños debe ser un número entero.')
@@ -133,7 +144,18 @@ const garmentSchema = z
         message: 'El corte princesa corresponde a dama.',
       });
     }
-    const hasCustomization = garment.customization !== 'none';
+    const selectedCustomizations = [
+      ...(garment.customization === 'none' ? [] : [garment.customization]),
+      ...(garment.additionalCustomizations ?? []),
+    ];
+    const hasCustomization = selectedCustomizations.length > 0;
+    if (new Set(selectedCustomizations).size !== selectedCustomizations.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['additionalCustomizations'],
+        message: 'Una personalización no puede seleccionarse dos veces.',
+      });
+    }
     if (hasCustomization && garment.applicationCount < 1) {
       context.addIssue({
         code: 'custom',
@@ -196,6 +218,7 @@ export const sellerQuotationDraftSchema = z.object({
     .max(5)
     .optional(),
   selectedFabric: z.string().trim().min(2).max(80),
+  fabricBuyer: fabricBuyerSchema,
   validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   conditions: z.string().trim().min(3).max(500),
 });

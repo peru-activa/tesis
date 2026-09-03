@@ -12,6 +12,7 @@ export interface WorkshopNotificationContent {
   sizes: OrderDraft['sizes'];
   requiredProcesses: Process[];
   customization: OrderDraft['customization'];
+  additionalCustomizations?: OrderDraft['additionalCustomizations'];
   designReference: string;
   requiredBy: string;
   deliveryDistrict: string;
@@ -33,6 +34,7 @@ export interface WorkshopNotification {
 const processLabels: Record<Process, string> = {
   fabric_sourcing: 'compra de tela',
   design: 'diseño',
+  transfer_printing: 'impresión en papel de sublimación',
   patternmaking: 'patronaje',
   cutting: 'corte',
   sewing: 'costura',
@@ -76,6 +78,7 @@ export function createWorkshopNotification(input: {
     sizes,
     requiredProcesses: input.requiredProcesses,
     customization: input.draft.customization,
+    additionalCustomizations: input.draft.additionalCustomizations,
     designReference: input.draft.designReference,
     requiredBy: input.draft.requiredBy,
     deliveryDistrict: input.draft.deliveryDistrict,

@@ -9,11 +9,20 @@ const sizesSchema = z
 export const orderDraftSchema = z
   .object({
     product: z.enum(['polo', 'buzo']),
+    poloType: z
+      .enum(['cotton_basic', 'cotton_advertising', 'collared', 'sports', 'stretch'])
+      .optional(),
     quantity: z.number().int().min(1).max(5_000),
     material: z.string().trim().min(2).max(80),
     color: z.string().trim().min(2).max(40),
     sizes: sizesSchema,
-    customization: z.enum(['none', 'printing', 'embroidery', 'sublimation']),
+    customization: z.enum(['none', 'printing', 'embroidery', 'sublimation', 'vinyl']),
+    additionalCustomizations: z
+      .array(z.enum(['printing', 'embroidery', 'sublimation', 'vinyl']))
+      .max(3)
+      .optional(),
+    requiresNewPattern: z.boolean().optional(),
+    embroideryApplicationsPerGarment: z.number().int().positive().max(20).optional(),
     designReference: z.string().trim().min(3).max(160),
     requiredBy: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     deliveryDistrict: z.string().trim().min(2).max(80),
@@ -43,6 +52,7 @@ export interface OrderAssignment {
     workshopId: string;
     displayName: string;
     quantity: number;
+    assignedProcesses: Process[];
     status: 'assigned' | 'in_production' | 'completed';
   }>;
 }

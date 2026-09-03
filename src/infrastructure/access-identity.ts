@@ -1,6 +1,6 @@
 import type { Request } from 'express';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { week03SimulatedWorkshops } from '../data/week-03-assignment-scenarios.js';
+import { week03DeclaredWorkshops } from '../data/week-03-assignment-scenarios.js';
 import { AccessAuthorizationError, type AuthenticatedIdentity } from '../domain/identity.js';
 
 let cachedTeamDomain = '';
@@ -38,13 +38,13 @@ function jwksFor(teamDomain: string) {
 function localIdentity(request: Request): AuthenticatedIdentity {
   const workshopPhone = request.get('x-demo-workshop-phone')?.trim();
   if (workshopPhone) {
-    const workshop = week03SimulatedWorkshops.find(
+    const workshop = week03DeclaredWorkshops.find(
       (candidate) => candidate.contactPhone === workshopPhone,
     );
     if (!workshop) {
       throw new AccessAuthorizationError(
         'unauthenticated',
-        'El número no corresponde a un taller simulado.',
+        'El número no corresponde a un taller declarado.',
       );
     }
     return {
@@ -133,10 +133,7 @@ async function cloudflareIdentity(request: Request): Promise<AuthenticatedIdenti
 }
 
 export async function resolveIdentity(request: Request): Promise<AuthenticatedIdentity> {
-  if (
-    process.env.NODE_ENV === 'production' ||
-    request.get('cf-access-jwt-assertion')?.trim()
-  ) {
+  if (process.env.NODE_ENV === 'production' || request.get('cf-access-jwt-assertion')?.trim()) {
     return cloudflareIdentity(request);
   }
   return localIdentity(request);

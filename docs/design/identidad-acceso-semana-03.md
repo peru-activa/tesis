@@ -9,7 +9,7 @@
 | Actores internos      | Perú Activa y cinco talleres simulados                                                           |
 | Medio de verificación | Flujo web, contratos HTTP y pruebas de autorización                                              |
 | IOV                   | No se atribuye cumplimiento de un IOV; la identidad no sustituye la validación con participantes |
-| Estado                | Prototipo local reproducible y publicación temporal protegida por Cloudflare Access               |
+| Estado                | Prototipo local reproducible y publicación temporal protegida por Cloudflare Access              |
 
 ## Casos de uso
 
@@ -77,7 +77,9 @@ configuradas localmente. Esta excepción falla cerrada en producción.
 ## Datos simulados
 
 La tesis identifica cinco talleres como cantidad prevista del piloto. Por ello
-se conservan cinco talleres totales, no cinco por proceso. Sus nombres,
+se conservan cinco talleres autenticables, no cinco por proceso. Los perfiles
+simulados adicionales de proveedores de proceso sirven exclusivamente para
+probar rutas técnicas y no se consideran participantes confirmados. Los nombres,
 teléfonos, capacidades, disponibilidad y métricas son simulados y versionados.
 La cobertura conjunta incluye abastecimiento de tela, diseño/patronaje, corte,
 sublimación, estampado, vinil, bordado, confección, colocación de avíos,

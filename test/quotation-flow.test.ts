@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { after, before, describe, it } from 'node:test';
 import { createApp } from '../src/app.js';
 import { MemoryOrderStore } from '../src/data/order-store.js';
-import { week03SimulatedWorkshops } from '../src/data/week-03-assignment-scenarios.js';
+import { week03DeclaredWorkshops } from '../src/data/week-03-assignment-scenarios.js';
 import { MemoryQuotationStore } from '../src/infrastructure/quotation-store.js';
 
 let server: Server;
@@ -107,6 +107,7 @@ describe('quotation request flow', () => {
           totalPricePEN: 1_920,
           lineItems: [{ garmentIndex: 0, unitPricePEN: 60 }],
           selectedFabric: 'Zanetti 100 % poliéster',
+          fabricBuyer: 'workshop',
           validUntil: '2026-09-05',
           conditions: 'Incluye confección y un bordado por prenda.',
         }),
@@ -145,7 +146,7 @@ describe('quotation request flow', () => {
     assert.equal(productionOrder.draft.sizes.M, 14);
     assert.ok(productionOrder.recommendation.candidates.length > 0);
 
-    const workshop = week03SimulatedWorkshops.find(
+    const workshop = week03DeclaredWorkshops.find(
       (item) => item.id === productionOrder.recommendation.candidates[0].workshopId,
     );
     assert.ok(workshop?.contactPhone);
@@ -155,12 +156,18 @@ describe('quotation request flow', () => {
       body: JSON.stringify({ workshopId: workshop.id }),
     });
     assert.equal(confirmationResponse.status, 200);
+    const confirmation = await confirmationResponse.json();
+    const assignedWorkshopIds = confirmation.order.assignment.allocations.map(
+      (allocation: { workshopId: string }) => allocation.workshopId,
+    );
 
     const assignedTrackingResponse = await fetch(`${baseUrl}/v1/my-orders/${created.request.id}`);
     const assignedTracking = await assignedTrackingResponse.json();
     assert.equal(assignedTracking.item.productionOrders[0].status, 'assigned');
 
-    const unauthorizedWorkshop = week03SimulatedWorkshops.find((item) => item.id !== workshop.id);
+    const unauthorizedWorkshop = week03DeclaredWorkshops.find(
+      (item) => item.contactPhone && !assignedWorkshopIds.includes(item.id),
+    );
     assert.ok(unauthorizedWorkshop?.contactPhone);
     const unauthorizedStatusResponse = await fetch(
       `${baseUrl}/v1/orders/${productionOrder.id}/status`,
@@ -175,31 +182,24 @@ describe('quotation request flow', () => {
     );
     assert.equal(unauthorizedStatusResponse.status, 404);
 
-    const productionStatusResponse = await fetch(
-      `${baseUrl}/v1/orders/${productionOrder.id}/status`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-demo-workshop-phone': workshop.contactPhone,
-        },
-        body: JSON.stringify({ status: 'in_production' }),
-      },
-    );
-    assert.equal(productionStatusResponse.status, 200);
-
-    const completedStatusResponse = await fetch(
-      `${baseUrl}/v1/orders/${productionOrder.id}/status`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-demo-workshop-phone': workshop.contactPhone,
-        },
-        body: JSON.stringify({ status: 'completed' }),
-      },
-    );
-    assert.equal(completedStatusResponse.status, 200);
+    for (const workshopId of assignedWorkshopIds) {
+      const assignedWorkshop = week03DeclaredWorkshops.find((item) => item.id === workshopId);
+      assert.ok(assignedWorkshop?.contactPhone);
+      for (const status of ['in_production', 'completed']) {
+        const updateResponse: Response = await fetch(
+          `${baseUrl}/v1/orders/${productionOrder.id}/status`,
+          {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-demo-workshop-phone': assignedWorkshop.contactPhone,
+            },
+            body: JSON.stringify({ status }),
+          },
+        );
+        assert.equal(updateResponse.status, 200);
+      }
+    }
 
     const completedTrackingResponse = await fetch(`${baseUrl}/v1/my-orders/${created.request.id}`);
     const completedTracking = await completedTrackingResponse.json();
@@ -324,6 +324,7 @@ describe('quotation request flow', () => {
             { garmentIndex: 1, unitPricePEN: 80 },
           ],
           selectedFabric: 'Microtec poliéster',
+          fabricBuyer: 'peru_activa',
           validUntil: '2026-09-05',
           conditions: 'Cotización simulada para dos prendas.',
         }),

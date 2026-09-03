@@ -16,9 +16,12 @@ export const week02Demo = {
       product: 'polo',
       material: 'algodón',
       quantity: 100,
+      fabricBuyer: 'peru_activa',
       requiredProcesses: ['design', 'cutting', 'sewing', 'printing', 'finishing'],
       requiredBy: '2026-09-12T18:00:00-05:00',
     },
-    workshops: simulatedWorkshops,
+    workshops: simulatedWorkshops.filter(
+      (workshop) => workshop.providerType === 'garment_producer',
+    ),
   }),
 } as const;

@@ -10,11 +10,11 @@
 | IOV preparado         | Factibilidad, coincidencia de procesos, restricciones incumplidas y reproducibilidad con datos simulados. |
 | EDT                   | Diseño de arquitectura/contratos e interfaz; avance conectado de EDT1312 y EDT1313.                       |
 | Semana                | Semana 3 del ciclo 2026-2.                                                                                |
-| Evidencia             | Dataset `r5-synthetic-v2`, ocho escenarios, pruebas y demostración local.                                 |
+| Evidencia             | Dataset `r5-synthetic-v13`, nueve escenarios, pruebas y demostración local.                               |
 
 Este incremento no demuestra los IOV finales de R5. No utiliza datos históricos
-autorizados, no implementa todavía el algoritmo genético final y no reporta
-resultados del piloto.
+autorizados ni reporta resultados del piloto. Sí implementa una comparación
+reproducible entre la línea base y un algoritmo genético con datos simulados.
 
 ## Actor y necesidad
 
@@ -85,6 +85,26 @@ se conserva y será descartada de forma explicable si ningún taller la atiende.
   confirmada por Perú Activa.
 - Toda proyección incluye el mismo identificador y versión del pedido.
 
+## Caso de uso UC-R5-02: comparar los métodos de asignación
+
+1. El evaluador selecciona uno de los nueve escenarios versionados.
+2. La API construye una única entrada con pedido, tres productores, cuatro
+   proveedores de proceso, restricciones y pesos.
+3. La línea base determinística evalúa la entrada y registra su tiempo medio.
+4. El algoritmo genético usa la misma entrada y la semilla `20260827`.
+5. Cada cromosoma representa una combinación de uno a tres talleres; el
+   decodificador determinístico distribuye las cantidades dentro de la
+   combinación y las soluciones inviables reciben aptitud cero.
+6. La población de 36 individuos evoluciona durante 40 generaciones mediante
+   selección por torneo, cruce uniforme, mutación de 0.12 y elitismo de dos.
+7. La interfaz compara factibilidad, asignación, aptitud y tiempo, y muestra la
+   mejor aptitud y el promedio de la población por generación.
+8. El evaluador exporta un JSON con entrada, parámetros, resultados y traza.
+
+Los tiempos son mediciones observadas, no constantes del algoritmo. La línea
+base se repite 100 veces y el algoritmo genético cinco veces para reportar el
+promedio de cada ejecución sin ocultar su diferencia de costo computacional.
+
 ## Contrato canónico de notificación
 
 La fuente de verdad es `PortalOrder`. El backend deriva una sola notificación
@@ -103,28 +123,82 @@ en texto estructurado sin consultar ni duplicar reglas de negocio.
 
 ## Dataset reproducible
 
-`r5-synthetic-v2` contiene cinco talleres ficticios especializados por tela y
-ocho pedidos de frontera:
+`r5-synthetic-v13` contiene tres productores y cuatro proveedores de proceso
+declarados por Perú Activa, además de nueve pedidos
+de frontera:
 
 1. polo equilibrado;
 2. prenda deportiva con sublimación;
 3. especialización en bordado;
 4. Piqué Lacoste especializado;
 5. capacidad exactamente en el límite;
-6. capacidad compartida entre dos talleres;
+6. capacidad productiva insuficiente;
 7. plazo incompatible;
-8. material sin cobertura.
+8. material sin cobertura;
+9. sublimación y bordado combinados sobre una prenda deportiva.
 
 Los escenarios usan la fecha de evaluación fija
-`2026-08-27T09:00:00-05:00` y la semilla declarada `20260827`. La línea base
-no consume aleatoriedad, pero la semilla queda en el contrato para la futura
-comparación con el algoritmo genético.
+`2026-08-27T09:00:00-05:00` y la semilla declarada `20260827`. La línea base no
+consume aleatoriedad y el algoritmo genético sí utiliza la semilla para producir
+la misma población, convergencia y asignación ante la misma entrada.
+
+Cada escenario registra quién compra la tela. Si compra el taller productor,
+el motor exige que pueda gestionar el aprovisionamiento; si compra Perú Activa,
+el taller solo debe poder trabajar la tela especificada. Esta decisión humana
+se conserva como entrada y ambos métodos reciben exactamente el mismo valor.
+
+La compatibilidad de materiales se evalúa por familias de capacidad. Un taller
+puede declarar simultáneamente algodón, deportivo y licra; las telas concretas
+se conservan como ejemplos y trazabilidad. Por ejemplo, Win, Dry Fit y Zanetti
+pertenecen a la familia deportiva, por lo que un taller que declara esa
+capacidad puede atender cualquiera de ellas. Una tela desconocida solo coincide
+si el taller la declaró explícitamente.
+
+La capacidad técnica y la capacidad productiva se almacenan por separado. Para
+un pedido sublimado, el motor puede construir una ruta superpuesta. El perfil de
+calandra recibe tela, prepara el diseño digital, imprime el papel de
+transferencia, sublima y corta; después el
+productor cose y realiza el acabado. El perfil declarado del taller E requiere
+piezas ya cortadas y registra 1,000 polos sublimados por semana. También ofrece
+vinil con una capacidad declarada de 500 polos por semana; el proceso incluye
+impresión y pelado o limpieza del material. Estos perfiles no amplían por sí
+mismos los cinco participantes comprometidos para el piloto.
+
+Los otros dos perfiles representan talleres de bordado declarados. El taller F registra
+cuatro cabezales y una capacidad máxima de 100 logos diarios; incluye limpieza
+del bordado y retiro del pelón. El taller G registra doce cabezales y una capacidad
+de 300 logos diarios. Cada perfil separa el total de cabezales, los cabezales
+disponibles y la capacidad.
+
+El formulario del cliente no contiene talleres, cabezales ni capacidades. Solo
+recoge las condiciones del pedido y permite varias personalizaciones. El motor
+usa internamente esos datos para construir rutas como sublimación, corte,
+bordado sobre panel, costura y acabado. Cuando el modelo es nuevo, el patronaje
+se asigna al mismo taller productor; los modelos estándar usan moldes existentes.
+
+En las rutas especializadas, la tasa diaria se acumula durante los días
+laborables disponibles. El plazo se aproxima mediante el mayor tiempo efectivo
+de las etapas, porque los lotes parciales pasan al siguiente proveedor sin
+esperar que termine el pedido completo. Por tanto, una tasa de 240 polos diarios
+no limita el pedido a 240 unidades: permite hasta 1,200 polos en cinco días si
+el taller está libre.
+
+La fecha de evaluación representa el momento en que el diseño fue aprobado. El
+plazo productivo se calcula desde ese instante y no vuelve a sumar el tiempo de
+aprobación comercial del diseño.
+
+En los escenarios factibles, ambos métodos producen una asignación y
+la misma puntuación calculada sobre una referencia común. En los tres escenarios
+incompatibles, ambos métodos reportan ausencia de solución. Este resultado no
+prueba que el algoritmo genético sea superior; documenta su comportamiento y
+evita seleccionar el método definitivo sin comparación.
 
 ## Decisiones pendientes
 
 - Definir si una cotización con varias prendas puede dividirse entre talleres.
 - Validar factores y pesos con Perú Activa.
-- Implementar y comparar el algoritmo genético durante T09.
+- Contrastar ambos métodos con datos históricos cuando exista autorización y
+  seleccionar el método definitivo con base en esa evidencia.
 - Sustituir la vista previa por el adaptador real de WhatsApp después de aprobar
   canal, plantilla, datos y credenciales.
 - Incorporar autenticación antes de cualquier uso fuera del entorno local.

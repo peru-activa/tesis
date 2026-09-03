@@ -137,6 +137,7 @@ describe('aislamiento de datos por identidad', () => {
       totalPricePEN: 1_000,
       lineItems: [{ garmentIndex: 0, unitPricePEN: 50 }],
       selectedFabric: 'Algodón pima 20/1',
+      fabricBuyer: 'workshop',
       validUntil: '2026-09-05',
       conditions: 'Cotización simulada.',
     };
@@ -158,8 +159,8 @@ describe('aislamiento de datos por identidad', () => {
     assert.equal(accepted.status, 200);
   });
 
-  it('identifica los cinco teléfonos simulados y rechaza uno desconocido', async () => {
-    for (const phone of ['900000001', '900000002', '900000003', '900000004', '900000005']) {
+  it('identifica los cinco teléfonos declarados y rechaza uno desconocido', async () => {
+    for (const phone of ['900000001', '900000002', '900000003', '900000006', '900000007']) {
       const response = await fetch(`${baseUrl}/v1/session`, {
         headers: { 'x-demo-workshop-phone': phone },
       });

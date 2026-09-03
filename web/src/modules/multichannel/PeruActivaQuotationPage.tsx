@@ -24,6 +24,7 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
       totalPricePEN: 0,
       lineItems: [],
       selectedFabric: '',
+      fabricBuyer: 'workshop',
       validUntil: dateAfter(7),
       conditions: 'Incluye confección y personalización. Pago y entrega según coordinación.',
     },
@@ -97,6 +98,7 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
         unitPricePEN: 0,
       })),
       selectedFabric: requestedFabrics,
+      fabricBuyer: 'workshop',
       validUntil: dateAfter(7),
       conditions: 'Incluye confección y personalización. Pago y entrega según coordinación.',
     });
@@ -219,6 +221,12 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
                         placeholder="Ejemplo: algodón jersey 30/1"
                       />
                     </InputField>
+                    <InputField label="¿Quién compra la tela?">
+                      <select {...form.register('fabricBuyer')}>
+                        <option value="workshop">Taller productor</option>
+                        <option value="peru_activa">Perú Activa</option>
+                      </select>
+                    </InputField>
                     <InputField label="Cotización válida hasta">
                       <input type="date" min={dateAfter(1)} {...form.register('validUntil')} />
                     </InputField>
@@ -240,6 +248,12 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
                     <h2>Cotización enviada</h2>
                     <QuotationPriceBreakdown request={request} />
                     <p>{request.quotation.selectedFabric}</p>
+                    <p>
+                      Compra de tela:{' '}
+                      {request.quotation.fabricBuyer === 'peru_activa'
+                        ? 'Perú Activa'
+                        : 'Taller productor'}
+                    </p>
                     <p>{request.quotation.conditions}</p>
                     <small>Válida hasta {request.quotation.validUntil}</small>
                   </div>

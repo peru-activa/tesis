@@ -10,13 +10,13 @@ import {
 import { QuotationService } from './application/quotation-service.js';
 import { createOrderStore, type OrderStore } from './data/order-store.js';
 import { week02Demo } from './data/week-02-demo.js';
-import { simulatedWorkshops } from './data/workshops.js';
+import { week03DeclaredWorkshops } from './data/week-03-assignment-scenarios.js';
 import {
   AccessAuthorizationError,
   requireRole,
   type AuthenticatedIdentity,
 } from './domain/identity.js';
-import { recommendationRequestSchema } from './domain/contracts.js';
+import { fabricBuyerSchema, recommendationRequestSchema } from './domain/contracts.js';
 import { orderDraftSchema, workshopOrderStatusSchema, type PortalOrder } from './domain/orders.js';
 import type { QuotationRequest } from './domain/quotation-requests.js';
 import { recommendWorkshops } from './domain/recommend.js';
@@ -34,11 +34,15 @@ const confirmationSchema = z
     message: 'Se requiere el identificador del plan de asignación.',
   });
 
+const assignmentScenarioOptionsSchema = z.object({
+  fabricBuyer: fabricBuyerSchema.optional(),
+});
+
 const openApiDocument = {
   openapi: '3.0.3',
   info: {
     title: 'Portal de pedidos de Perú Activa',
-    version: '0.1.0',
+    version: '0.6.0',
     description: 'API del MVP académico para registro, recomendación y seguimiento de pedidos.',
   },
   components: {
@@ -170,7 +174,8 @@ const openApiDocument = {
     },
     '/v1/demos/week-03/assignment-scenarios': {
       get: {
-        summary: 'Listar los cinco talleres y ocho escenarios simulados de R5',
+        summary:
+          'Listar tres productores, cuatro proveedores de proceso y nueve escenarios simulados de R5',
         responses: { 200: { description: 'Catálogo reproducible de Semana 3' } },
       },
     },
@@ -180,6 +185,15 @@ const openApiDocument = {
         responses: {
           201: { description: 'Pedido evaluado con candidatos explicables' },
           422: { description: 'Ningún taller cumple todas las restricciones' },
+        },
+      },
+    },
+    '/v1/demos/week-03/assignment-scenarios/{scenarioId}/compare': {
+      post: {
+        summary: 'Comparar la línea base y el algoritmo genético con la misma entrada y semilla',
+        responses: {
+          200: { description: 'Comparación reproducible con métricas y convergencia' },
+          404: { description: 'Escenario no encontrado' },
         },
       },
     },
@@ -312,7 +326,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.get('/openapi.json', (_request, response) => response.json(openApiDocument));
 
   app.get('/health', (_request, response) => {
-    response.json({ ok: true, service: 'tesis', algorithmVersion: '0.1.0' });
+    response.json({ ok: true, service: 'tesis', algorithmVersion: '0.6.0' });
   });
 
   app.post('/v1/recommendations', (request, response) => {
@@ -345,7 +359,11 @@ export function createApp(options: AppOptions = {}): express.Express {
 
   app.post('/v1/demos/week-03/assignment-scenarios/:scenarioId/run', async (request, response) => {
     try {
-      const order = await assignmentService.runScenario(request.params.scenarioId);
+      const optionsInput = assignmentScenarioOptionsSchema.parse(request.body || {});
+      const order = await assignmentService.runScenario(
+        request.params.scenarioId,
+        optionsInput.fabricBuyer,
+      );
       options.onOrderUpdated?.(order);
       response.status(201).json({ ok: true, order, simulated: true });
     } catch (error) {
@@ -360,6 +378,22 @@ export function createApp(options: AppOptions = {}): express.Express {
           message: 'Ningún taller simulado cumple todas las restricciones del escenario.',
           result: error.details,
         });
+        return;
+      }
+      throw error;
+    }
+  });
+
+  app.post('/v1/demos/week-03/assignment-scenarios/:scenarioId/compare', (request, response) => {
+    try {
+      const optionsInput = assignmentScenarioOptionsSchema.parse(request.body || {});
+      response.json({
+        ok: true,
+        ...assignmentService.compareScenario(request.params.scenarioId, optionsInput.fabricBuyer),
+      });
+    } catch (error) {
+      if (error instanceof AssignmentFlowError && error.code === 'scenario_not_found') {
+        response.status(404).json({ ok: false, error: error.code });
         return;
       }
       throw error;
@@ -421,18 +455,24 @@ export function createApp(options: AppOptions = {}): express.Express {
         order: {
           id,
           product: parsed.data.product,
+          poloType: parsed.data.poloType,
           material: parsed.data.material,
           quantity: parsed.data.quantity,
+          fabricBuyer: 'peru_activa',
+          requiresNewPattern: parsed.data.requiresNewPattern ?? false,
+          embroideryApplicationsPerGarment: parsed.data.embroideryApplicationsPerGarment ?? 1,
           requiredProcesses: [
             'design',
+            ...(parsed.data.requiresNewPattern ? (['patternmaking'] as const) : []),
             'cutting',
             'sewing',
             ...(parsed.data.customization === 'none' ? [] : [parsed.data.customization]),
+            ...(parsed.data.additionalCustomizations ?? []),
             'finishing',
           ],
           requiredBy: `${parsed.data.requiredBy}T18:00:00-05:00`,
         },
-        workshops: simulatedWorkshops,
+        workshops: week03DeclaredWorkshops,
       });
       const recommendation = recommendWorkshops(recommendationRequest);
       if (recommendation.candidates.length === 0) {

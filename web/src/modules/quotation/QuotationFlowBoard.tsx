@@ -40,6 +40,7 @@ export function QuotationFlowBoard({
     defaultValues: {
       totalPricePEN: 0,
       selectedFabric: requestedFabrics,
+      fabricBuyer: 'workshop',
       validUntil: dateAfter(7),
       conditions: 'Incluye confección y personalización. Pago y entrega según coordinación.',
     },
@@ -122,6 +123,12 @@ export function QuotationFlowBoard({
                 placeholder="Ejemplo: Zanetti 100 % poliéster"
               />
             </InputField>
+            <InputField label="¿Quién compra la tela?">
+              <select {...quoteForm.register('fabricBuyer')}>
+                <option value="workshop">Taller productor</option>
+                <option value="peru_activa">Perú Activa</option>
+              </select>
+            </InputField>
             <InputField label="Válida hasta">
               <input type="date" min={dateAfter(1)} {...quoteForm.register('validUntil')} />
             </InputField>
@@ -150,6 +157,11 @@ export function QuotationFlowBoard({
               <h2>Cotización recibida</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 {request.quotation.selectedFabric}
+                <br />
+                Compra de tela:{' '}
+                {request.quotation.fabricBuyer === 'peru_activa'
+                  ? 'Perú Activa'
+                  : 'Taller productor'}
                 <br />
                 {request.quotation.conditions}
               </p>

@@ -7,6 +7,15 @@ const customizationLabels: Record<QuotationRequestDraft['garment']['customizatio
   embroidery: 'Bordado',
   printing: 'Estampado',
   sublimation: 'Sublimado',
+  vinyl: 'Vinil',
+};
+
+const poloTypeLabels = {
+  cotton_basic: 'Básico de algodón',
+  cotton_advertising: 'Publicitario de algodón',
+  collared: 'Camisero',
+  sports: 'Deportivo',
+  stretch: 'Licra',
 };
 
 export function QuotationRequestSummary({ draft }: { draft: QuotationRequestDraft }) {
@@ -61,14 +70,26 @@ export function QuotationRequestSummary({ draft }: { draft: QuotationRequestDraf
                 </h3>
                 <p>
                   {garment.product === 'polo'
-                    ? [garment.model, cutLabel, sleeveLabel, garment.color]
+                    ? [
+                        garment.poloType ? poloTypeLabels[garment.poloType] : undefined,
+                        garment.model,
+                        cutLabel,
+                        sleeveLabel,
+                        garment.color,
+                      ]
                         .filter(Boolean)
                         .join(' · ')
                     : `${garment.model} para ${garment.audience} · ${garment.color}`}
                 </p>
                 <p>
                   {garment.fabric.mode === 'proposal' ? 'Tela por recomendar' : garment.fabric.name}{' '}
-                  · {customizationLabels[garment.customization]}
+                  ·{' '}
+                  {[
+                    customizationLabels[garment.customization],
+                    ...(garment.additionalCustomizations ?? []).map(
+                      (item) => customizationLabels[item],
+                    ),
+                  ].join(' + ')}
                 </p>
                 {garment.designAttachment && <p>Adjunto: {garment.designAttachment.name}</p>}
               </section>
