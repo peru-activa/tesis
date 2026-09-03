@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import { PeruActivaHeader } from '../../components/PeruActivaHeader';
 import { fetchAsPeruActiva, fetchAsWorkshop } from '../../lib/actor-api';
+import { R5ComparisonView } from './R5ComparisonView';
 import './multichannel.css';
 
 export type MultichannelView = 'peru-activa' | 'taller' | 'evidencia';
@@ -28,13 +29,15 @@ type Scenario = {
   title: string;
   focus: string;
   draft: { product: string; quantity: number; material: string; requiredBy: string };
+  fabricBuyer: 'peru_activa' | 'workshop';
 };
 type Workshop = {
   id: string;
   displayName: string;
-  contactPhone: string;
+  contactPhone?: string;
   products: string[];
   materials: string[];
+  materialFamilies: Array<'cotton_knit' | 'sports_knit' | 'stretch_knit' | 'woven'>;
   availableCapacity: number;
   estimatedLeadTimeDays: number;
   evidenceLevel: string;
@@ -100,6 +103,7 @@ type IncomingQuotation = {
 const processLabels: Record<string, string> = {
   fabric_sourcing: 'Abastecimiento de tela',
   design: 'Diseño',
+  transfer_printing: 'Impresión en papel',
   patternmaking: 'Patronaje',
   cutting: 'Corte',
   sewing: 'Costura',
@@ -150,7 +154,6 @@ export function MultichannelDemo({
   const [seed, setSeed] = useState<number>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [rejected, setRejected] = useState<Rejected[]>([]);
 
   const actorFetch = useCallback(
     (input: RequestInfo | URL, init?: RequestInit) =>
@@ -230,31 +233,6 @@ export function MultichannelDemo({
 
   const selected = scenarios.find((scenario) => scenario.id === selectedScenario);
   const activeNotification = order?.notification ?? notifications[0];
-  const stage = order ? (order.status === 'recommended' ? 3 : 5) : notifications.length > 0 ? 5 : 0;
-
-  async function runScenario() {
-    setBusy(true);
-    setError('');
-    setRejected([]);
-    setOrder(undefined);
-    const response = await actorFetch(
-      `/v1/demos/week-03/assignment-scenarios/${selectedScenario}/run`,
-      { method: 'POST' },
-    );
-    const payload = await response.json();
-    setBusy(false);
-    if (!response.ok) {
-      setError(payload.message || 'No se pudo ejecutar el escenario.');
-      setRejected(payload.result?.rejected || []);
-      return;
-    }
-    setOrder(payload.order);
-    setOrders((current) => [
-      payload.order,
-      ...current.filter((item) => item.id !== payload.order.id),
-    ]);
-  }
-
   async function confirm(candidateId: string) {
     if (!order) return;
     setBusy(true);
@@ -327,21 +305,21 @@ export function MultichannelDemo({
                 ? 'PERÚ ACTIVA'
                 : view === 'taller'
                   ? 'VISTA DEL TALLER'
-                  : 'R5 + R7 · DEMOSTRACIÓN PARCIAL'}
+                  : 'R5 · COMPARACIÓN REPRODUCIBLE'}
             </p>
             <h1>
               {view === 'peru-activa'
                 ? 'Pedidos por atender'
                 : view === 'taller'
                   ? 'Trabajos asignados'
-                  : 'Escenarios reproducibles'}
+                  : 'Evidencia del algoritmo de asignación'}
             </h1>
             <p>
               {view === 'peru-activa'
                 ? 'Aquí aparecen automáticamente las solicitudes enviadas desde el formulario.'
                 : view === 'taller'
                   ? 'Aquí aparecen los pedidos que Perú Activa confirmó para el taller.'
-                  : 'Cinco talleres y ocho casos simulados, versionados y sin atribuir resultados del piloto.'}
+                  : 'Línea base y algoritmo genético comparados con tres productores, cuatro proveedores de proceso y nueve escenarios simulados.'}
             </p>
           </div>
           {view === 'evidencia' && (
@@ -356,13 +334,11 @@ export function MultichannelDemo({
               </div>
               <div>
                 <dt>Estado académico</dt>
-                <dd>Parcial</dd>
+                <dd>Demostración técnica</dd>
               </div>
             </dl>
           )}
         </section>
-
-        {view === 'evidencia' && <FlowThread stage={stage} />}
 
         {view === 'peru-activa' && (
           <>
@@ -396,17 +372,11 @@ export function MultichannelDemo({
         {view === 'evidencia' && (
           <>
             <EvidenceView scenarios={scenarios} workshops={workshops} />
-            <AssignmentDemoTools
+            <R5ComparisonView
               scenarios={scenarios}
               selectedScenario={selectedScenario}
               selected={selected}
-              order={order}
-              error={error}
-              rejected={rejected}
-              busy={busy}
               onScenarioChange={setSelectedScenario}
-              onRun={runScenario}
-              onConfirm={confirm}
             />
           </>
         )}
@@ -489,13 +459,15 @@ export function WorkshopAccessPage() {
           <details className="workshop-demo-credentials">
             <summary>Números simulados para probar</summary>
             <ul>
-              {workshops.map((workshop) => (
-                <li key={workshop.id}>
-                  <button onClick={() => setDraft(workshop.contactPhone)}>
-                    {workshop.displayName} · {workshop.contactPhone}
-                  </button>
-                </li>
-              ))}
+              {workshops
+                .filter((workshop) => workshop.contactPhone)
+                .map((workshop) => (
+                  <li key={workshop.id}>
+                    <button onClick={() => setDraft(workshop.contactPhone || '')}>
+                      {workshop.displayName} · {workshop.contactPhone}
+                    </button>
+                  </li>
+                ))}
             </ul>
           </details>
           <small>
@@ -604,153 +576,6 @@ function QuotationState({ quotation }: { quotation: IncomingQuotation }) {
     <span className={`mc-quotation-state ${quotation.production?.status || quotation.status}`}>
       {productionLabel}
     </span>
-  );
-}
-
-function FlowThread({ stage }: { stage: number }) {
-  const labels = [
-    'Cotización aceptada',
-    'Orden creada',
-    'Talleres filtrados',
-    'Propuesta calculada',
-    'Confirmación humana',
-    'Canales publicados',
-  ];
-  return (
-    <ol className="mc-thread" aria-label="Estado del flujo">
-      {labels.map((label, index) => (
-        <li key={label} className={index <= stage ? 'done' : ''}>
-          <span>{index < stage ? '✓' : index + 1}</span>
-          <b>{label}</b>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function AssignmentDemoTools({
-  scenarios,
-  selectedScenario,
-  selected,
-  order,
-  error,
-  rejected,
-  busy,
-  onScenarioChange,
-  onRun,
-  onConfirm,
-}: {
-  scenarios: Scenario[];
-  selectedScenario: string;
-  selected?: Scenario;
-  order?: Order;
-  error: string;
-  rejected: Rejected[];
-  busy: boolean;
-  onScenarioChange: (id: string) => void;
-  onRun: () => void;
-  onConfirm: (id: string) => void;
-}) {
-  return (
-    <section className="mc-demo-tools mc-evidence-demo">
-      <h2>Ejecutar un caso simulado</h2>
-      <p className="mc-demo-explanation">
-        Esta sección usa datos simulados y demuestra cómo se filtran y ordenan los talleres.
-      </p>
-      <div className="mc-workspace">
-        <aside className="mc-panel mc-scenario-panel">
-          <div className="mc-panel-heading">
-            <div>
-              <h2>Pedido de ejemplo</h2>
-            </div>
-          </div>
-          <label className="mc-label" htmlFor="scenario">
-            Elige un caso
-          </label>
-          <select
-            id="scenario"
-            value={selectedScenario}
-            onChange={(event) => onScenarioChange(event.target.value)}
-          >
-            {scenarios.map((scenario) => (
-              <option key={scenario.id} value={scenario.id}>
-                {scenario.title}
-              </option>
-            ))}
-          </select>
-          {selected && (
-            <div className="mc-order-ticket">
-              <p>{selected.focus}</p>
-              <dl>
-                <div>
-                  <dt>Producto</dt>
-                  <dd>{selected.draft.product}</dd>
-                </div>
-                <div>
-                  <dt>Cantidad</dt>
-                  <dd>{selected.draft.quantity} un.</dd>
-                </div>
-                <div>
-                  <dt>Material</dt>
-                  <dd>{selected.draft.material}</dd>
-                </div>
-                <div>
-                  <dt>Fecha</dt>
-                  <dd>{shortDate(selected.draft.requiredBy)}</dd>
-                </div>
-              </dl>
-            </div>
-          )}
-          <button className="mc-primary" disabled={busy || scenarios.length === 0} onClick={onRun}>
-            {busy ? 'Buscando taller…' : 'Buscar taller'}
-          </button>
-        </aside>
-
-        <section className="mc-panel mc-result-panel" aria-live="polite">
-          <div className="mc-panel-heading">
-            <div>
-              <h2>Resultado</h2>
-            </div>
-          </div>
-          {(!order || order.source?.type === 'quotation') && !error && <EmptyResult />}
-          {error && <RejectedResult message={error} rejected={rejected} />}
-          {order && !order.source && (
-            <CandidateList order={order} busy={busy} onConfirm={onConfirm} />
-          )}
-        </section>
-      </div>
-    </section>
-  );
-}
-
-function EmptyResult() {
-  return (
-    <div className="mc-empty">
-      <span>?</span>
-      <h3>Elige un pedido de ejemplo</h3>
-      <p>Luego presiona “Buscar taller” para ver la recomendación.</p>
-    </div>
-  );
-}
-
-function RejectedResult({ message, rejected }: { message: string; rejected: Rejected[] }) {
-  return (
-    <div className="mc-rejected">
-      <strong>Sin asignación factible</strong>
-      <p>{message}</p>
-      <div className="mc-rejection-grid">
-        {rejected.map((item) => (
-          <article key={item.workshopId}>
-            <b>{item.displayName}</b>
-            <ul>
-              {item.reasons.map((reason) => (
-                <li key={reason}>{reason}</li>
-              ))}
-            </ul>
-          </article>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -1066,10 +891,10 @@ function EvidenceView({ scenarios, workshops }: { scenarios: Scenario[]; worksho
     <div className="mc-evidence-grid">
       <section className="mc-panel">
         <div className="mc-panel-heading">
-          <span>05</span>
+          <span>09</span>
           <div>
-            <h2>Talleres simulados</h2>
-            <p>Capacidad y especialización declaradas</p>
+            <h2>Talleres declarados</h2>
+            <p>Tres productores y cuatro proveedores de proceso</p>
           </div>
         </div>
         <div className="mc-evidence-list">
@@ -1079,7 +904,8 @@ function EvidenceView({ scenarios, workshops }: { scenarios: Scenario[]; worksho
               <div>
                 <h3>{workshop.displayName}</h3>
                 <p>
-                  {workshop.products.join(', ')} · {workshop.materials.join(', ')}
+                  {workshop.products.join(', ')} ·{' '}
+                  {workshop.materialFamilies.map(materialFamilyLabel).join(', ')}
                 </p>
               </div>
               <dl>
@@ -1121,4 +947,13 @@ function EvidenceView({ scenarios, workshops }: { scenarios: Scenario[]; worksho
       </section>
     </div>
   );
+}
+
+function materialFamilyLabel(family: Workshop['materialFamilies'][number]) {
+  return {
+    cotton_knit: 'Algodón',
+    sports_knit: 'Deportivo',
+    stretch_knit: 'Licra',
+    woven: 'Tela plana',
+  }[family];
 }

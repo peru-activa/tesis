@@ -6,9 +6,10 @@ import {
   WEEK_03_DATASET_VERSION,
   WEEK_03_SEED,
   week03AssignmentScenarios,
-  week03SimulatedWorkshops,
+  week03DeclaredWorkshops,
 } from '../data/week-03-assignment-scenarios.js';
-import { recommendationRequestSchema } from '../domain/contracts.js';
+import { recommendationRequestSchema, type FabricBuyer } from '../domain/contracts.js';
+import { compareRecommendationAlgorithms } from '../domain/compare-recommendations.js';
 import type { OrderAssignment, PortalOrder } from '../domain/orders.js';
 import { recommendWorkshops } from '../domain/recommend.js';
 import { createWorkshopNotification } from '../domain/workshop-notifications.js';
@@ -50,17 +51,17 @@ export class AssignmentDemoService {
       simulated: true as const,
       datasetVersion: WEEK_03_DATASET_VERSION,
       seed: WEEK_03_SEED,
-      workshops: week03SimulatedWorkshops,
+      workshops: week03DeclaredWorkshops,
       scenarios: week03AssignmentScenarios,
     };
   }
 
-  async runScenario(scenarioId: string): Promise<PortalOrder> {
+  async runScenario(scenarioId: string, fabricBuyer?: FabricBuyer): Promise<PortalOrder> {
     const scenario = findWeek03Scenario(scenarioId);
     if (!scenario) throw new AssignmentFlowError('scenario_not_found');
 
     const id = this.createOrderId();
-    const request = recommendationForScenario(scenario);
+    const request = recommendationForScenario(scenario, fabricBuyer);
     const recommendation = recommendWorkshops(
       recommendationRequestSchema.parse({
         ...request,
@@ -89,6 +90,24 @@ export class AssignmentDemoService {
     return this.orders.create(order);
   }
 
+  compareScenario(scenarioId: string, fabricBuyer?: FabricBuyer) {
+    const scenario = findWeek03Scenario(scenarioId);
+    if (!scenario) throw new AssignmentFlowError('scenario_not_found');
+    const request = recommendationForScenario(scenario, fabricBuyer);
+    return {
+      simulated: true as const,
+      datasetVersion: WEEK_03_DATASET_VERSION,
+      seed: WEEK_03_SEED,
+      scenario,
+      request: {
+        order: request.order,
+        weights: request.weights,
+        workshopCount: request.workshops.length,
+      },
+      comparison: compareRecommendationAlgorithms(request, WEEK_03_SEED),
+    };
+  }
+
   async createFromAcceptedQuotation(
     quotation: QuotationRequest,
   ): Promise<QuotationProductionOutcome> {
@@ -110,7 +129,7 @@ export class AssignmentDemoService {
       quotation,
       garmentIndex: 0,
       evaluatedAt,
-      workshops: week03SimulatedWorkshops,
+      workshops: week03DeclaredWorkshops,
     });
     const recommendation = recommendWorkshops(adapted.request);
     const hasCandidate = recommendation.candidates.length > 0;
@@ -159,6 +178,7 @@ export class AssignmentDemoService {
         workshopId: allocation.workshopId,
         displayName: allocation.displayName,
         quantity: allocation.quantity,
+        assignedProcesses: allocation.assignedProcesses || order.requiredProcesses,
         status: 'assigned',
       })),
     };
@@ -168,7 +188,7 @@ export class AssignmentDemoService {
         draft: order.draft,
         assignment,
         workshopId: allocation.workshopId,
-        requiredProcesses: order.requiredProcesses,
+        requiredProcesses: allocation.assignedProcesses,
         publishedAt: confirmedAt,
       }),
     );

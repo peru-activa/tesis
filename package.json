@@ -2,7 +2,7 @@
   "name": "@peru-activa/tesis",
   "version": "0.1.0",
   "private": true,
-  "description": "Núcleo determinístico de recomendación de talleres con confirmación humana",
+  "description": "Comparación reproducible de asignación determinística y genética con confirmación humana",
   "type": "module",
   "engines": {
     "node": "24.x"
@@ -17,6 +17,8 @@
     "dev:web": "vite",
     "entrega:semana2": "node scripts/entregas/semana-02.mjs",
     "entrega:semana3": "node scripts/entregas/semana-03.mjs",
+    "evidencia:r5": "node --import tsx scripts/entregas/r5-comparison.mjs",
+    "evidencia:r5:historica": "node --import tsx scripts/entregas/r5-historical-comparison.mjs",
     "format:quotation": "prettier --write 'web/src/modules/quotation/**/*.{ts,tsx}'",
     "format:check:quotation": "prettier --check 'web/src/modules/quotation/**/*.{ts,tsx}'",
     "start": "node --env-file-if-exists=.env dist/server.js",

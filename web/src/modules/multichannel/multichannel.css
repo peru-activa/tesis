@@ -1367,3 +1367,607 @@
   color: #982c2c;
   font-weight: 750;
 }
+
+/* R5 evidence lab: comparison is the primary visual, decoration stays secondary. */
+.r5-lab {
+  margin-top: 18px;
+  border: 1px solid #bfc8d4;
+  background: #eef1f4;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.1);
+}
+.r5-lab-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28px;
+  padding: clamp(24px, 4vw, 42px);
+  border-top: 6px solid var(--quote-navy);
+  background: #fff;
+}
+.r5-lab-header h2 {
+  max-width: 760px;
+  margin: 0;
+  color: var(--quote-navy);
+  font:
+    500 clamp(30px, 4vw, 50px) / 1.04 Georgia,
+    'Times New Roman',
+    serif;
+  letter-spacing: -0.035em;
+}
+.r5-lab-header > div > p:last-child {
+  max-width: 770px;
+  margin: 14px 0 0;
+  color: #5e6978;
+  font-size: 15px;
+  line-height: 1.65;
+}
+.r5-simulated-stamp {
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border: 1px solid #c78925;
+  color: #7b560d;
+  font:
+    850 10px ui-monospace,
+    monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transform: rotate(1.5deg);
+}
+.r5-control-grid {
+  display: grid;
+  grid-template-columns: minmax(255px, 310px) minmax(0, 1fr);
+  gap: 1px;
+  background: #bfc8d4;
+}
+.r5-scenario-card {
+  padding: 28px 24px;
+  background: #f8f9fa;
+}
+.r5-scenario-card > label {
+  display: block;
+  margin-bottom: 8px;
+  color: #4b586a;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.r5-scenario-card select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #aeb8c6;
+  border-radius: 0;
+  background: #fff;
+  color: var(--quote-navy);
+  font-weight: 800;
+}
+.r5-scenario-card select:focus,
+.r5-scenario-card button:focus-visible,
+.r5-verdict button:focus-visible {
+  outline: 3px solid rgba(197, 33, 46, 0.24);
+  outline-offset: 2px;
+}
+.r5-scenario-summary {
+  margin: 18px 0;
+  padding: 16px;
+  border-left: 4px solid #c78925;
+  background: #fff;
+}
+.r5-scenario-summary > p {
+  margin: 0 0 15px;
+  color: #5c6877;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.r5-scenario-summary dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 13px 10px;
+  margin: 0;
+}
+.r5-scenario-summary dt,
+.r5-method-metrics span,
+.r5-convergence dt,
+.r5-register-grid span {
+  color: #778292;
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.r5-scenario-summary dd {
+  margin: 3px 0 0;
+  color: var(--quote-navy);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+.r5-scenario-card > button,
+.r5-verdict button {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  background: var(--quote-red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.r5-scenario-card > button:hover,
+.r5-verdict button:hover {
+  background: var(--quote-dark-red);
+}
+.r5-scenario-card > button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.r5-method-note {
+  margin: 15px 0 0;
+  color: #768191;
+  font-size: 10px;
+  line-height: 1.55;
+}
+.r5-results {
+  min-width: 0;
+  padding: 24px;
+  background: #eef1f4;
+}
+.r5-empty {
+  display: grid;
+  min-height: 420px;
+  place-content: center;
+  text-align: center;
+}
+.r5-empty-track {
+  display: grid;
+  grid-template-columns: auto minmax(100px, 220px) auto;
+  align-items: center;
+  gap: 10px;
+  color: #6a7687;
+  font:
+    800 10px ui-monospace,
+    monospace;
+}
+.r5-empty-track i {
+  height: 1px;
+  background: repeating-linear-gradient(90deg, #9ba6b4 0 7px, transparent 7px 13px);
+}
+.r5-empty h3 {
+  margin: 22px 0 8px;
+  color: var(--quote-navy);
+  font:
+    500 26px Georgia,
+    serif;
+}
+.r5-empty p {
+  margin: 0;
+  color: #6a7687;
+  font-size: 12px;
+}
+.r5-error {
+  margin: 0;
+  padding: 18px;
+  border: 1px solid #e0a6a2;
+  background: #fff1f0;
+  color: #842e2a;
+  font-weight: 750;
+}
+.r5-verdict {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  margin-bottom: 14px;
+  padding: 18px 20px;
+  border-left: 5px solid #14715b;
+  background: #fff;
+}
+.r5-verdict.is-infeasible {
+  border-left-color: #c78925;
+}
+.r5-verdict span,
+.r5-convergence header span {
+  color: #16715b;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+.r5-verdict.is-infeasible span {
+  color: #855f16;
+}
+.r5-verdict strong,
+.r5-verdict small {
+  display: block;
+}
+.r5-verdict strong {
+  margin-top: 4px;
+  color: var(--quote-navy);
+  font:
+    500 20px Georgia,
+    serif;
+}
+.r5-verdict small {
+  margin-top: 5px;
+  color: #718093;
+}
+.r5-verdict button {
+  align-self: center;
+  width: auto;
+  min-width: 175px;
+  padding-inline: 15px;
+  background: var(--quote-navy);
+}
+.r5-method-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.r5-method-card {
+  min-width: 0;
+  border-top: 5px solid #69778a;
+  background: #fff;
+}
+.r5-method-card.is-genetic {
+  border-top-color: var(--quote-red);
+}
+.r5-method-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 17px 18px;
+  border-bottom: 1px solid #dfe4ea;
+}
+.r5-method-card > header span,
+.r5-method-card > header small {
+  display: block;
+}
+.r5-method-card > header span {
+  color: var(--quote-navy);
+  font:
+    500 22px Georgia,
+    serif;
+}
+.r5-method-card > header small {
+  margin-top: 3px;
+  color: #778292;
+  font:
+    10px ui-monospace,
+    monospace;
+}
+.r5-method-card > header > b {
+  padding: 5px 7px;
+  background: #e7f3ef;
+  color: #14624f;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.r5-method-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid #dfe4ea;
+}
+.r5-method-metrics > div {
+  padding: 13px 15px;
+  border-right: 1px solid #dfe4ea;
+}
+.r5-method-metrics > div:last-child {
+  border-right: 0;
+}
+.r5-method-metrics strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--quote-navy);
+  font:
+    750 14px ui-monospace,
+    monospace;
+}
+.r5-candidate-evidence,
+.r5-rejected-evidence {
+  padding: 17px 18px 20px;
+}
+.r5-assignment-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.r5-assignment-heading span {
+  color: #798493;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.r5-assignment-heading b {
+  color: var(--quote-navy);
+  font-size: 12px;
+  text-align: right;
+}
+.r5-allocation-track {
+  display: flex;
+  gap: 3px;
+  min-height: 92px;
+  padding: 3px;
+  background: #dfe5e9;
+}
+.r5-allocation-track > div {
+  display: flex;
+  min-width: 92px;
+  flex-basis: 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 11px;
+  background: var(--quote-navy);
+  color: #fff;
+}
+.r5-method-card.is-genetic .r5-allocation-track > div {
+  background: #8f1f29;
+}
+.r5-allocation-track b {
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.r5-allocation-track strong {
+  margin-top: 5px;
+  font:
+    500 24px Georgia,
+    serif;
+}
+.r5-allocation-track small {
+  margin-top: 1px;
+  color: #d7deea;
+  font-size: 9px;
+}
+
+.r5-workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.r5-workflow-steps li {
+  display: flex;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid #dfe5e9;
+  background: #fff;
+}
+
+.r5-workflow-steps span {
+  color: var(--quote-red);
+  font-family: ui-monospace, monospace;
+  font-weight: 800;
+}
+
+.r5-workflow-steps div {
+  display: grid;
+  gap: 3px;
+}
+
+.r5-workflow-steps small {
+  color: #798493;
+}
+.r5-dimensions {
+  display: grid;
+  gap: 7px;
+  margin: 16px 0;
+}
+.r5-dimensions > div {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.r5-dimensions dt {
+  color: #6f7a89;
+  font-size: 9px;
+}
+.r5-dimensions dd {
+  display: grid;
+  grid-template-columns: 1fr 42px;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.r5-dimensions i {
+  height: 5px;
+  background: #e1e6eb;
+}
+.r5-dimensions i span {
+  display: block;
+  height: 100%;
+  background: #16715b;
+}
+.r5-dimensions b {
+  color: #4f5b6c;
+  font:
+    750 9px ui-monospace,
+    monospace;
+  text-align: right;
+}
+.r5-candidate-evidence details,
+.r5-rejected-evidence details,
+.r5-register {
+  border-top: 1px solid #dfe4ea;
+}
+.r5-candidate-evidence summary,
+.r5-rejected-evidence summary,
+.r5-register summary {
+  padding: 11px 0 0;
+  color: #526075;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.r5-candidate-evidence ul,
+.r5-rejected-evidence ul {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #657184;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.r5-rejected-evidence details {
+  padding: 8px 0;
+}
+.r5-convergence {
+  margin-top: 14px;
+  background: #fff;
+}
+.r5-convergence > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+  border-bottom: 1px solid #dfe4ea;
+}
+.r5-convergence h3 {
+  margin: 4px 0 0;
+  color: var(--quote-navy);
+  font:
+    500 23px Georgia,
+    serif;
+}
+.r5-convergence header dl {
+  display: flex;
+  gap: 18px;
+  margin: 0;
+}
+.r5-convergence dd {
+  margin: 3px 0 0;
+  color: var(--quote-navy);
+  font:
+    750 12px ui-monospace,
+    monospace;
+}
+.r5-chart-wrap {
+  padding: 12px 20px 18px;
+}
+.r5-chart-wrap svg {
+  display: block;
+  width: 100%;
+  min-height: 170px;
+  overflow: visible;
+}
+.r5-axis {
+  stroke: #cbd3dc;
+  stroke-width: 1;
+}
+.r5-line-best,
+.r5-line-average {
+  fill: none;
+  stroke-linecap: square;
+  stroke-linejoin: round;
+}
+.r5-line-best {
+  stroke: var(--quote-red);
+  stroke-width: 3;
+}
+.r5-line-average {
+  stroke: #77879a;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 5;
+}
+.r5-chart-legend {
+  display: flex;
+  gap: 20px;
+  color: #697689;
+  font-size: 10px;
+}
+.r5-chart-legend span::before {
+  display: inline-block;
+  width: 18px;
+  height: 3px;
+  margin-right: 6px;
+  background: var(--quote-red);
+  content: '';
+  vertical-align: middle;
+}
+.r5-chart-legend .average::before {
+  height: 1px;
+  background: #77879a;
+}
+.r5-register {
+  margin-top: 14px;
+  padding: 0 20px 18px;
+  background: #fff;
+}
+.r5-register summary {
+  padding: 16px 0;
+}
+.r5-register-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: #dfe4ea;
+}
+.r5-register-grid > div {
+  padding: 12px;
+  background: #f8f9fa;
+}
+.r5-register-grid b {
+  display: block;
+  margin-top: 4px;
+  color: var(--quote-navy);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.r5-register > p {
+  margin: 12px 0 0;
+  color: #728094;
+  font-size: 10px;
+}
+
+@media (max-width: 980px) {
+  .r5-control-grid,
+  .r5-method-grid {
+    grid-template-columns: 1fr;
+  }
+  .r5-convergence > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+@media (max-width: 620px) {
+  .r5-lab-header,
+  .r5-verdict {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .r5-lab-header {
+    display: flex;
+  }
+  .r5-results,
+  .r5-scenario-card {
+    padding: 16px;
+  }
+  .r5-verdict button {
+    width: 100%;
+  }
+  .r5-method-metrics,
+  .r5-register-grid {
+    grid-template-columns: 1fr;
+  }
+  .r5-method-metrics > div {
+    border-right: 0;
+    border-bottom: 1px solid #dfe4ea;
+  }
+  .r5-convergence header dl {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+  .r5-allocation-track {
+    flex-direction: column;
+  }
+  .r5-allocation-track > div {
+    min-height: 78px;
+  }
+}

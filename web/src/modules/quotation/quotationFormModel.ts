@@ -8,6 +8,7 @@ export type GarmentPath = 'garment' | `additionalGarments.${number}`;
 export function createEmptyGarment(product: Product): Garment {
   return {
     product,
+    poloType: product === 'polo' ? 'cotton_basic' : undefined,
     model: '',
     audience: 'unisex',
     sleeve: 'no_aplica',
@@ -17,6 +18,8 @@ export function createEmptyGarment(product: Product): Garment {
     color: '',
     fabric: { mode: 'specified', name: '' },
     customization: 'embroidery',
+    additionalCustomizations: [],
+    patternMode: 'standard',
     applicationCount: 1,
     customizationDetails: '',
     designReference: '',

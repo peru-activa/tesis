@@ -1,8 +1,10 @@
 import { CollarPicker } from './CollarPicker';
+import { useFormContext } from 'react-hook-form';
+import type { QuotationRequestDraft } from '../../../../src/domain/quotation-requests';
 import { FabricPicker } from './FabricPicker';
 import { GarmentPreview } from './GarmentPreview';
 import { InputField } from './QuoteUi';
-import type { Garment, GarmentPath } from './quotationFormModel';
+import { garmentField, type Garment, type GarmentPath } from './quotationFormModel';
 import { TextOptionPicker } from './TextOptionPicker';
 import { useGarmentConfiguration } from './useGarmentConfiguration';
 
@@ -25,6 +27,7 @@ export function GarmentCard({
   onChangeQuantity,
   onRemove,
 }: GarmentCardProps) {
+  const { register } = useFormContext<QuotationRequestDraft>();
   const {
     collarOptions,
     commitCustomFabric,
@@ -108,6 +111,18 @@ export function GarmentCard({
                 <>
                   {garment.product === 'polo' && (
                     <>
+                      <InputField
+                        label="Tipo de polo"
+                        hint="Selecciona el uso o construcción de la prenda."
+                      >
+                        <select {...register(garmentField(path, 'poloType'))}>
+                          <option value="cotton_basic">Básico de algodón</option>
+                          <option value="cotton_advertising">Publicitario de algodón</option>
+                          <option value="collared">Camisero</option>
+                          <option value="sports">Deportivo</option>
+                          <option value="stretch">Licra</option>
+                        </select>
+                      </InputField>
                       <CollarPicker
                         inputName={`${garmentKey}-collar`}
                         options={collarOptions}

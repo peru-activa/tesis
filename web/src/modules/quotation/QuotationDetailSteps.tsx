@@ -7,12 +7,12 @@ import { garmentField, type Garment, type GarmentPath } from './quotationFormMod
 import { QuotationRequestSummary } from './QuotationRequestSummary';
 import { SizeBreakdownEditor } from './SizeBreakdownEditor';
 
-type Customization = QuotationRequestDraft['garment']['customization'];
+type Customization = Exclude<QuotationRequestDraft['garment']['customization'], 'none'>;
 const customizationLabels: Record<Customization, string> = {
-  none: 'Sin personalización',
   embroidery: 'Bordado',
   printing: 'Estampado',
   sublimation: 'Sublimado',
+  vinyl: 'Vinil',
 };
 const applicationCounts = Array.from({ length: 20 }, (_, index) => index + 1);
 
@@ -62,6 +62,11 @@ export function DesignStep({ path, number }: { path: GarmentPath; number: string
   const { register, setValue, control } = useFormContext<QuotationRequestDraft>();
   const garment = useWatch({ control, name: path }) as Garment;
   const [attachmentError, setAttachmentError] = useState('');
+  const selectedCustomizations = [
+    ...(garment.customization === 'none' ? [] : [garment.customization]),
+    ...(garment.additionalCustomizations ?? []),
+  ] as Customization[];
+  const hasCustomization = selectedCustomizations.length > 0;
 
   return (
     <>
@@ -75,19 +80,37 @@ export function DesignStep({ path, number }: { path: GarmentPath; number: string
       </InputField>
       <fieldset className="mt-6">
         <legend className="quote-field-label">Personalización</legend>
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <Choice
+            selected={!hasCustomization}
+            onClick={() => {
+              setValue(garmentField(path, 'customization'), 'none', { shouldValidate: true });
+              setValue(garmentField(path, 'additionalCustomizations'), [], {
+                shouldValidate: true,
+              });
+              setValue(garmentField(path, 'applicationCount'), 0, { shouldValidate: true });
+            }}
+          >
+            Sin personalización
+          </Choice>
           {(Object.entries(customizationLabels) as Array<[Customization, string]>).map(
             ([value, label]) => (
               <Choice
                 key={value}
-                selected={garment.customization === value}
+                selected={selectedCustomizations.includes(value)}
                 onClick={() => {
-                  setValue(garmentField(path, 'customization'), value, {
+                  const next = selectedCustomizations.includes(value)
+                    ? selectedCustomizations.filter((item) => item !== value)
+                    : [...selectedCustomizations, value];
+                  setValue(garmentField(path, 'customization'), next[0] ?? 'none', {
+                    shouldValidate: true,
+                  });
+                  setValue(garmentField(path, 'additionalCustomizations'), next.slice(1), {
                     shouldValidate: true,
                   });
                   setValue(
                     garmentField(path, 'applicationCount'),
-                    value === 'none' ? 0 : Math.max(1, garment.applicationCount),
+                    next.length === 0 ? 0 : Math.max(1, garment.applicationCount),
                     { shouldValidate: true },
                   );
                 }}
@@ -98,7 +121,7 @@ export function DesignStep({ path, number }: { path: GarmentPath; number: string
           )}
         </div>
       </fieldset>
-      {garment.customization !== 'none' && (
+      {hasCustomization && (
         <div className="mt-6 grid gap-5 sm:grid-cols-[minmax(14rem,.4fr)_1fr]">
           <InputField label="¿Cuántos logos o diseños?">
             <select {...register(garmentField(path, 'applicationCount'), { valueAsNumber: true })}>
@@ -117,7 +140,7 @@ export function DesignStep({ path, number }: { path: GarmentPath; number: string
           </InputField>
         </div>
       )}
-      {garment.customization !== 'none' && (
+      {hasCustomization && (
         <div className="quote-design-reference-grid">
           <InputField label="Describe el diseño" hint="O pega un enlace">
             <textarea

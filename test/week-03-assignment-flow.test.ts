@@ -25,19 +25,65 @@ after(async () => {
 });
 
 describe('flujo multicanal simulado de Semana 3', () => {
-  it('expone cinco talleres y ocho escenarios reproducibles', async () => {
+  it('expone tres productores, cuatro proveedores de proceso y nueve escenarios reproducibles', async () => {
     const response = await fetch(`${baseUrl}/v1/demos/week-03/assignment-scenarios`);
     assert.equal(response.status, 200);
     const payload = await response.json();
     assert.equal(payload.simulated, true);
-    assert.equal(payload.datasetVersion, 'r5-synthetic-v2');
+    assert.equal(payload.datasetVersion, 'r5-synthetic-v13');
     assert.equal(payload.seed, 20_260_827);
-    assert.equal(payload.workshops.length, 5);
-    assert.equal(payload.scenarios.length, 8);
+    assert.equal(payload.workshops.length, 7);
+    assert.equal(
+      payload.workshops.filter(
+        (workshop: { providerType: string }) => workshop.providerType === 'garment_producer',
+      ).length,
+      3,
+    );
+    assert.equal(
+      payload.workshops.filter(
+        (workshop: { providerType: string }) => workshop.providerType === 'process_provider',
+      ).length,
+      4,
+    );
+    assert.equal(payload.scenarios.length, 9);
     assert.ok(
       payload.workshops.every(
         (workshop: { evidenceLevel: string }) => workshop.evidenceLevel === 'declared',
       ),
+    );
+  });
+
+  it('compara la línea base y el algoritmo genético con la misma semilla', async () => {
+    const response = await fetch(
+      `${baseUrl}/v1/demos/week-03/assignment-scenarios/balanced-polo/compare`,
+      { method: 'POST' },
+    );
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.datasetVersion, 'r5-synthetic-v13');
+    assert.equal(payload.seed, 20_260_827);
+    assert.equal(payload.comparison.baseline.algorithm, 'deterministic-baseline');
+    assert.equal(payload.comparison.genetic.algorithm, 'genetic');
+    assert.equal(payload.comparison.genetic.value.algorithmVersion, 'ga-0.6.0');
+    assert.equal(payload.comparison.summary.sameAllocation, true);
+    assert.equal(payload.comparison.summary.scoreDifference, 0);
+  });
+
+  it('recibe la decisión de Perú Activa sobre la compra de tela', async () => {
+    const response = await fetch(
+      `${baseUrl}/v1/demos/week-03/assignment-scenarios/balanced-polo/compare`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ fabricBuyer: 'peru_activa' }),
+      },
+    );
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.request.order.fabricBuyer, 'peru_activa');
+    assert.match(
+      payload.comparison.genetic.value.result.candidates[0].reasons.join(' '),
+      /Perú Activa compra la tela/,
     );
   });
 
@@ -49,13 +95,13 @@ describe('flujo multicanal simulado de Semana 3', () => {
     assert.equal(runResponse.status, 201);
     const evaluated = await runResponse.json();
     assert.equal(evaluated.order.status, 'recommended');
-    assert.equal(evaluated.order.recommendation.candidates[0].workshopId, 'sim-workshop-b');
-    assert.equal(evaluated.order.simulation.datasetVersion, 'r5-synthetic-v2');
+    assert.equal(evaluated.order.recommendation.candidates[0].workshopId, 'sim-workshop-a');
+    assert.equal(evaluated.order.simulation.datasetVersion, 'r5-synthetic-v13');
 
     const confirmationResponse = await fetch(`${baseUrl}/v1/orders/${evaluated.order.id}/confirm`, {
       method: 'POST',
       headers: peruActivaHeaders,
-      body: JSON.stringify({ workshopId: 'sim-workshop-b' }),
+      body: JSON.stringify({ workshopId: 'sim-workshop-a' }),
     });
     assert.equal(confirmationResponse.status, 200);
     const confirmed = await confirmationResponse.json();
@@ -77,47 +123,26 @@ describe('flujo multicanal simulado de Semana 3', () => {
     assert.deepEqual(inbox.notifications[0], confirmed.order.notification);
 
     const assignedWorkshopResponse = await fetch(`${baseUrl}/v1/workshop-notifications`, {
-      headers: { 'x-demo-workshop-phone': '900000002' },
+      headers: { 'x-demo-workshop-phone': '900000001' },
     });
     const assignedWorkshop = await assignedWorkshopResponse.json();
     assert.equal(assignedWorkshop.notifications.length, 1);
 
     const differentWorkshopResponse = await fetch(`${baseUrl}/v1/workshop-notifications`, {
-      headers: { 'x-demo-workshop-phone': '900000001' },
+      headers: { 'x-demo-workshop-phone': '900000002' },
     });
     const differentWorkshop = await differentWorkshopResponse.json();
     assert.deepEqual(differentWorkshop.notifications, []);
   });
 
-  it('divide un pedido grande entre dos talleres compatibles y notifica a cada uno', async () => {
+  it('rechaza un volumen que los productores reales compatibles no pueden cubrir', async () => {
     const response = await fetch(
-      `${baseUrl}/v1/demos/week-03/assignment-scenarios/shared-capacity/run`,
+      `${baseUrl}/v1/demos/week-03/assignment-scenarios/insufficient-capacity/run`,
       { method: 'POST' },
     );
-    assert.equal(response.status, 201);
+    assert.equal(response.status, 422);
     const payload = await response.json();
-    const plan = payload.order.recommendation.candidates[0];
-    assert.equal(plan.allocations.length, 2);
-    assert.equal(
-      plan.allocations.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0),
-      450,
-    );
-
-    const confirmationResponse = await fetch(`${baseUrl}/v1/orders/${payload.order.id}/confirm`, {
-      method: 'POST',
-      headers: peruActivaHeaders,
-      body: JSON.stringify({ candidateId: plan.candidateId }),
-    });
-    assert.equal(confirmationResponse.status, 200);
-    const confirmed = await confirmationResponse.json();
-    assert.equal(confirmed.order.assignment.allocations.length, 2);
-    assert.equal(confirmed.order.notifications.length, 2);
-    assert.equal(
-      confirmed.order.notifications.reduce(
-        (sum: number, item: { content: { quantity: number } }) => sum + item.content.quantity,
-        0,
-      ),
-      450,
-    );
+    assert.equal(payload.error, 'no_eligible_workshops');
+    assert.deepEqual(payload.result.candidates, []);
   });
 });

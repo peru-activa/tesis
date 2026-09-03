@@ -49,7 +49,7 @@ describe('portal order flow', () => {
     assert.equal(createdResponse.status, 201);
     const created = await createdResponse.json();
     assert.equal(created.order.status, 'recommended');
-    assert.equal(created.order.recommendation.candidates[0].workshopId, 'workshop-b');
+    assert.match(created.order.recommendation.candidates[0].workshopId, /^sim-workshop-/);
 
     const confirmationResponse = await fetch(`${baseUrl}/v1/orders/${created.order.id}/confirm`, {
       method: 'POST',
@@ -59,7 +59,10 @@ describe('portal order flow', () => {
     assert.equal(confirmationResponse.status, 200);
     const confirmed = await confirmationResponse.json();
     assert.equal(confirmed.order.status, 'assigned');
-    assert.equal(confirmed.order.assignment.displayName, 'Taller B');
+    assert.equal(
+      confirmed.order.assignment.displayName,
+      created.order.recommendation.candidates[0].displayName,
+    );
 
     const listResponse = await fetch(`${baseUrl}/v1/orders`, {
       headers: { 'x-demo-actor': 'peru_activa' },

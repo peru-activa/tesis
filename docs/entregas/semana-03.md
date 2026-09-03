@@ -75,12 +75,58 @@ registro, la cotización y la decisión como incrementos identificables.
 
 ## Limitaciones
 
-Los tipos y campos provienen de una entrevista inicial y todavía deben validarse
-formalmente con Perú Activa y los clientes piloto. La simulación no demuestra el
-IOV final de R1 ni los indicadores del piloto. La carga binaria de diseños, el
-algoritmo genético y la comparación de algoritmos permanecen pendientes.
+Los tipos y campos conforman un catálogo provisional orientado a demostrar el
+trabajo de ingeniería; no se afirma que cubran todos los pedidos reales. Todavía
+deben validarse formalmente con Perú Activa y los clientes piloto para evaluar el
+IOV final de R1. La simulación no demuestra indicadores del piloto y la carga
+binaria de diseños permanece pendiente.
 
-## Incremento conectado R5/R7/R8: formulario, asignación y canales
+## Incremento conectado R5/R7/R8: formulario, comparación de asignación y canales
+
+La evidencia de R5 compara una línea base determinística con un algoritmo
+genético bajo exactamente el mismo pedido, talleres, restricciones, pesos y
+dataset. La entrada también registra si la tela la compra Perú Activa o el
+taller productor; esta decisión humana se aplica como restricción común a ambos
+métodos. El algoritmo genético usa población de 36 individuos, 40 generaciones,
+mutación de 0.12, elitismo de dos individuos, selección por torneo, cruce
+uniforme y una semilla fija. Cada cromosoma representa una combinación de hasta
+cuatro talleres; un decodificador determinístico distribuye las cantidades dentro
+de esa combinación y las soluciones que incumplen las restricciones obligatorias
+no reciben aptitud factible.
+
+La vista `/evidencia-r5` presenta ambos resultados lado a lado, la distribución
+de unidades, las dimensiones de aptitud, el tiempo medio observado, los motivos
+de descarte y la convergencia por generación. La evidencia completa se puede
+exportar en JSON. `npm run evidencia:r5` reproduce los nueve escenarios desde la
+terminal. En el dataset simulado vigente, ambos métodos encontraron la misma
+asignación en los seis escenarios factibles y rechazaron los mismos tres
+escenarios incompatibles. Este resultado no demuestra superioridad del
+algoritmo genético ni cumplimiento del IOV con datos reales; demuestra que la
+comparación está implementada y es reproducible.
+
+Como prevalidación adicional, `r5-historical-polos-gmail-v4-draft`
+normaliza veinte casos históricos independientes de Gmail: cinco cotizaciones,
+doce solicitudes de cotización y tres pedidos recibidos. El dataset
+versionado omite clientes, correos, teléfonos,
+identificadores de cotización y referencias de conversaciones. Una tabla local
+privada, fuera del repositorio, conserva la trazabilidad con las fuentes
+autorizadas para que Perú Activa pueda revisar cada caso sin publicar datos
+personales u operativos.
+
+La ejecución `npm run evidencia:r5:historica` obtuvo diecisiete casos factibles
+y tres rechazados por ambos métodos, sin discrepancias de factibilidad ni de
+asignación. Cinco casos utilizan un plazo provisional porque la fuente no lo
+registraba. En los veinte casos, la identidad del comprador de tela y la
+necesidad de molde también se completaron mediante reglas explícitas porque no
+constaban en el registro. Por ello, estos conteos describen una prevalidación
+técnica reproducible. El 3 de septiembre de 2026, la dueña de Perú Activa
+completó primero la decisión manual y después revisó las propuestas automáticas;
+la empresa comunicó conformidad con las diecisiete asignaciones y los tres
+rechazos. La copia completada y el cálculo separado de conflictos todavía deben
+incorporarse antes de afirmar el cumplimiento integral del IOV.
+La aplicación se registra en
+`docs/entregas/r5-validacion-peru-activa.md`, con una primera pasada de decisión
+manual y una segunda pasada de evaluación de la propuesta automática.
 
 Las solicitudes enviadas desde `/nueva-solicitud` aparecen automáticamente en la
 cola del dashboard de Perú Activa mediante la invalidación
@@ -88,32 +134,47 @@ cola del dashboard de Perú Activa mediante la invalidación
 aceptar una cotización de una sola prenda, el backend crea la orden de
 producción y ejecuta la evaluación sin una acción adicional.
 
-El motor filtra cinco talleres simulados por producto, tela exacta, procesos,
+El motor filtra tres productores y cuatro proveedores de proceso declarados por
+producto, familia de tela, responsable de compra de tela, procesos,
 capacidad, disponibilidad y plazo. Si un taller no cubre la cantidad, evalúa
-planes de dos y, solo después, de tres talleres. Perú Activa confirma
+planes de dos y, solo después, de tres talleres. Las rutas especializadas pueden
+combinar al productor con sublimación, bordado y vinil; el patronaje de modelos
+nuevos corresponde al mismo productor. Perú Activa confirma
 humanamente un plan y el backend crea una notificación por taller con la
 cantidad que le corresponde; esa información alimenta la bandeja web y la
 vista previa local de WhatsApp.
 
+Los dos perfiles de bordado corresponden al taller F, con cuatro cabezales y un máximo
+de 100 logos diarios, y al taller G, con doce cabezales y 300 logos diarios. Las
+capacidades fueron declaradas por Perú Activa, pero todavía no constituyen una
+medición validada del piloto.
+
 ### Reproducción
 
 1. Ejecutar `npm run dev`.
-2. Abrir `/demo`; comprobar que el backend reconoce el rol y redirige al
+2. Abrir `/evidencia-r5`, ejecutar los nueve escenarios y exportar al menos una
+   comparación. Comprobar que la línea base y el algoritmo genético reciben la
+   misma semilla y entrada, y que la traza contiene 41 puntos, desde la
+   generación 0 hasta la 40. Ejecutar además `npm run evidencia:r5:historica`
+   y comprobar que los veinte casos permanecen anonimizados. El estado del
+   dataset continúa pendiente hasta incorporar la copia completada como
+   evidencia verificable.
+3. Abrir `/demo`; comprobar que el backend reconoce el rol y redirige al
    cliente a `/mis-pedidos`. Abrir `/nueva-solicitud` y enviar una solicitud
    simulada. El backend registra
    como propietario el correo de la sesión local o de Cloudflare Access.
-3. Abrir `/mis-pedidos` y comprobar que la solicitud aparece en
+4. Abrir `/mis-pedidos` y comprobar que la solicitud aparece en
    el historial del mismo cliente y no en el de otro correo simulado.
-4. Ingresar con el correo operativo; comprobar que `/demo` redirige a
+5. Ingresar con el correo operativo; comprobar que `/demo` redirige a
    `/peru-activa` y que la solicitud aparece
    como `Nueva` sin recargar.
-5. Seleccionar `Abrir y cotizar`; comprobar que el detalle reutiliza el mismo
+6. Seleccionar `Abrir y cotizar`; comprobar que el detalle reutiliza el mismo
    resumen visual revisado por el cliente, incluidas las imágenes de la prenda
    y la tela. Ingresar el precio unitario de cada tipo de prenda y comprobar
    que el servidor calcula el total antes de enviar la cotización.
-6. Regresar al detalle de `Mis pedidos` y aceptar la cotización.
-7. Comprobar que se crea `PED-XXXXXXXX` y se muestran los talleres evaluados.
-8. Confirmar uno e ingresar a `/taller` con el teléfono del
+7. Regresar al detalle de `Mis pedidos` y aceptar la cotización.
+8. Comprobar que se crea `PED-XXXXXXXX` y se muestran los talleres evaluados.
+9. Confirmar uno e ingresar a `/taller` con el teléfono del
    taller elegido. Marcar `En producción` y luego `Terminado`; comprobar que el
    cliente ve ambos cambios en el mismo detalle.
 
@@ -127,18 +188,25 @@ El diseño y las limitaciones están documentados en
 
 ### Estado y limitaciones
 
-Este incremento mantiene R5, R7 y R8 en estado `parcial`. Conecta técnicamente
+Este incremento mantiene R5, R7 y R8 en estado `parcial`. R5 ya incluye la
+comparación técnica reproducible entre la línea base y el algoritmo genético y
+una primera ejecución con datos históricos autorizados y anonimizados. Perú
+Activa comunicó conformidad con las veinte decisiones; falta incorporar la copia
+completada, consolidar las respuestas del primer formulario y calcular el IOV de
+reducción de conflictos.
+El flujo conecta técnicamente
 formulario, aceptación, orden y dashboard para cotizaciones de una sola prenda.
 Las cotizaciones con varias prendas quedan en `requires_scope_decision`, pues
-todavía no se ha decidido si deben asignarse juntas o por separado. Tampoco se
-compara aún con el algoritmo genético, no se validan IOV con datos históricos o
-participantes y no se envían mensajes reales por WhatsApp.
+todavía no se ha decidido si deben asignarse juntas o por separado. No se
+validan IOV con datos históricos o participantes y no se envían mensajes reales
+por WhatsApp.
 
 Cloudflare Access quedó integrado con el patrón de validación JWT de OpenTextil.
 El 27/08/2026, con autorización expresa, se creó la publicación temporal
 `pedidos.opentextil.com`, protegida mediante código enviado al correo. El
 origen continúa siendo local y no constituye el despliegue AWS comprometido.
-Los cinco teléfonos de taller siguen siendo identidades simuladas: no
+Los cinco teléfonos de productores y los dos teléfonos de proveedores de bordado
+siguen siendo identidades simuladas: no
 demuestran autenticación segura y requieren un OTP real antes de uso operativo.
 
 ### Verificación local de persistencia

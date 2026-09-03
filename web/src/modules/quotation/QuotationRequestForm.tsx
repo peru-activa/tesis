@@ -77,6 +77,7 @@ export function QuotationRequestForm({
   const submissionFields: FieldPath<QuotationRequestDraft>[] = [
     ...garments.flatMap((garment) => [
       garmentField(garment.path, 'product'),
+      garmentField(garment.path, 'poloType'),
       garmentField(garment.path, 'model'),
       garmentField(garment.path, 'audience'),
       garmentField(garment.path, 'sleeve'),
@@ -86,6 +87,7 @@ export function QuotationRequestForm({
       garmentField(garment.path, 'color'),
       garmentField(garment.path, 'fabric'),
       garmentField(garment.path, 'customization'),
+      garmentField(garment.path, 'additionalCustomizations'),
       garmentField(garment.path, 'applicationCount'),
       garmentField(garment.path, 'customizationDetails'),
       garmentField(garment.path, 'designReference'),
@@ -102,6 +104,7 @@ export function QuotationRequestForm({
         ...(garment.product === 'polo'
           ? [
               garmentField(garment.path, 'model'),
+              garmentField(garment.path, 'poloType'),
               garmentField(garment.path, 'audience'),
               garmentField(garment.path, 'sleeve'),
               garmentField(garment.path, 'cut'),
@@ -229,6 +232,7 @@ function createGarmentSteps(
         garmentField(path, 'color'),
         garmentField(path, 'fabric'),
         garmentField(path, 'customization'),
+        garmentField(path, 'additionalCustomizations'),
         garmentField(path, 'applicationCount'),
         garmentField(path, 'customizationDetails'),
         garmentField(path, 'designReference'),

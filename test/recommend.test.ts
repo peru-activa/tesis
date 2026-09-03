@@ -10,6 +10,7 @@ const input = recommendationRequestSchema.parse({
     product: 'polo',
     material: 'algodón',
     quantity: 100,
+    fabricBuyer: 'peru_activa',
     requiredProcesses: ['cutting', 'sewing', 'printing', 'finishing'],
     requiredBy: '2026-09-04T15:00:00-05:00',
   },
@@ -19,6 +20,7 @@ const input = recommendationRequestSchema.parse({
       displayName: 'Taller B',
       products: ['polo'],
       materials: ['algodón'],
+      materialFamilies: ['cotton_knit'],
       processes: ['cutting', 'sewing', 'printing', 'finishing'],
       minimumUnits: 20,
       maximumUnits: 300,
@@ -34,6 +36,7 @@ const input = recommendationRequestSchema.parse({
       displayName: 'Taller A',
       products: ['polo'],
       materials: ['algodón'],
+      materialFamilies: ['cotton_knit'],
       processes: ['cutting', 'sewing', 'printing', 'finishing'],
       minimumUnits: 20,
       maximumUnits: 150,
@@ -49,6 +52,7 @@ const input = recommendationRequestSchema.parse({
       displayName: 'Taller C',
       products: ['polo'],
       materials: ['algodón'],
+      materialFamilies: ['cotton_knit'],
       processes: ['cutting', 'sewing'],
       minimumUnits: 10,
       maximumUnits: 500,
@@ -122,5 +126,56 @@ describe('recommendWorkshops', () => {
 
   it('is deterministic for the same input', () => {
     assert.deepEqual(recommendWorkshops(input), recommendWorkshops(input));
+  });
+
+  it('aplica la decisión de Perú Activa sobre quién compra la tela', () => {
+    const peruActivaBuys = recommendWorkshops(input);
+    const workshopBuys = recommendWorkshops({
+      ...input,
+      order: { ...input.order, fabricBuyer: 'workshop' },
+    });
+
+    assert.equal(peruActivaBuys.candidates.length, 2);
+    assert.equal(workshopBuys.candidates.length, 0);
+    assert.ok(
+      workshopBuys.rejected.every((candidate) =>
+        candidate.reasons.includes('no gestiona la compra de tela'),
+      ),
+    );
+  });
+
+  it('mantiene elegible al taller que puede comprar la tela indicada', () => {
+    const result = recommendWorkshops({
+      ...input,
+      order: { ...input.order, fabricBuyer: 'workshop' },
+      workshops: input.workshops.map((workshop) =>
+        workshop.id === 'workshop-b'
+          ? { ...workshop, processes: [...workshop.processes, 'fabric_sourcing'] }
+          : workshop,
+      ),
+    });
+
+    assert.equal(result.candidates[0]?.workshopId, 'workshop-b');
+    assert.match(result.candidates[0]?.reasons.join(' ') || '', /gestiona la compra/);
+  });
+
+  it('acepta una tela deportiva mediante la capacidad de su familia', () => {
+    const result = recommendWorkshops({
+      ...input,
+      order: { ...input.order, material: 'win' },
+      workshops: input.workshops.slice(0, 2).map((workshop, index) =>
+        index === 0
+          ? {
+              ...workshop,
+              materials: ['zanetti'],
+              materialFamilies: ['sports_knit'],
+            }
+          : workshop,
+      ),
+    });
+
+    assert.equal(result.candidates.length, 1);
+    assert.equal(result.candidates[0]?.workshopId, 'workshop-b');
+    assert.match(result.rejected[0]?.reasons.join(' ') || '', /material no atendido/);
   });
 });

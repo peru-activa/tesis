@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 
-const demoUrl = 'http://localhost:5173/demo/semana-3';
+const demoUrl = 'http://localhost:5173/evidencia-r5';
 
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -27,7 +27,7 @@ async function waitForApi() {
   throw new Error('La API no respondió dentro de 30 segundos.');
 }
 
-process.stdout.write('\nEntrega Semana 3 · flujo R1/R7/R8 parcial\n');
+process.stdout.write('\nEntrega Semana 3 · comparación R5 y flujo R1/R7/R8\n');
 process.stdout.write('1/2 Verificando código y pruebas…\n\n');
 await run('npm', ['run', 'verify']);
 
