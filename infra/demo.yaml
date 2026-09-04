@@ -19,6 +19,61 @@ Parameters:
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
 
 Resources:
+  BackupBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub tesis-r4-backups-${AWS::AccountId}-${AWS::Region}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: RetainDemoBackups
+            Status: Enabled
+            ExpirationInDays: 35
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 7
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      Tags:
+        - Key: Project
+          Value: tesis
+        - Key: Environment
+          Value: demo
+        - Key: Owner
+          Value: kevin
+        - Key: ManagedBy
+          Value: iac
+
+  BackupBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref BackupBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt BackupBucket.Arn
+              - !Sub ${BackupBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
   ApiSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -68,6 +123,19 @@ Resources:
                   - ecr:GetDownloadUrlForLayer
                   - ecr:BatchGetImage
                 Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/tesis-r4-api
+        - PolicyName: BackupR4Database
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt BackupBucket.Arn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub ${BackupBucket.Arn}/r4/*
       Tags:
         - Key: Project
           Value: tesis
@@ -132,6 +200,42 @@ Resources:
             -e PORT=3100 \
             -e DATABASE_URL='postgresql://tesis:${DatabasePassword}@tesis-r4-postgres:5432/tesis' \
             ${ContainerImage}
+          install -m 0750 /dev/stdin /usr/local/sbin/tesis-r4-backup <<'BACKUP_SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+          backup_timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          backup_file="/var/tmp/tesis-r4-$backup_timestamp.dump"
+          checksum_file="$backup_file.sha256"
+          docker exec tesis-r4-postgres pg_dump -U tesis -d tesis --format=custom > "$backup_file"
+          sha256sum "$backup_file" > "$checksum_file"
+          aws s3 cp "$backup_file" "s3://${BackupBucket}/r4/$backup_timestamp.dump" --sse AES256 --only-show-errors
+          aws s3 cp "$checksum_file" "s3://${BackupBucket}/r4/$backup_timestamp.dump.sha256" --sse AES256 --only-show-errors
+          rm -f "$backup_file" "$checksum_file"
+          BACKUP_SCRIPT
+          install -m 0644 /dev/stdin /etc/systemd/system/tesis-r4-backup.service <<'BACKUP_SERVICE'
+          [Unit]
+          Description=Copia cifrada de PostgreSQL para R4
+          After=docker.service
+          Requires=docker.service
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/sbin/tesis-r4-backup
+          BACKUP_SERVICE
+          install -m 0644 /dev/stdin /etc/systemd/system/tesis-r4-backup.timer <<'BACKUP_TIMER'
+          [Unit]
+          Description=Programación diaria de la copia PostgreSQL de R4
+
+          [Timer]
+          OnCalendar=daily
+          Persistent=true
+          RandomizedDelaySec=10m
+
+          [Install]
+          WantedBy=timers.target
+          BACKUP_TIMER
+          systemctl daemon-reload
+          systemctl enable --now tesis-r4-backup.timer
       Tags:
         - Key: Name
           Value: tesis-r4-demo
@@ -151,3 +255,6 @@ Outputs:
   ApiBaseUrl:
     Description: URL restringida para Postman/Newman.
     Value: !Sub http://${DemoInstance.PublicIp}:3100
+  BackupBucketName:
+    Description: Repositorio externo cifrado para las copias PostgreSQL de R4.
+    Value: !Ref BackupBucket

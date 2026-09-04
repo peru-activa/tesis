@@ -18,6 +18,7 @@
     "entrega:semana2": "node scripts/entregas/semana-02.mjs",
     "entrega:semana3": "node scripts/entregas/semana-03.mjs",
     "evidencia:r4": "node --import tsx scripts/entregas/r4-database-evidence.mjs",
+    "evidencia:r4:backup": "node scripts/entregas/r4-backup-restore-evidence.mjs",
     "evidencia:r4:postman": "node scripts/entregas/r4-postman-evidence.mjs",
     "evidencia:r5": "node --import tsx scripts/entregas/r5-comparison.mjs",
     "evidencia:r5:historica": "node --import tsx scripts/entregas/r5-historical-comparison.mjs",

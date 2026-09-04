@@ -91,6 +91,34 @@ Resources:
             Condition:
               StringEquals:
                 aws:RequestedRegion: us-east-1
+          - Sid: ManageR4BackupBucket
+            Effect: Allow
+            Action:
+              - s3:CreateBucket
+              - s3:GetEncryptionConfiguration
+              - s3:GetLifecycleConfiguration
+              - s3:GetBucketOwnershipControls
+              - s3:GetBucketPolicy
+              - s3:GetBucketPublicAccessBlock
+              - s3:GetBucketTagging
+              - s3:GetBucketVersioning
+              - s3:ListBucket
+              - s3:PutEncryptionConfiguration
+              - s3:PutLifecycleConfiguration
+              - s3:PutBucketOwnershipControls
+              - s3:PutBucketPolicy
+              - s3:PutBucketPublicAccessBlock
+              - s3:PutBucketTagging
+              - s3:PutBucketVersioning
+            Resource: !Sub arn:${AWS::Partition}:s3:::tesis-r4-backups-${AWS::AccountId}-us-east-1
+          - Sid: InspectR4BackupObjects
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::tesis-r4-backups-${AWS::AccountId}-us-east-1
+              - !Sub arn:${AWS::Partition}:s3:::tesis-r4-backups-${AWS::AccountId}-us-east-1/r4/*
           - Sid: ManageNamedInstanceRole
             Effect: Allow
             Action:

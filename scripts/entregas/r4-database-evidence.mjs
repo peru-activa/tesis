@@ -27,12 +27,15 @@ let reopenedPool;
 
 function summarize(samples) {
   const sorted = [...samples].sort((left, right) => left - right);
+  const medianIndex = Math.ceil(sorted.length * 0.5) - 1;
   const percentileIndex = Math.ceil(sorted.length * 0.95) - 1;
   return {
     runs: samples.length,
     averageMs: Number((samples.reduce((sum, value) => sum + value, 0) / samples.length).toFixed(3)),
+    medianMs: Number(sorted[Math.max(0, medianIndex)].toFixed(3)),
     p95Ms: Number(sorted[Math.max(0, percentileIndex)].toFixed(3)),
     maximumMs: Number(sorted.at(-1).toFixed(3)),
+    samplesMs: samples.map((sample) => Number(sample.toFixed(3))),
   };
 }
 
@@ -63,9 +66,16 @@ try {
     const created = await service.runScenario(scenarioId);
     createdIds.push(created.id);
   }
-  await orderStore.updateStatus(createdIds[0], 'assigned', '2026-09-03T15:10:00.000Z');
-  await orderStore.updateStatus(createdIds[0], 'in_production', '2026-09-03T15:20:00.000Z');
-  await orderStore.updateStatus(createdIds[0], 'completed', '2026-09-03T15:30:00.000Z');
+  const firstOrder = await orderStore.get(createdIds[0]);
+  assert.ok(firstOrder?.recommendation.candidates[0]);
+  const assignedOrder = await service.confirm(
+    firstOrder.id,
+    firstOrder.recommendation.candidates[0].candidateId,
+  );
+  assert.equal(assignedOrder.assignment?.allocations.length, 1);
+  const assignedWorkshopId = assignedOrder.assignment.allocations[0].workshopId;
+  await service.updateWorkshopStatus(firstOrder.id, assignedWorkshopId, 'in_production');
+  await service.updateWorkshopStatus(firstOrder.id, assignedWorkshopId, 'completed');
 
   await isolatedPool.end();
   isolatedPool = undefined;
@@ -78,10 +88,92 @@ try {
   const storedIds = new Set(storedOrders.map((order) => order.id));
   const missingIds = createdIds.filter((id) => !storedIds.has(id));
   const history = await reopenedOrders.history(createdIds[0]);
+  const normalizedModel = await reopenedPool.query(`
+    SELECT
+      (SELECT count(*)::integer FROM thesis_orders) AS orders,
+      (SELECT count(*)::integer FROM thesis_order_sizes) AS order_sizes,
+      (SELECT count(*)::integer FROM thesis_order_processes) AS order_processes,
+      (SELECT count(*)::integer FROM thesis_order_customizations) AS order_customizations,
+      (SELECT count(*)::integer FROM thesis_workshops) AS workshops,
+      (SELECT count(*)::integer FROM thesis_workshop_capabilities) AS workshop_capabilities,
+      (SELECT count(*)::integer FROM thesis_workshop_availability) AS workshop_availability,
+      (SELECT count(*)::integer FROM thesis_order_assignments) AS assignments,
+      (SELECT count(*)::integer FROM thesis_assignment_allocations) AS allocations,
+      (SELECT count(*)::integer FROM thesis_allocation_processes) AS allocation_processes,
+      (
+        SELECT count(*)::integer
+        FROM thesis_orders AS orders
+        JOIN (
+          SELECT order_id, sum(quantity)::integer AS quantity
+          FROM thesis_order_sizes
+          GROUP BY order_id
+        ) AS sizes ON sizes.order_id = orders.id AND sizes.quantity = orders.quantity
+      ) AS orders_with_consistent_size_total
+  `);
+  const normalizedCounts = normalizedModel.rows[0];
 
   assert.equal(storedOrders.length, orderCount);
   assert.deepEqual(missingIds, []);
   assert.equal(storedWorkshops.length, week03DeclaredWorkshops.length);
+  assert.equal(normalizedCounts.orders, orderCount);
+  assert.equal(normalizedCounts.orders_with_consistent_size_total, orderCount);
+  assert.ok(normalizedCounts.order_sizes >= orderCount);
+  assert.ok(normalizedCounts.order_processes >= orderCount);
+  assert.equal(normalizedCounts.workshops, week03DeclaredWorkshops.length);
+  assert.ok(normalizedCounts.workshop_capabilities > 0);
+  assert.equal(normalizedCounts.workshop_availability, week03DeclaredWorkshops.length);
+  assert.equal(normalizedCounts.assignments, 1);
+  assert.equal(normalizedCounts.allocations, 1);
+  assert.ok(normalizedCounts.allocation_processes > 0);
+  await assert.rejects(
+    reopenedPool.query(
+      `INSERT INTO thesis_order_status_history (order_id, status, occurred_at)
+       VALUES ('PED-R4-INEXISTENTE', 'registered', now())`,
+    ),
+    (error) => error?.code === '23503',
+  );
+  await assert.rejects(
+    reopenedPool.query(
+      `INSERT INTO thesis_order_sizes (order_id, size, quantity)
+       VALUES ($1, 'INVALID', -1)`,
+      [createdIds[0]],
+    ),
+    (error) => error?.code === '23514',
+  );
+  const inconsistentSizes = await reopenedPool.connect();
+  try {
+    await inconsistentSizes.query('BEGIN');
+    await inconsistentSizes.query(
+      `UPDATE thesis_order_sizes
+       SET quantity = quantity + 1
+       WHERE order_id = $1
+         AND size = (SELECT size FROM thesis_order_sizes WHERE order_id = $1 LIMIT 1)`,
+      [createdIds[0]],
+    );
+    await assert.rejects(
+      inconsistentSizes.query('SET CONSTRAINTS ALL IMMEDIATE'),
+      (error) => error?.code === '23514',
+    );
+    await inconsistentSizes.query('ROLLBACK');
+  } finally {
+    inconsistentSizes.release();
+  }
+  const alternateWorkshop = storedWorkshops.find((workshop) => workshop.id !== assignedWorkshopId);
+  assert.ok(alternateWorkshop);
+  await assert.rejects(
+    reopenedPool.query(
+      `INSERT INTO thesis_assignment_allocations
+        (order_id, workshop_id, display_name, quantity, status)
+       VALUES ($1, $2, $3, $4, 'assigned')`,
+      [
+        createdIds[0],
+        alternateWorkshop.id,
+        alternateWorkshop.displayName,
+        firstOrder.draft.quantity + 1,
+      ],
+    ),
+    (error) => error?.code === '23514',
+  );
   assert.deepEqual(
     history.map((entry) => entry.status),
     ['recommended', 'assigned', 'in_production', 'completed'],
@@ -119,6 +211,13 @@ try {
       storageIntegrityPercent: 100,
       storedWorkshopSpecifications: storedWorkshops.length,
       statusHistory: history.map((entry) => entry.status),
+      normalizedModel: {
+        ...normalizedCounts,
+        orphanHistoryRejectedByForeignKey: true,
+        negativeSizeQuantityRejectedByCheck: true,
+        inconsistentSizeTotalRejectedAtCommit: true,
+        oversizedAllocationRejected: true,
+      },
     },
     latency: { limitMs: latencyLimitMs, maximumObservedMs, queries },
     iov: {
@@ -143,6 +242,12 @@ Los datos utilizados son simulados. Esta prueba verifica la estructura y la pers
 - Integridad de almacenamiento: ${report.verification.storageIntegrityPercent} %.
 - Especificaciones técnicas de talleres almacenadas: ${storedWorkshops.length}.
 - Historial verificado: ${report.verification.statusHistory.join(' → ')}.
+- Pedidos con suma de tallas consistente: ${normalizedCounts.orders_with_consistent_size_total} de ${orderCount}.
+- Filas normalizadas: ${normalizedCounts.order_sizes} tallas, ${normalizedCounts.order_processes} procesos, ${normalizedCounts.workshop_capabilities} capacidades de talleres, ${normalizedCounts.assignments} asignación y ${normalizedCounts.allocations} distribución.
+- Integridad referencial: la clave foránea rechazó un historial sin pedido.
+- Integridad de dominio: la restricción CHECK rechazó una cantidad de talla negativa.
+- Integridad agregada: la restricción diferida rechazó una suma de tallas distinta de la cantidad del pedido.
+- Límite de asignación: la base rechazó una cantidad de taller superior a la cantidad del pedido.
 - Mayor latencia observada entre consultas frecuentes: ${maximumObservedMs.toFixed(3)} ms.
 
 ## Evaluación de los IOV

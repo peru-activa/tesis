@@ -1,6 +1,7 @@
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import type { OrderAssignment, OrderStatus, PortalOrder } from '../domain/orders.js';
 import type { WorkshopNotification } from '../domain/workshop-notifications.js';
+import { ensurePostgresSchema } from './postgres-schema.js';
 
 export interface OrderStatusHistoryEntry {
   status: OrderStatus;
@@ -50,9 +51,7 @@ export class MemoryOrderStore implements OrderStore {
 
   async create(order: PortalOrder): Promise<PortalOrder> {
     this.orders.set(order.id, order);
-    this.statusHistory.set(order.id, [
-      { status: order.status, occurredAt: order.createdAt },
-    ]);
+    this.statusHistory.set(order.id, [{ status: order.status, occurredAt: order.createdAt }]);
     return order;
   }
 
@@ -143,21 +142,7 @@ export class PostgresOrderStore implements OrderStore {
   }
 
   private async ensureSchema(): Promise<void> {
-    await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS thesis_orders (
-        id text PRIMARY KEY,
-        created_at timestamptz NOT NULL,
-        updated_at timestamptz NOT NULL,
-        status text NOT NULL,
-        payload jsonb NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS thesis_order_status_history (
-        id bigserial PRIMARY KEY,
-        order_id text NOT NULL REFERENCES thesis_orders(id),
-        status text NOT NULL,
-        occurred_at timestamptz NOT NULL
-      );
-    `);
+    await ensurePostgresSchema(this.pool);
   }
 
   async list(): Promise<PortalOrder[]> {
@@ -188,8 +173,7 @@ export class PostgresOrderStore implements OrderStore {
     );
     return result.rows.map((row) => ({
       status: row.status,
-      occurredAt:
-        row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at,
+      occurredAt: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at,
     }));
   }
 
@@ -199,9 +183,18 @@ export class PostgresOrderStore implements OrderStore {
     try {
       await client.query('BEGIN');
       await client.query(
-        'INSERT INTO thesis_orders (id, created_at, updated_at, status, payload) VALUES ($1, $2, $3, $4, $5)',
-        [order.id, order.createdAt, order.updatedAt, order.status, order],
+        `INSERT INTO thesis_orders (
+          id, created_at, updated_at, status, product, polo_type, quantity, material, color,
+          customization, required_by, delivery_district, design_reference, notes,
+          requires_new_pattern, embroidery_applications_per_garment,
+          source_quotation_id, source_garment_index, payload
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9,
+          $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+        )`,
+        this.orderValues(order),
       );
+      await this.replaceOrderDetails(client, order);
       await client.query(
         'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
         [order.id, order.status, order.createdAt],
@@ -238,6 +231,7 @@ export class PostgresOrderStore implements OrderStore {
         'UPDATE thesis_orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
         [id, updated.updatedAt, updated.status, updated],
       );
+      await this.replaceAssignment(client, updated);
       await client.query(
         'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
         [id, updated.status, updated.updatedAt],
@@ -299,6 +293,7 @@ export class PostgresOrderStore implements OrderStore {
         'UPDATE thesis_orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
         [updated.id, updated.updatedAt, updated.status, updated],
       );
+      await this.replaceAssignment(client, updated);
       await client.query(
         'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
         [updated.id, updated.status, updated.updatedAt],
@@ -327,6 +322,7 @@ export class PostgresOrderStore implements OrderStore {
         'UPDATE thesis_orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
         [id, occurredAt, status, updated],
       );
+      await this.replaceAssignment(client, updated);
       await client.query(
         'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
         [id, status, occurredAt],
@@ -339,6 +335,110 @@ export class PostgresOrderStore implements OrderStore {
       client.release();
     }
     return updated;
+  }
+
+  private orderValues(order: PortalOrder): unknown[] {
+    return [
+      order.id,
+      order.createdAt,
+      order.updatedAt,
+      order.status,
+      order.draft.product,
+      order.draft.poloType ?? null,
+      order.draft.quantity,
+      order.draft.material,
+      order.draft.color,
+      order.draft.customization,
+      order.draft.requiredBy,
+      order.draft.deliveryDistrict,
+      order.draft.designReference,
+      order.draft.notes,
+      order.draft.requiresNewPattern ?? false,
+      order.draft.embroideryApplicationsPerGarment ?? 1,
+      order.source?.quotationId ?? null,
+      order.source?.garmentIndex ?? null,
+      order,
+    ];
+  }
+
+  private async replaceOrderDetails(client: PoolClient, order: PortalOrder): Promise<void> {
+    await client.query('DELETE FROM thesis_order_sizes WHERE order_id = $1', [order.id]);
+    for (const [size, quantity] of Object.entries(order.draft.sizes)) {
+      await client.query(
+        'INSERT INTO thesis_order_sizes (order_id, size, quantity) VALUES ($1, $2, $3)',
+        [order.id, size, quantity],
+      );
+    }
+
+    await client.query('DELETE FROM thesis_order_processes WHERE order_id = $1', [order.id]);
+    const uniqueProcesses = order.requiredProcesses.filter(
+      (process, index, processes) => processes.indexOf(process) === index,
+    );
+    for (const [index, process] of uniqueProcesses.entries()) {
+      await client.query(
+        'INSERT INTO thesis_order_processes (order_id, sequence, process) VALUES ($1, $2, $3)',
+        [order.id, index + 1, process],
+      );
+    }
+
+    await client.query('DELETE FROM thesis_order_customizations WHERE order_id = $1', [order.id]);
+    const customizations = [
+      ...(order.draft.customization === 'none' ? [] : [order.draft.customization]),
+      ...(order.draft.additionalCustomizations ?? []),
+    ].filter((value, index, values) => values.indexOf(value) === index);
+    for (const [index, customization] of customizations.entries()) {
+      await client.query(
+        `INSERT INTO thesis_order_customizations
+          (order_id, sequence, kind, applications_per_garment)
+         VALUES ($1, $2, $3, $4)`,
+        [
+          order.id,
+          index + 1,
+          customization,
+          customization === 'embroidery'
+            ? (order.draft.embroideryApplicationsPerGarment ?? 1)
+            : null,
+        ],
+      );
+    }
+  }
+
+  private async replaceAssignment(client: PoolClient, order: PortalOrder): Promise<void> {
+    if (!order.assignment) {
+      await client.query('DELETE FROM thesis_order_assignments WHERE order_id = $1', [order.id]);
+      return;
+    }
+
+    await client.query(
+      `INSERT INTO thesis_order_assignments (order_id, candidate_id, confirmed_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (order_id) DO UPDATE
+       SET candidate_id = EXCLUDED.candidate_id, confirmed_at = EXCLUDED.confirmed_at`,
+      [order.id, order.assignment.candidateId, order.assignment.confirmedAt],
+    );
+    await client.query('DELETE FROM thesis_assignment_allocations WHERE order_id = $1', [order.id]);
+    for (const allocation of order.assignment.allocations) {
+      await client.query(
+        `INSERT INTO thesis_assignment_allocations
+          (order_id, workshop_id, display_name, quantity, status)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          order.id,
+          allocation.workshopId,
+          allocation.displayName,
+          allocation.quantity,
+          allocation.status,
+        ],
+      );
+      for (const [index, process] of allocation.assignedProcesses.entries()) {
+        await client.query(
+          `INSERT INTO thesis_allocation_processes
+            (order_id, workshop_id, sequence, process)
+           VALUES ($1, $2, $3, $4)`,
+          [order.id, allocation.workshopId, index + 1, process],
+        );
+      }
+    }
   }
 }
 

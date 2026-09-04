@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { ensurePostgresSchema } from '../data/postgres-schema.js';
 import type { QuotationRequest } from '../domain/quotation-requests.js';
 
 export interface QuotationStore {
@@ -45,19 +46,7 @@ export class PostgresQuotationStore implements QuotationStore {
   }
 
   private async ensureSchema(): Promise<void> {
-    await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS thesis_quotation_requests (
-        id text PRIMARY KEY,
-        created_at timestamptz NOT NULL,
-        updated_at timestamptz NOT NULL,
-        status text NOT NULL,
-        payload jsonb NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS thesis_quotation_requests_status_idx
-        ON thesis_quotation_requests(status);
-      CREATE INDEX IF NOT EXISTS thesis_quotation_requests_owner_subject_idx
-        ON thesis_quotation_requests ((payload->'owner'->>'subject'));
-    `);
+    await ensurePostgresSchema(this.pool);
   }
 
   async list(): Promise<QuotationRequest[]> {
