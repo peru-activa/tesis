@@ -1,6 +1,6 @@
 # Reporte Postman/Newman de R4
 
-Fecha de ejecución: 2026-09-04T05:46:15.375Z
+Fecha de ejecución: 2026-09-04T15:17:17.218Z
 
 Entorno de ejecución: despliegue AWS accesible en http://18.234.234.167:3100, Node.js v26.7.0 y PostgreSQL 17.
 
@@ -14,13 +14,13 @@ Los datos son simulados. Newman, ejecutor de colecciones Postman, realizó 100 i
 - Solicitudes fallidas: 0.
 - Aserciones ejecutadas: 601.
 - Aserciones fallidas: 0.
-- Latencia promedio de consulta en el servidor: 8.823 ms.
-- Mediana de consulta en el servidor: 8.369 ms.
-- Percentil 95 de consulta en el servidor: 13.069 ms.
-- Latencia máxima de consulta en el servidor: 26.464 ms.
-- Latencia HTTP externa promedio: 147.640 ms.
-- Percentil 95 de latencia HTTP externa: 201.000 ms.
-- Latencia HTTP externa máxima: 373.000 ms.
+- Latencia promedio de consulta en el servidor: 12.159 ms.
+- Mediana de consulta en el servidor: 11.698 ms.
+- Percentil 95 de consulta en el servidor: 15.581 ms.
+- Latencia máxima de consulta en el servidor: 24.363 ms.
+- Latencia HTTP externa promedio: 152.770 ms.
+- Percentil 95 de latencia HTTP externa: 186.000 ms.
+- Latencia HTTP externa máxima: 292.000 ms.
 
 ## Evaluación
 

@@ -213,7 +213,7 @@ demuestran autenticación segura y requieren un OTP real antes de uso operativo.
 
 El 27/08/2026 se conectó el backend de desarrollo a PostgreSQL 17 local mediante
 el archivo ignorado `.env`. Se creó la solicitud simulada `COT-7B6E10A6`, se
-comprobó su fila en `thesis_quotation_requests`, se reinició completamente el
+comprobó su fila en `quotation_requests`, se reinició completamente el
 backend y la API volvió a entregar la misma solicitud. Esta prueba demuestra la
 persistencia técnica local del flujo; no constituye validación del piloto ni de
 los IOV con participantes.

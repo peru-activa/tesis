@@ -90,22 +90,22 @@ try {
   const history = await reopenedOrders.history(createdIds[0]);
   const normalizedModel = await reopenedPool.query(`
     SELECT
-      (SELECT count(*)::integer FROM thesis_orders) AS orders,
-      (SELECT count(*)::integer FROM thesis_order_sizes) AS order_sizes,
-      (SELECT count(*)::integer FROM thesis_order_processes) AS order_processes,
-      (SELECT count(*)::integer FROM thesis_order_customizations) AS order_customizations,
-      (SELECT count(*)::integer FROM thesis_workshops) AS workshops,
-      (SELECT count(*)::integer FROM thesis_workshop_capabilities) AS workshop_capabilities,
-      (SELECT count(*)::integer FROM thesis_workshop_availability) AS workshop_availability,
-      (SELECT count(*)::integer FROM thesis_order_assignments) AS assignments,
-      (SELECT count(*)::integer FROM thesis_assignment_allocations) AS allocations,
-      (SELECT count(*)::integer FROM thesis_allocation_processes) AS allocation_processes,
+      (SELECT count(*)::integer FROM orders) AS orders,
+      (SELECT count(*)::integer FROM order_sizes) AS order_sizes,
+      (SELECT count(*)::integer FROM order_processes) AS order_processes,
+      (SELECT count(*)::integer FROM order_customizations) AS order_customizations,
+      (SELECT count(*)::integer FROM workshops) AS workshops,
+      (SELECT count(*)::integer FROM workshop_capabilities) AS workshop_capabilities,
+      (SELECT count(*)::integer FROM workshop_availability) AS workshop_availability,
+      (SELECT count(*)::integer FROM order_assignments) AS assignments,
+      (SELECT count(*)::integer FROM assignment_allocations) AS allocations,
+      (SELECT count(*)::integer FROM allocation_processes) AS allocation_processes,
       (
         SELECT count(*)::integer
-        FROM thesis_orders AS orders
+        FROM orders AS orders
         JOIN (
           SELECT order_id, sum(quantity)::integer AS quantity
-          FROM thesis_order_sizes
+          FROM order_sizes
           GROUP BY order_id
         ) AS sizes ON sizes.order_id = orders.id AND sizes.quantity = orders.quantity
       ) AS orders_with_consistent_size_total
@@ -127,14 +127,14 @@ try {
   assert.ok(normalizedCounts.allocation_processes > 0);
   await assert.rejects(
     reopenedPool.query(
-      `INSERT INTO thesis_order_status_history (order_id, status, occurred_at)
+      `INSERT INTO order_status_history (order_id, status, occurred_at)
        VALUES ('PED-R4-INEXISTENTE', 'registered', now())`,
     ),
     (error) => error?.code === '23503',
   );
   await assert.rejects(
     reopenedPool.query(
-      `INSERT INTO thesis_order_sizes (order_id, size, quantity)
+      `INSERT INTO order_sizes (order_id, size, quantity)
        VALUES ($1, 'INVALID', -1)`,
       [createdIds[0]],
     ),
@@ -144,10 +144,10 @@ try {
   try {
     await inconsistentSizes.query('BEGIN');
     await inconsistentSizes.query(
-      `UPDATE thesis_order_sizes
+      `UPDATE order_sizes
        SET quantity = quantity + 1
        WHERE order_id = $1
-         AND size = (SELECT size FROM thesis_order_sizes WHERE order_id = $1 LIMIT 1)`,
+         AND size = (SELECT size FROM order_sizes WHERE order_id = $1 LIMIT 1)`,
       [createdIds[0]],
     );
     await assert.rejects(
@@ -162,7 +162,7 @@ try {
   assert.ok(alternateWorkshop);
   await assert.rejects(
     reopenedPool.query(
-      `INSERT INTO thesis_assignment_allocations
+      `INSERT INTO assignment_allocations
         (order_id, workshop_id, display_name, quantity, status)
        VALUES ($1, $2, $3, $4, 'assigned')`,
       [

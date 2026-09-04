@@ -47,7 +47,7 @@ export class PostgresWorkshopStore implements WorkshopStore {
   async list(): Promise<Workshop[]> {
     await this.ready;
     const result = await this.pool.query<{ payload: Workshop }>(
-      'SELECT payload FROM thesis_workshops ORDER BY id',
+      'SELECT payload FROM workshops ORDER BY id',
     );
     return result.rows.map((row) => workshopSchema.parse(row.payload));
   }
@@ -55,7 +55,7 @@ export class PostgresWorkshopStore implements WorkshopStore {
   async get(id: string): Promise<Workshop | undefined> {
     await this.ready;
     const result = await this.pool.query<{ payload: Workshop }>(
-      'SELECT payload FROM thesis_workshops WHERE id = $1',
+      'SELECT payload FROM workshops WHERE id = $1',
       [id],
     );
     return result.rows[0] ? workshopSchema.parse(result.rows[0].payload) : undefined;
@@ -73,7 +73,7 @@ export class PostgresWorkshopStore implements WorkshopStore {
       await client.query('BEGIN');
       for (const workshop of validated) {
         await client.query(
-          `INSERT INTO thesis_workshops
+          `INSERT INTO workshops
             (id, updated_at, display_name, contact_phone, provider_type, evidence_level, payload)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
            ON CONFLICT (id) DO UPDATE
@@ -93,7 +93,7 @@ export class PostgresWorkshopStore implements WorkshopStore {
             workshop,
           ],
         );
-        await client.query('DELETE FROM thesis_workshop_capabilities WHERE workshop_id = $1', [
+        await client.query('DELETE FROM workshop_capabilities WHERE workshop_id = $1', [
           workshop.id,
         ]);
         const capabilities: Array<[string, string]> = [
@@ -116,7 +116,7 @@ export class PostgresWorkshopStore implements WorkshopStore {
         );
         for (const [kind, value] of uniqueCapabilities.values()) {
           await client.query(
-            `INSERT INTO thesis_workshop_capabilities
+            `INSERT INTO workshop_capabilities
               (workshop_id, capability_kind, capability_value)
              VALUES ($1, $2, $3)`,
             [workshop.id, kind, value],
@@ -129,7 +129,7 @@ export class PostgresWorkshopStore implements WorkshopStore {
           ...(workshop.sublimationProfile ? { sublimation: workshop.sublimationProfile } : {}),
         };
         await client.query(
-          `INSERT INTO thesis_workshop_availability (
+          `INSERT INTO workshop_availability (
             workshop_id, capacity_status, capacity_planning_mode, capacity_unit,
             minimum_units, maximum_units, available_capacity, available_from,
             estimated_lead_time_days, estimated_total_cost, on_time_rate, defect_rate,

@@ -52,7 +52,7 @@ export class PostgresQuotationStore implements QuotationStore {
   async list(): Promise<QuotationRequest[]> {
     await this.ready;
     const result = await this.pool.query<{ payload: QuotationRequest }>(
-      'SELECT payload FROM thesis_quotation_requests ORDER BY created_at DESC',
+      'SELECT payload FROM quotation_requests ORDER BY created_at DESC',
     );
     return result.rows.map((row) => row.payload);
   }
@@ -61,7 +61,7 @@ export class PostgresQuotationStore implements QuotationStore {
     await this.ready;
     const result = await this.pool.query<{ payload: QuotationRequest }>(
       `SELECT payload
-       FROM thesis_quotation_requests
+       FROM quotation_requests
        WHERE payload->'owner'->>'subject' = $1
           OR (
             payload->'owner' IS NULL
@@ -76,7 +76,7 @@ export class PostgresQuotationStore implements QuotationStore {
   async get(id: string): Promise<QuotationRequest | undefined> {
     await this.ready;
     const result = await this.pool.query<{ payload: QuotationRequest }>(
-      'SELECT payload FROM thesis_quotation_requests WHERE id = $1',
+      'SELECT payload FROM quotation_requests WHERE id = $1',
       [id],
     );
     return result.rows[0]?.payload;
@@ -85,7 +85,7 @@ export class PostgresQuotationStore implements QuotationStore {
   async save(request: QuotationRequest): Promise<QuotationRequest> {
     await this.ready;
     await this.pool.query(
-      `INSERT INTO thesis_quotation_requests (id, created_at, updated_at, status, payload)
+      `INSERT INTO quotation_requests (id, created_at, updated_at, status, payload)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (id) DO UPDATE
        SET updated_at = EXCLUDED.updated_at, status = EXCLUDED.status, payload = EXCLUDED.payload`,

@@ -11,15 +11,11 @@ const expectedAccount = '479494991128';
 const outputDirectory = new URL('../../docs/entregas/evidencia-r4/backup/', import.meta.url);
 
 async function aws(args) {
-  const { stdout } = await execFileAsync('aws', [
-    ...args,
-    '--profile',
-    profile,
-    '--region',
-    region,
-    '--output',
-    'json',
-  ], { maxBuffer: 10 * 1024 * 1024 });
+  const { stdout } = await execFileAsync(
+    'aws',
+    [...args, '--profile', profile, '--region', region, '--output', 'json'],
+    { maxBuffer: 10 * 1024 * 1024 },
+  );
   return JSON.parse(stdout);
 }
 
@@ -67,15 +63,16 @@ function stackOutput(stack, key) {
 }
 
 const identity = await aws(['sts', 'get-caller-identity']);
-assert.equal(identity.Account, expectedAccount, 'La evidencia solo puede ejecutarse en la cuenta de tesis.');
+assert.equal(
+  identity.Account,
+  expectedAccount,
+  'La evidencia solo puede ejecutarse en la cuenta de tesis.',
+);
 
 const described = await aws(['cloudformation', 'describe-stacks', '--stack-name', stackName]);
 const stack = described.Stacks[0];
 const instanceId = stackOutput(stack, 'InstanceId');
 const bucketName = stackOutput(stack, 'BackupBucketName');
-const containerImage = stack.Parameters.find(
-  (parameter) => parameter.ParameterKey === 'ContainerImage',
-)?.ParameterValue;
 assert.ok(instanceId, 'La pila no expone InstanceId.');
 assert.ok(bucketName, 'La pila no expone BackupBucketName.');
 
@@ -92,28 +89,21 @@ const dumps = (listed.Contents ?? [])
 const backupObject = dumps[0];
 assert.ok(backupObject, 'No se encontró una copia .dump en S3.');
 
-const head = await aws([
-  's3api',
-  'head-object',
-  '--bucket',
-  bucketName,
-  '--key',
-  backupObject.Key,
-]);
+const head = await aws(['s3api', 'head-object', '--bucket', bucketName, '--key', backupObject.Key]);
 assert.equal(head.ServerSideEncryption, 'AES256');
 assert.ok(backupObject.Size > 0);
 
 const fileName = backupObject.Key.split('/').at(-1);
 const restoreDatabase = 'tesis_restore_verification';
 const countSql = [
-  "SELECT json_build_object(",
-  "'orders', (SELECT count(*) FROM thesis_orders),",
-  "'history', (SELECT count(*) FROM thesis_order_status_history),",
-  "'workshops', (SELECT count(*) FROM thesis_workshops),",
-  "'order_sizes', (SELECT count(*) FROM thesis_order_sizes),",
-  "'workshop_capabilities', (SELECT count(*) FROM thesis_workshop_capabilities),",
-  "'allocations', (SELECT count(*) FROM thesis_assignment_allocations)",
-  ")::text;",
+  'SELECT json_build_object(',
+  "'orders', (SELECT count(*) FROM orders),",
+  "'history', (SELECT count(*) FROM order_status_history),",
+  "'workshops', (SELECT count(*) FROM workshops),",
+  "'order_sizes', (SELECT count(*) FROM order_sizes),",
+  "'workshop_capabilities', (SELECT count(*) FROM workshop_capabilities),",
+  "'allocations', (SELECT count(*) FROM assignment_allocations)",
+  ')::text;',
 ].join(' ');
 const restoreCommand = `set -euo pipefail
 backup_file='/var/tmp/tesis-r4-${fileName}'
@@ -128,8 +118,10 @@ docker cp "$backup_file" tesis-r4-postgres:/tmp/${fileName}
 docker exec tesis-r4-postgres pg_restore -U tesis -d ${restoreDatabase} /tmp/${fileName}
 source_counts=$(docker exec tesis-r4-postgres psql -U tesis -d tesis -At -c "${countSql}")
 restored_counts=$(docker exec tesis-r4-postgres psql -U tesis -d ${restoreDatabase} -At -c "${countSql}")
+running_image=$(docker inspect --format '{{.Config.Image}}' tesis-r4-api)
 printf 'SOURCE_COUNTS=%s\n' "$source_counts"
 printf 'RESTORED_COUNTS=%s\n' "$restored_counts"
+printf 'RUNNING_IMAGE=%s\n' "$running_image"
 test "$source_counts" = "$restored_counts"
 docker exec tesis-r4-postgres dropdb -U tesis ${restoreDatabase}
 docker exec tesis-r4-postgres rm -f /tmp/${fileName}
@@ -143,9 +135,12 @@ const restoreRun = await runSsm(
 const output = restoreRun.invocation.StandardOutputContent;
 const sourceMatch = output.match(/^SOURCE_COUNTS=(.+)$/m);
 const restoredMatch = output.match(/^RESTORED_COUNTS=(.+)$/m);
+const imageMatch = output.match(/^RUNNING_IMAGE=(.+)$/m);
 assert.ok(sourceMatch && restoredMatch, 'La restauración no devolvió los conteos esperados.');
+assert.ok(imageMatch, 'La restauración no identificó la imagen desplegada.');
 const sourceCounts = JSON.parse(sourceMatch[1]);
 const restoredCounts = JSON.parse(restoredMatch[1]);
+const containerImage = imageMatch[1];
 assert.deepEqual(restoredCounts, sourceCounts);
 
 const report = {
@@ -205,6 +200,9 @@ La copia automatizada y su restauración reproducible: **CUMPLEN**.
 `;
 
 await mkdir(outputDirectory, { recursive: true });
-await writeFile(new URL('evidencia-backup-restauracion-r4.json', outputDirectory), `${JSON.stringify(report, null, 2)}\n`);
+await writeFile(
+  new URL('evidencia-backup-restauracion-r4.json', outputDirectory),
+  `${JSON.stringify(report, null, 2)}\n`,
+);
 await writeFile(new URL('evidencia-backup-restauracion-r4.md', outputDirectory), markdown);
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);

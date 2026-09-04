@@ -68,30 +68,58 @@ function parseMarker(output, marker) {
   return Number(match[1]);
 }
 
+function parseTextMarker(output, marker) {
+  const match = output.match(new RegExp(`^${marker}=(.+)$`, 'm'));
+  assert.ok(match, `No se encontró ${marker} en la salida remota.`);
+  return match[1];
+}
+
 const identity = await aws(['sts', 'get-caller-identity']);
-assert.equal(identity.Account, expectedAccount, 'La evidencia solo puede ejecutarse en la cuenta de tesis.');
+assert.equal(
+  identity.Account,
+  expectedAccount,
+  'La evidencia solo puede ejecutarse en la cuenta de tesis.',
+);
 
 const described = await aws(['cloudformation', 'describe-stacks', '--stack-name', stackName]);
 const stack = described.Stacks[0];
 const instanceId = stackOutput(stack, 'InstanceId');
 const baseUrl = stackOutput(stack, 'ApiBaseUrl');
-const containerImage = stack.Parameters.find(
-  (parameter) => parameter.ParameterKey === 'ContainerImage',
-)?.ParameterValue;
 assert.ok(instanceId, 'La pila no expone InstanceId.');
 assert.ok(baseUrl, 'La pila no expone ApiBaseUrl.');
 
+const applicationTables = [
+  'quotation_requests',
+  'orders',
+  'order_sizes',
+  'order_processes',
+  'order_customizations',
+  'order_status_history',
+  'workshops',
+  'workshop_capabilities',
+  'workshop_availability',
+  'order_assignments',
+  'assignment_allocations',
+  'allocation_processes',
+];
+const quotedApplicationTables = applicationTables.map((table) => `'${table}'`).join(', ');
 const schemaSql = `SELECT json_build_object(
-  'tables', (SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE 'thesis_%'),
-  'foreign_keys', (SELECT count(*) FROM pg_constraint WHERE contype = 'f' AND conrelid IN (SELECT oid FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname LIKE 'thesis_%')),
-  'checks', (SELECT count(*) FROM pg_constraint WHERE contype = 'c' AND conrelid IN (SELECT oid FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname LIKE 'thesis_%')),
-  'indexes', (SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND tablename LIKE 'thesis_%')
+  'tables', (SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN (${quotedApplicationTables})),
+  'foreign_keys', (SELECT count(*) FROM pg_constraint WHERE contype = 'f' AND conrelid IN (SELECT oid FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname IN (${quotedApplicationTables}))),
+  'checks', (SELECT count(*) FROM pg_constraint WHERE contype = 'c' AND conrelid IN (SELECT oid FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname IN (${quotedApplicationTables}))),
+  'indexes', (SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND tablename IN (${quotedApplicationTables})),
+  'legacy_objects', (
+    SELECT count(*)
+    FROM pg_class AS class_row
+    JOIN pg_namespace AS namespace_row ON namespace_row.oid = class_row.relnamespace
+    WHERE namespace_row.nspname = 'public' AND class_row.relname LIKE 'thesis\\_%' ESCAPE '\\'
+  )
 )::text;`;
 const schemaSqlBase64 = Buffer.from(schemaSql).toString('base64');
 
 const command = `set -euo pipefail
-before_orders=$(docker exec tesis-r4-postgres psql -U tesis -d tesis -At -c 'SELECT count(*) FROM thesis_orders')
-before_history=$(docker exec tesis-r4-postgres psql -U tesis -d tesis -At -c 'SELECT count(*) FROM thesis_order_status_history')
+before_orders=$(docker exec tesis-r4-postgres psql -U tesis -d tesis -At -c 'SELECT count(*) FROM orders')
+before_history=$(docker exec tesis-r4-postgres psql -U tesis -d tesis -At -c 'SELECT count(*) FROM order_status_history')
 schema_inventory=$(printf %s ${schemaSqlBase64} | base64 -d | docker exec -i tesis-r4-postgres psql -U tesis -d tesis -At)
 printf 'BEFORE_ORDERS=%s\n' "$before_orders"
 printf 'BEFORE_HISTORY=%s\n' "$before_history"
@@ -107,12 +135,14 @@ for attempt in $(seq 1 60); do
   if curl -fsS http://127.0.0.1:3100/health >/dev/null 2>&1; then break; fi
   sleep 1
 done
-after_orders=$(docker exec tesis-r4-postgres psql -U tesis -d tesis -At -c 'SELECT count(*) FROM thesis_orders')
-after_history=$(docker exec tesis-r4-postgres psql -U tesis -d tesis -At -c 'SELECT count(*) FROM thesis_order_status_history')
+after_orders=$(docker exec tesis-r4-postgres psql -U tesis -d tesis -At -c 'SELECT count(*) FROM orders')
+after_history=$(docker exec tesis-r4-postgres psql -U tesis -d tesis -At -c 'SELECT count(*) FROM order_status_history')
 api_orders=$(docker exec tesis-r4-api node -e "fetch('http://127.0.0.1:3100/v1/orders',{headers:{'x-demo-actor':'peru_activa'}}).then(async response=>{if(!response.ok)throw new Error(String(response.status));const body=await response.json();process.stdout.write(String(body.orders.length))})")
+running_image=$(docker inspect --format '{{.Config.Image}}' tesis-r4-api)
 printf 'AFTER_ORDERS=%s\n' "$after_orders"
 printf 'AFTER_HISTORY=%s\n' "$after_history"
-printf 'API_ORDERS=%s\n' "$api_orders"`;
+printf 'API_ORDERS=%s\n' "$api_orders"
+printf 'RUNNING_IMAGE=%s\n' "$running_image"`;
 
 const run = await runSsm(instanceId, [command]);
 const output = run.invocation.StandardOutputContent;
@@ -128,11 +158,13 @@ const afterRestart = {
 const schemaMatch = output.match(/^SCHEMA_INVENTORY=(.+)$/m);
 assert.ok(schemaMatch, 'No se encontró el inventario del esquema en la salida remota.');
 const schemaInventory = JSON.parse(schemaMatch[1]);
+const containerImage = parseTextMarker(output, 'RUNNING_IMAGE');
 assert.deepEqual(schemaInventory, {
   tables: 12,
   foreign_keys: 11,
   checks: 36,
   indexes: 23,
+  legacy_objects: 0,
 });
 assert.deepEqual(afterRestart, {
   orders: beforeRestart.orders,
@@ -152,7 +184,8 @@ const report = {
   baseUrl,
   containerImage,
   schemaInventory,
-  procedure: 'restart PostgreSQL container, wait for readiness, restart API container and query both database and API',
+  procedure:
+    'restart PostgreSQL container, wait for readiness, restart API container and query both database and API',
   ssmCommandId: run.commandId,
   beforeRestart,
   afterRestart,
@@ -168,7 +201,7 @@ Se utilizaron únicamente datos simulados. Antes del reinicio, PostgreSQL conten
 
 Después del procedimiento, PostgreSQL conservó los ${afterRestart.orders} pedidos y las ${afterRestart.historyEntries} entradas de historial. La API devolvió los mismos ${afterRestart.ordersReturnedByApi} pedidos. La recuperación fue de 100 % y, por tanto, la persistencia frente al reinicio de ambos servicios **CUMPLE**.
 
-El despliegue contiene ${schemaInventory.tables} tablas de R4, ${schemaInventory.foreign_keys} claves foráneas, ${schemaInventory.checks} restricciones de comprobación y ${schemaInventory.indexes} índices.
+El despliegue contiene ${schemaInventory.tables} tablas de R4, ${schemaInventory.foreign_keys} claves foráneas, ${schemaInventory.checks} restricciones de comprobación y ${schemaInventory.indexes} índices. El catálogo contiene ${schemaInventory.legacy_objects} objetos relacionales con el prefijo provisional anterior.
 
 La ejecución remota reproducible quedó identificada por el comando de AWS Systems Manager \`${run.commandId}\`. La imagen desplegada fue \`${containerImage}\`.
 `;
@@ -178,8 +211,5 @@ await writeFile(
   new URL('evidencia-persistencia-aws-r4.json', outputDirectory),
   `${JSON.stringify(report, null, 2)}\n`,
 );
-await writeFile(
-  new URL('evidencia-persistencia-aws-r4.md', outputDirectory),
-  markdown,
-);
+await writeFile(new URL('evidencia-persistencia-aws-r4.md', outputDirectory), markdown);
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);

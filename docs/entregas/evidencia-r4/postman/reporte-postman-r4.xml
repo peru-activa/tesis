@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="R4 - Base de datos centralizada" tests="200" time="28.909">
-  <testsuite name="Registrar pedido simulado" id="9904aed2-90b3-40d8-9f9f-416b88837e20" timestamp="2026-09-04T05:45:39.028Z" tests="2" failures="0" errors="0" time="0.141">
-    <testcase name="Pedido registrado con HTTP 201" time="0.194" classname="RegistrarPedidoSimulado"/>
-    <testcase name="La respuesta contiene un pedido recomendado" time="0.194" classname="RegistrarPedidoSimulado"/>
+<testsuites name="R4 - Base de datos centralizada" tests="200" time="29.995">
+  <testsuite name="Registrar pedido simulado" id="27865b5d-b7fe-4537-836a-e6b53f559b15" timestamp="2026-09-04T15:16:37.909Z" tests="2" failures="0" errors="0" time="0.147">
+    <testcase name="Pedido registrado con HTTP 201" time="0.129" classname="RegistrarPedidoSimulado"/>
+    <testcase name="La respuesta contiene un pedido recomendado" time="0.129" classname="RegistrarPedidoSimulado"/>
   </testsuite>
-  <testsuite name="Consultar pedidos almacenados" id="57524b47-6de0-4657-87bb-2be5201ef9c2" timestamp="2026-09-04T05:45:39.028Z" tests="5" failures="0" errors="0" time="0.148">
-    <testcase name="Consulta respondio con HTTP 200" time="0.175" classname="ConsultarPedidosAlmacenados"/>
-    <testcase name="No se perdio ningun pedido creado hasta esta iteracion" time="0.175" classname="ConsultarPedidosAlmacenados"/>
-    <testcase name="La respuesta informa la latencia de consulta del servidor" time="0.175" classname="ConsultarPedidosAlmacenados"/>
-    <testcase name="La consulta frecuente en PostgreSQL tarda menos de 500 ms" time="0.175" classname="ConsultarPedidosAlmacenados"/>
-    <testcase name="El conjunto final contiene los 100 pedidos simulados" time="0.175" classname="ConsultarPedidosAlmacenados"/>
+  <testsuite name="Consultar pedidos almacenados" id="0b58954c-4dd4-4603-8b50-c18f1a588275" timestamp="2026-09-04T15:16:37.909Z" tests="5" failures="0" errors="0" time="0.153">
+    <testcase name="Consulta respondio con HTTP 200" time="0.152" classname="ConsultarPedidosAlmacenados"/>
+    <testcase name="No se perdio ningun pedido creado hasta esta iteracion" time="0.152" classname="ConsultarPedidosAlmacenados"/>
+    <testcase name="La respuesta informa la latencia de consulta del servidor" time="0.152" classname="ConsultarPedidosAlmacenados"/>
+    <testcase name="La consulta frecuente en PostgreSQL tarda menos de 500 ms" time="0.152" classname="ConsultarPedidosAlmacenados"/>
+    <testcase name="El conjunto final contiene los 100 pedidos simulados" time="0.152" classname="ConsultarPedidosAlmacenados"/>
   </testsuite>
 </testsuites>

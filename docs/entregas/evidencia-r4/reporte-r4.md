@@ -1,6 +1,6 @@
 # Evidencia técnica de R4: base de datos centralizada
 
-Fecha de ejecución: 2026-09-04T05:26:36.646Z
+Fecha de ejecución: 2026-09-04T15:11:10.478Z
 
 Los datos utilizados son simulados. Esta prueba verifica la estructura y la persistencia de la solución; no representa una validación con clientes ni resultados del piloto.
 
@@ -18,7 +18,7 @@ Los datos utilizados son simulados. Esta prueba verifica la estructura y la pers
 - Integridad de dominio: la restricción CHECK rechazó una cantidad de talla negativa.
 - Integridad agregada: la restricción diferida rechazó una suma de tallas distinta de la cantidad del pedido.
 - Límite de asignación: la base rechazó una cantidad de taller superior a la cantidad del pedido.
-- Mayor latencia observada entre consultas frecuentes: 5.265 ms.
+- Mayor latencia observada entre consultas frecuentes: 207.136 ms.
 
 ## Evaluación de los IOV
 

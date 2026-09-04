@@ -148,7 +148,7 @@ export class PostgresOrderStore implements OrderStore {
   async list(): Promise<PortalOrder[]> {
     await this.ready;
     const result = await this.pool.query<{ payload: PortalOrder }>(
-      'SELECT payload FROM thesis_orders ORDER BY created_at DESC',
+      'SELECT payload FROM orders ORDER BY created_at DESC',
     );
     return result.rows.map((row) => row.payload);
   }
@@ -156,7 +156,7 @@ export class PostgresOrderStore implements OrderStore {
   async get(id: string): Promise<PortalOrder | undefined> {
     await this.ready;
     const result = await this.pool.query<{ payload: PortalOrder }>(
-      'SELECT payload FROM thesis_orders WHERE id = $1',
+      'SELECT payload FROM orders WHERE id = $1',
       [id],
     );
     return result.rows[0]?.payload;
@@ -166,7 +166,7 @@ export class PostgresOrderStore implements OrderStore {
     await this.ready;
     const result = await this.pool.query<{ status: OrderStatus; occurred_at: Date | string }>(
       `SELECT status, occurred_at
-       FROM thesis_order_status_history
+       FROM order_status_history
        WHERE order_id = $1
        ORDER BY occurred_at, id`,
       [id],
@@ -183,7 +183,7 @@ export class PostgresOrderStore implements OrderStore {
     try {
       await client.query('BEGIN');
       await client.query(
-        `INSERT INTO thesis_orders (
+        `INSERT INTO orders (
           id, created_at, updated_at, status, product, polo_type, quantity, material, color,
           customization, required_by, delivery_district, design_reference, notes,
           requires_new_pattern, embroidery_applications_per_garment,
@@ -196,7 +196,7 @@ export class PostgresOrderStore implements OrderStore {
       );
       await this.replaceOrderDetails(client, order);
       await client.query(
-        'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
+        'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
         [order.id, order.status, order.createdAt],
       );
       await client.query('COMMIT');
@@ -228,12 +228,12 @@ export class PostgresOrderStore implements OrderStore {
     try {
       await client.query('BEGIN');
       await client.query(
-        'UPDATE thesis_orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
+        'UPDATE orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
         [id, updated.updatedAt, updated.status, updated],
       );
       await this.replaceAssignment(client, updated);
       await client.query(
-        'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
+        'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
         [id, updated.status, updated.updatedAt],
       );
       await client.query('COMMIT');
@@ -290,12 +290,12 @@ export class PostgresOrderStore implements OrderStore {
     try {
       await client.query('BEGIN');
       await client.query(
-        'UPDATE thesis_orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
+        'UPDATE orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
         [updated.id, updated.updatedAt, updated.status, updated],
       );
       await this.replaceAssignment(client, updated);
       await client.query(
-        'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
+        'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
         [updated.id, updated.status, updated.updatedAt],
       );
       await client.query('COMMIT');
@@ -319,12 +319,12 @@ export class PostgresOrderStore implements OrderStore {
     try {
       await client.query('BEGIN');
       await client.query(
-        'UPDATE thesis_orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
+        'UPDATE orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
         [id, occurredAt, status, updated],
       );
       await this.replaceAssignment(client, updated);
       await client.query(
-        'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
+        'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
         [id, status, occurredAt],
       );
       await client.query('COMMIT');
@@ -362,33 +362,33 @@ export class PostgresOrderStore implements OrderStore {
   }
 
   private async replaceOrderDetails(client: PoolClient, order: PortalOrder): Promise<void> {
-    await client.query('DELETE FROM thesis_order_sizes WHERE order_id = $1', [order.id]);
+    await client.query('DELETE FROM order_sizes WHERE order_id = $1', [order.id]);
     for (const [size, quantity] of Object.entries(order.draft.sizes)) {
       await client.query(
-        'INSERT INTO thesis_order_sizes (order_id, size, quantity) VALUES ($1, $2, $3)',
+        'INSERT INTO order_sizes (order_id, size, quantity) VALUES ($1, $2, $3)',
         [order.id, size, quantity],
       );
     }
 
-    await client.query('DELETE FROM thesis_order_processes WHERE order_id = $1', [order.id]);
+    await client.query('DELETE FROM order_processes WHERE order_id = $1', [order.id]);
     const uniqueProcesses = order.requiredProcesses.filter(
       (process, index, processes) => processes.indexOf(process) === index,
     );
     for (const [index, process] of uniqueProcesses.entries()) {
       await client.query(
-        'INSERT INTO thesis_order_processes (order_id, sequence, process) VALUES ($1, $2, $3)',
+        'INSERT INTO order_processes (order_id, sequence, process) VALUES ($1, $2, $3)',
         [order.id, index + 1, process],
       );
     }
 
-    await client.query('DELETE FROM thesis_order_customizations WHERE order_id = $1', [order.id]);
+    await client.query('DELETE FROM order_customizations WHERE order_id = $1', [order.id]);
     const customizations = [
       ...(order.draft.customization === 'none' ? [] : [order.draft.customization]),
       ...(order.draft.additionalCustomizations ?? []),
     ].filter((value, index, values) => values.indexOf(value) === index);
     for (const [index, customization] of customizations.entries()) {
       await client.query(
-        `INSERT INTO thesis_order_customizations
+        `INSERT INTO order_customizations
           (order_id, sequence, kind, applications_per_garment)
          VALUES ($1, $2, $3, $4)`,
         [
@@ -405,21 +405,21 @@ export class PostgresOrderStore implements OrderStore {
 
   private async replaceAssignment(client: PoolClient, order: PortalOrder): Promise<void> {
     if (!order.assignment) {
-      await client.query('DELETE FROM thesis_order_assignments WHERE order_id = $1', [order.id]);
+      await client.query('DELETE FROM order_assignments WHERE order_id = $1', [order.id]);
       return;
     }
 
     await client.query(
-      `INSERT INTO thesis_order_assignments (order_id, candidate_id, confirmed_at)
+      `INSERT INTO order_assignments (order_id, candidate_id, confirmed_at)
        VALUES ($1, $2, $3)
        ON CONFLICT (order_id) DO UPDATE
        SET candidate_id = EXCLUDED.candidate_id, confirmed_at = EXCLUDED.confirmed_at`,
       [order.id, order.assignment.candidateId, order.assignment.confirmedAt],
     );
-    await client.query('DELETE FROM thesis_assignment_allocations WHERE order_id = $1', [order.id]);
+    await client.query('DELETE FROM assignment_allocations WHERE order_id = $1', [order.id]);
     for (const allocation of order.assignment.allocations) {
       await client.query(
-        `INSERT INTO thesis_assignment_allocations
+        `INSERT INTO assignment_allocations
           (order_id, workshop_id, display_name, quantity, status)
          VALUES ($1, $2, $3, $4, $5)`,
         [
@@ -432,7 +432,7 @@ export class PostgresOrderStore implements OrderStore {
       );
       for (const [index, process] of allocation.assignedProcesses.entries()) {
         await client.query(
-          `INSERT INTO thesis_allocation_processes
+          `INSERT INTO allocation_processes
             (order_id, workshop_id, sequence, process)
            VALUES ($1, $2, $3, $4)`,
           [order.id, allocation.workshopId, index + 1, process],
