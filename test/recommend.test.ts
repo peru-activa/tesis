@@ -178,4 +178,40 @@ describe('recommendWorkshops', () => {
     assert.equal(result.candidates[0]?.workshopId, 'workshop-b');
     assert.match(result.rejected[0]?.reasons.join(' ') || '', /material no atendido/);
   });
+
+  it('evalúa una tela importada con la espera restante de abastecimiento', () => {
+    const baseRequest = recommendationRequestSchema.parse({
+      ...input,
+      evaluatedAt: '2026-09-01T09:00:00-05:00',
+      order: {
+        ...input.order,
+        quantity: 50,
+        requiredBy: '2026-09-06T18:00:00-05:00',
+      },
+      workshops: [
+        {
+          ...input.workshops[0]!,
+          productionRate: { quantity: 100, days: 1 },
+          capacityPlanningMode: 'throughput',
+          estimatedLeadTimeDays: 1,
+        },
+      ],
+    });
+    const baseFabric = recommendWorkshops(baseRequest);
+    const importedFabric = recommendWorkshops({
+      ...baseRequest,
+      order: {
+        ...baseRequest.order,
+        fabricSupply: {
+          category: 'imported',
+          minimumLeadTimeDays: 7,
+          maximumLeadTimeDays: 14,
+          remainingLeadTimeDays: 14,
+        },
+      },
+    });
+
+    assert.ok(baseFabric.candidates[0]);
+    assert.equal(importedFabric.candidates.length, 0);
+  });
 });

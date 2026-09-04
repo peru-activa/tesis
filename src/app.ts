@@ -175,7 +175,7 @@ const openApiDocument = {
     '/v1/demos/week-03/assignment-scenarios': {
       get: {
         summary:
-          'Listar tres productores, cuatro proveedores de proceso y nueve escenarios simulados de R5',
+          'Listar cuatro productores, cuatro proveedores de proceso y nueve escenarios simulados de R5',
         responses: { 200: { description: 'Catálogo reproducible de Semana 3' } },
       },
     },

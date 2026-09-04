@@ -1,12 +1,15 @@
 import {
   recommendationRequestSchema,
   type FabricBuyer,
+  type FabricSupply,
   type PoloType,
   type Process,
 } from '../domain/contracts.js';
+import { recommendationRequestsForMaterialAlternatives } from '../domain/material-alternatives.js';
+import { fabricSupplyForPoloMaterial } from './polo-fabrics.js';
 import { week03DeclaredWorkshops } from './week-03-assignment-scenarios.js';
 
-export const R5_HISTORICAL_DATASET_VERSION = 'r5-historical-polos-gmail-v4-draft';
+export const R5_HISTORICAL_DATASET_VERSION = 'r5-historical-polos-gmail-v9-draft';
 export const R5_HISTORICAL_SEED = 20_260_903;
 export const R5_HISTORICAL_EVALUATED_AT = '2026-09-03T09:00:00-05:00';
 
@@ -14,6 +17,7 @@ export type HistoricalSourceChannel = 'gmail' | 'whatsapp';
 export type HistoricalSourceStatus = 'quotation_request' | 'quoted' | 'order_received';
 export type SpecificationSource = 'customer' | 'database' | 'estimated' | 'unspecified';
 export type LeadTimeSource = 'historical_record' | 'default_pending_confirmation';
+export type LeadTimeScope = 'evaluated_polos' | 'complete_order';
 type HistoricalCustomization = 'none' | 'printing' | 'sublimation' | 'embroidery';
 
 export interface R5HistoricalPoloCase {
@@ -27,6 +31,7 @@ export interface R5HistoricalPoloCase {
   embroideryApplicationsPerGarment: number;
   requiredProcesses: Process[];
   fabricBuyer: FabricBuyer;
+  fabricSupply: FabricSupply;
   requiresNewPattern: false;
   requiredBy: string;
   sourceChannel: HistoricalSourceChannel;
@@ -34,8 +39,9 @@ export interface R5HistoricalPoloCase {
   specificationSource: SpecificationSource;
   originalLeadTime: string | null;
   leadTimeSource: LeadTimeSource;
+  leadTimeScope: LeadTimeScope;
   normalizationAssumptions: string[];
-  validationStatus: 'pending_peru_activa';
+  validationStatus: 'validated_peru_activa';
 }
 
 const baseProcesses: Process[] = ['design', 'cutting', 'sewing', 'finishing'];
@@ -76,7 +82,14 @@ function processesFor(
 const common = {
   product: 'polo' as const,
   requiresNewPattern: false as const,
-  validationStatus: 'pending_peru_activa' as const,
+  validationStatus: 'validated_peru_activa' as const,
+  leadTimeScope: 'evaluated_polos' as const,
+  fabricSupply: {
+    category: 'base' as const,
+    minimumLeadTimeDays: 0,
+    maximumLeadTimeDays: 0,
+    remainingLeadTimeDays: 0,
+  },
 };
 
 const unobservedOperationalAssumptions = [
@@ -84,7 +97,7 @@ const unobservedOperationalAssumptions = [
   'El registro histórico no indica si se necesitó un molde nuevo; se asumió un modelo estándar.',
 ];
 
-export const r5HistoricalPoloCases: R5HistoricalPoloCase[] = [
+const r5HistoricalPoloCaseInputs: R5HistoricalPoloCase[] = [
   {
     ...common,
     id: 'H01',
@@ -147,7 +160,10 @@ export const r5HistoricalPoloCases: R5HistoricalPoloCase[] = [
     specificationSource: 'customer',
     originalLeadTime: '10 días calendario desde la orden o contrato',
     leadTimeSource: 'historical_record',
-    normalizationAssumptions: [...unobservedOperationalAssumptions],
+    normalizationAssumptions: [
+      ...unobservedOperationalAssumptions,
+      'Hydrotech no figura en el catálogo de telas para polos con disponibilidad inmediata; se aplicó una espera conservadora de catorce días dentro del rango de siete a catorce días.',
+    ],
   },
   {
     ...common,
@@ -236,6 +252,7 @@ export const r5HistoricalPoloCases: R5HistoricalPoloCase[] = [
     specificationSource: 'customer',
     originalLeadTime: '25 días calendario desde el acta de aprobación de diseño',
     leadTimeSource: 'historical_record',
+    leadTimeScope: 'complete_order',
     normalizationAssumptions: [
       ...unobservedOperationalAssumptions,
       'El uniforme incluye polo, short y medias; esta prueba usa únicamente el componente polo sin afirmar que asigna el conjunto completo.',
@@ -258,7 +275,7 @@ export const r5HistoricalPoloCases: R5HistoricalPoloCase[] = [
     normalizationAssumptions: [
       ...unobservedOperationalAssumptions,
       'La orden adjudicada admite piqué deportivo, micropiqué o Dry Fit Premium; se eligió Dry Fit Premium solo para la repetición técnica.',
-      'La técnica del logotipo y el plazo no constan en la fuente usada; no se agregó personalización y se usaron diez días provisionales.',
+      'La técnica del logotipo y el plazo no constan en la fuente usada; no se agregó personalización y se usó una ventana de diez días solo para ejecutar la evaluación técnica.',
     ],
   },
   {
@@ -316,20 +333,21 @@ export const r5HistoricalPoloCases: R5HistoricalPoloCase[] = [
     ...common,
     id: 'H14',
     poloType: 'collared',
-    material: 'Jacquard camisero',
+    material: 'Zanetti 100% poliéster',
     quantity: 116,
-    ...processesFor('embroidery', 2),
+    ...processesFor('embroidery'),
     fabricBuyer: 'peru_activa',
-    requiredBy: '2026-09-13T18:00:00-05:00',
+    requiredBy: '2026-09-10T18:00:00-05:00',
     sourceChannel: 'gmail',
     sourceStatus: 'quoted',
-    specificationSource: 'estimated',
-    originalLeadTime: '10 días',
+    specificationSource: 'customer',
+    originalLeadTime: '1 semana',
     leadTimeSource: 'historical_record',
     normalizationAssumptions: [
       ...unobservedOperationalAssumptions,
       'Se consolidaron cuatro variantes del mismo polo: dama y varón, manga corta y manga larga.',
-      'La composición y el gramaje eran referenciales en la cotización; la calidad Jacquard fue la opción evaluada con muestra.',
+      'La fuente especifica tela Zanetti 100% poliéster y un bordado posterior con la palabra INSTRUCTOR.',
+      'El logotipo frontal es visible en la referencia, pero su técnica no se especifica; no se agregó un segundo proceso de bordado.',
     ],
   },
   {
@@ -356,7 +374,7 @@ export const r5HistoricalPoloCases: R5HistoricalPoloCase[] = [
     quantity: 50,
     ...processesFor('sublimation', 1, ['embroidery']),
     fabricBuyer: 'peru_activa',
-    requiredBy: '2026-09-13T18:00:00-05:00',
+    requiredBy: '2026-09-30T18:00:00-05:00',
     sourceChannel: 'gmail',
     sourceStatus: 'order_received',
     specificationSource: 'customer',
@@ -365,7 +383,7 @@ export const r5HistoricalPoloCases: R5HistoricalPoloCase[] = [
     normalizationAssumptions: [
       ...unobservedOperationalAssumptions,
       'La orden incluye polo, short y medias; esta prueba usa únicamente el componente polo.',
-      'La fuente no fija plazo; se usaron diez días solo para la repetición técnica.',
+      'La fuente no fija plazo; se usó una ventana técnica suficiente para incluir el abastecimiento y calcular la duración completa, sin atribuirla al cliente.',
     ],
   },
   {
@@ -445,10 +463,17 @@ export const r5HistoricalPoloCases: R5HistoricalPoloCase[] = [
       ...unobservedOperationalAssumptions,
       'La fuente permite Tricot deportivo, Poly Tricot o Lafayette; se usó Poly Tricot únicamente para la repetición técnica.',
       'La cantidad corresponde a los 10 integrantes del equipo académico-administrativo y 400 alumnos declarados para el uniforme.',
-      'La técnica del logotipo y el plazo no constan; no se agregó personalización y se usaron diez días provisionales.',
+      'La técnica del logotipo y el plazo no constan; no se agregó personalización y se usó una ventana de diez días solo para ejecutar la evaluación técnica.',
     ],
   },
 ];
+
+export const r5HistoricalPoloCases: R5HistoricalPoloCase[] = r5HistoricalPoloCaseInputs.map(
+  (historicalCase) => ({
+    ...historicalCase,
+    fabricSupply: fabricSupplyForPoloMaterial(historicalCase.material),
+  }),
+);
 
 export function recommendationForHistoricalCase(historicalCase: R5HistoricalPoloCase) {
   return recommendationRequestSchema.parse({
@@ -460,6 +485,7 @@ export function recommendationForHistoricalCase(historicalCase: R5HistoricalPolo
       material: historicalCase.material,
       quantity: historicalCase.quantity,
       fabricBuyer: historicalCase.fabricBuyer,
+      fabricSupply: historicalCase.fabricSupply,
       requiresNewPattern: historicalCase.requiresNewPattern,
       embroideryApplicationsPerGarment: historicalCase.embroideryApplicationsPerGarment,
       requiredProcesses: historicalCase.requiredProcesses,
@@ -467,4 +493,10 @@ export function recommendationForHistoricalCase(historicalCase: R5HistoricalPolo
     },
     workshops: week03DeclaredWorkshops,
   });
+}
+
+export function recommendationAlternativesForHistoricalCase(historicalCase: R5HistoricalPoloCase) {
+  return recommendationRequestsForMaterialAlternatives(
+    recommendationForHistoricalCase(historicalCase),
+  );
 }

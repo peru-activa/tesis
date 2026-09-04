@@ -1,0 +1,39 @@
+{
+  "instrumentVersion": "r5-validacion-comparativa-2026-09-03",
+  "completedAt": "2026-09-03",
+  "reviewerRole": "propietaria y gerente general de Perú Activa",
+  "sourceEvidence": {
+    "custody": "private",
+    "pages": 4,
+    "sha256": "9a0ca04fad9aaefa50e948a2f79bea4604eaa346e26c2d1c440c76acdeca57be"
+  },
+  "summary": {
+    "evaluatedCases": 20,
+    "correctAutomaticProposals": 20,
+    "manualConflicts": 0,
+    "automaticConflicts": 0,
+    "conflictReductionRate": null
+  },
+  "cases": [
+    { "caseId": "H01", "manualDecision": ["Taller B"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H02", "manualDecision": ["Taller B"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H03", "manualDecision": ["Taller B"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H04", "manualDecision": [], "manualConflict": false, "automaticProposalCorrect": true, "observation": "Plazo insuficiente por abastecimiento de tela." },
+    { "caseId": "H05", "manualDecision": ["Taller B"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H06", "manualDecision": ["Taller B"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H07", "manualDecision": ["Taller A", "Taller G"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H08", "manualDecision": ["Taller B", "Taller F"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H09", "manualDecision": ["Taller B", "Taller D"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H10", "manualDecision": ["Taller B"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H11", "manualDecision": ["Taller A", "Taller G"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H12", "manualDecision": ["Taller A"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H13", "manualDecision": ["Taller F", "Taller A"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H14", "manualDecision": ["Taller F", "Taller A"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H15", "manualDecision": ["Taller A", "Taller G"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H16", "manualDecision": ["Taller B", "Taller D", "Taller F"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H17", "manualDecision": ["Taller B", "Taller D"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H18", "manualDecision": ["Taller B", "Taller D"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H19", "manualDecision": ["Taller A"], "manualConflict": false, "automaticProposalCorrect": true },
+    { "caseId": "H20", "manualDecision": ["Taller B"], "manualConflict": false, "automaticProposalCorrect": true }
+  ]
+}

@@ -319,7 +319,7 @@ export function MultichannelDemo({
                 ? 'Aquí aparecen automáticamente las solicitudes enviadas desde el formulario.'
                 : view === 'taller'
                   ? 'Aquí aparecen los pedidos que Perú Activa confirmó para el taller.'
-                  : 'Línea base y algoritmo genético comparados con tres productores, cuatro proveedores de proceso y nueve escenarios simulados.'}
+                  : 'Línea base y algoritmo genético comparados con cuatro productores, cuatro proveedores de proceso y nueve escenarios simulados.'}
             </p>
           </div>
           {view === 'evidencia' && (

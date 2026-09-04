@@ -14,3 +14,8 @@ private/
 *.eml
 *.mbox
 *.msg
+
+# Evidencia privada de R5: conservar fuera del repositorio.
+docs/entregas/evidencia-r5/*firmad*.pdf
+docs/entregas/evidencia-r5/*correo*.pdf
+docs/entregas/evidencia-r5/*trazabilidad*.pdf

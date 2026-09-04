@@ -6,6 +6,7 @@ import {
 } from '../domain/contracts.js';
 import { orderDraftSchema, type OrderDraft } from '../domain/orders.js';
 import type { QuotationRequest } from '../domain/quotation-requests.js';
+import { fabricSupplyForPoloMaterial } from '../data/polo-fabrics.js';
 import { canonicalSublimationMaterial } from '../data/sublimation-materials.js';
 import type { QuotationRequestDraft } from '../domain/quotation-requests.js';
 
@@ -77,6 +78,7 @@ export function recommendationFromQuotation(input: {
         material: adapted.draft.material,
         quantity: adapted.draft.quantity,
         fabricBuyer: adapted.fabricBuyer,
+        fabricSupply: fabricSupplyForPoloMaterial(adapted.draft.material),
         requiresNewPattern: adapted.draft.requiresNewPattern ?? false,
         embroideryApplicationsPerGarment: adapted.draft.embroideryApplicationsPerGarment ?? 1,
         requiredProcesses: adapted.requiredProcesses,

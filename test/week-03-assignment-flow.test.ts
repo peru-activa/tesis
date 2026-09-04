@@ -25,19 +25,19 @@ after(async () => {
 });
 
 describe('flujo multicanal simulado de Semana 3', () => {
-  it('expone tres productores, cuatro proveedores de proceso y nueve escenarios reproducibles', async () => {
+  it('expone cuatro productores, cuatro proveedores de proceso y nueve escenarios reproducibles', async () => {
     const response = await fetch(`${baseUrl}/v1/demos/week-03/assignment-scenarios`);
     assert.equal(response.status, 200);
     const payload = await response.json();
     assert.equal(payload.simulated, true);
-    assert.equal(payload.datasetVersion, 'r5-synthetic-v13');
+    assert.equal(payload.datasetVersion, 'r5-synthetic-v15');
     assert.equal(payload.seed, 20_260_827);
-    assert.equal(payload.workshops.length, 7);
+    assert.equal(payload.workshops.length, 8);
     assert.equal(
       payload.workshops.filter(
         (workshop: { providerType: string }) => workshop.providerType === 'garment_producer',
       ).length,
-      3,
+      4,
     );
     assert.equal(
       payload.workshops.filter(
@@ -60,7 +60,7 @@ describe('flujo multicanal simulado de Semana 3', () => {
     );
     assert.equal(response.status, 200);
     const payload = await response.json();
-    assert.equal(payload.datasetVersion, 'r5-synthetic-v13');
+    assert.equal(payload.datasetVersion, 'r5-synthetic-v15');
     assert.equal(payload.seed, 20_260_827);
     assert.equal(payload.comparison.baseline.algorithm, 'deterministic-baseline');
     assert.equal(payload.comparison.genetic.algorithm, 'genetic');
@@ -95,13 +95,13 @@ describe('flujo multicanal simulado de Semana 3', () => {
     assert.equal(runResponse.status, 201);
     const evaluated = await runResponse.json();
     assert.equal(evaluated.order.status, 'recommended');
-    assert.equal(evaluated.order.recommendation.candidates[0].workshopId, 'sim-workshop-a');
-    assert.equal(evaluated.order.simulation.datasetVersion, 'r5-synthetic-v13');
+    assert.equal(evaluated.order.recommendation.candidates[0].workshopId, 'sim-workshop-b');
+    assert.equal(evaluated.order.simulation.datasetVersion, 'r5-synthetic-v15');
 
     const confirmationResponse = await fetch(`${baseUrl}/v1/orders/${evaluated.order.id}/confirm`, {
       method: 'POST',
       headers: peruActivaHeaders,
-      body: JSON.stringify({ workshopId: 'sim-workshop-a' }),
+      body: JSON.stringify({ workshopId: 'sim-workshop-b' }),
     });
     assert.equal(confirmationResponse.status, 200);
     const confirmed = await confirmationResponse.json();
@@ -123,13 +123,13 @@ describe('flujo multicanal simulado de Semana 3', () => {
     assert.deepEqual(inbox.notifications[0], confirmed.order.notification);
 
     const assignedWorkshopResponse = await fetch(`${baseUrl}/v1/workshop-notifications`, {
-      headers: { 'x-demo-workshop-phone': '900000001' },
+      headers: { 'x-demo-workshop-phone': '900000002' },
     });
     const assignedWorkshop = await assignedWorkshopResponse.json();
     assert.equal(assignedWorkshop.notifications.length, 1);
 
     const differentWorkshopResponse = await fetch(`${baseUrl}/v1/workshop-notifications`, {
-      headers: { 'x-demo-workshop-phone': '900000002' },
+      headers: { 'x-demo-workshop-phone': '900000001' },
     });
     const differentWorkshop = await differentWorkshopResponse.json();
     assert.deepEqual(differentWorkshop.notifications, []);
