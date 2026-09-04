@@ -73,6 +73,9 @@ const described = await aws(['cloudformation', 'describe-stacks', '--stack-name'
 const stack = described.Stacks[0];
 const instanceId = stackOutput(stack, 'InstanceId');
 const bucketName = stackOutput(stack, 'BackupBucketName');
+const containerImage = stack.Parameters.find(
+  (parameter) => parameter.ParameterKey === 'ContainerImage',
+)?.ParameterValue;
 assert.ok(instanceId, 'La pila no expone InstanceId.');
 assert.ok(bucketName, 'La pila no expone BackupBucketName.');
 
@@ -113,8 +116,8 @@ const countSql = [
   ")::text;",
 ].join(' ');
 const restoreCommand = `set -euo pipefail
-backup_file='/var/tmp/${fileName}'
-checksum_file="$backup_file.sha256"
+backup_file='/var/tmp/tesis-r4-${fileName}'
+checksum_file='/var/tmp/${fileName}.sha256'
 aws s3 cp 's3://${bucketName}/${backupObject.Key}' "$backup_file" --only-show-errors
 aws s3 cp 's3://${bucketName}/${backupObject.Key}.sha256' "$checksum_file" --only-show-errors
 cd /var/tmp
@@ -154,6 +157,7 @@ const report = {
   region,
   stackName,
   instanceId,
+  containerImage,
   backup: {
     bucketName,
     objectKey: backupObject.Key,

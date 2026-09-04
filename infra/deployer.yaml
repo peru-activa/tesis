@@ -42,9 +42,13 @@ Resources:
               - cloudformation:DescribeStackResources
               - cloudformation:GetTemplate
               - cloudformation:GetTemplateSummary
-              - cloudformation:ValidateTemplate
             Resource:
               - !Sub arn:${AWS::Partition}:cloudformation:us-east-1:${AWS::AccountId}:stack/tesis-r4-*/*
+          - Sid: ValidateCloudFormationTemplates
+            Effect: Allow
+            Action:
+              - cloudformation:ValidateTemplate
+            Resource: "*"
           - Sid: ReadAccountAndInfrastructure
             Effect: Allow
             Action:

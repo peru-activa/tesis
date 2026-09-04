@@ -99,28 +99,31 @@ una instancia `t4g.micro` con contenedores separados para la API y PostgreSQL
 IPv4 del ejecutor. No expone PostgreSQL ni habilita SSH. Sus plantillas se
 encuentran en `infra/ecr.yaml`, `infra/demo.yaml` e `infra/deployer.yaml`.
 
-La revisión de infraestructura incorpora una copia diaria mediante `pg_dump`
+La infraestructura incorpora una copia diaria mediante `pg_dump`
 en un bucket Amazon S3 privado, cifrado con SSE-S3, versionado y con retención
 de 35 días. El bucket tiene política de transporte TLS y permanece separado del
-volumen EBS de PostgreSQL. Esta configuración está definida y validada
-localmente, pero su funcionamiento y restauración no deben declararse
-demostrados hasta actualizar la pila y ejecutar la prueba correspondiente en
-AWS.
+volumen EBS de PostgreSQL. La prueba `npm run evidencia:r4:backup` genera una
+copia, verifica su checksum, la restaura en una base temporal, compara los
+conteos con el origen y elimina la base temporal. El reporte se conserva en
+`docs/entregas/evidencia-r4/backup/`.
 
 La latencia de la consulta ejecutada en el servidor se expone mediante el
 encabezado estándar `Server-Timing`; Newman la verifica contra el límite de 500
 ms. El reporte conserva por separado el tiempo HTTP completo observado desde
-el ejecutor externo, que también incluye la red. En la corrida del 3 de
-septiembre de 2026, hora de Lima, se registraron 200 solicitudes, 601 aserciones y 0 fallos.
-La consulta en AWS presentó 2.458 ms de promedio, 3.604 ms de percentil 95 y
-6.405 ms como máximo. La respuesta HTTP externa presentó 152.470 ms de
-promedio, 213 ms de percentil 95 y 416 ms como máximo.
+el ejecutor externo, que también incluye la red. En la corrida final del 4 de
+septiembre de 2026, hora de Lima, se registraron 200 solicitudes, 601
+aserciones y 0 fallos. La consulta ejecutada en AWS presentó 8.823 ms de
+promedio, 8.369 ms de mediana, 13.069 ms de percentil 95 y 26.464 ms como
+máximo. La respuesta HTTP externa presentó 147.640 ms de promedio, 134 ms de
+mediana, 201 ms de percentil 95 y 373 ms como máximo. Las 100 muestras de ambas
+mediciones y su curva ECDF permanecen en el reporte reproducible.
 
 Los reportes JSON, JUnit y Markdown quedan en
-`docs/entregas/evidencia-r4/postman/`. La verificación adicional de persistencia
-reinició ambos contenedores y recuperó los mismos 100 pedidos y 100 entradas de
-historial; su salida se conserva en `evidencia-persistencia-aws-r4.md` y
-`evidencia-persistencia-aws-r4.json`.
+`docs/entregas/evidencia-r4/postman/`. La verificación adicional de persistencia,
+ejecutada mediante `npm run evidencia:r4:persistence`, reinició ambos
+contenedores y recuperó los mismos 300 pedidos y 300 registros de historial,
+sin pérdida. La copia final se restauró con coincidencia exacta de 300 pedidos,
+300 registros de historial, 7 talleres, 1200 filas de tallas y 188 capacidades.
 
 ## Alcance
 
@@ -130,7 +133,9 @@ piloto. Los registros utilizados son simulados y están identificados como
 tales. Los pedidos que se produzcan durante el piloto poblarán la misma
 estructura sin que R4 dependa de información histórica previa.
 
-La evidencia remota citada corresponde a la versión previamente desplegada. La
-normalización moderada descrita en esta revisión fue comprobada localmente sobre
-PostgreSQL 17 y no debe atribuirse al entorno AWS hasta publicar una nueva
-imagen y repetir allí la corrida Postman/Newman.
+La evidencia remota corresponde al commit
+`999fbbb4a0e9e370fdc106ad3dfc9ff1990bdefe` y a la imagen inmutable
+`sha256:b1e4e12ff6d9768d81f0bf2cfa32bd9b57006fafb2da2df84f399cd7ef38277e`.
+Con este alcance, R4 quedó demostrado y sus dos IOV técnicos cumplieron. La
+captura de datos reales del piloto pertenece a su ejecución posterior y no es
+una condición previa de este resultado.

@@ -1,19 +1,31 @@
 {
   "resultId": "R4",
-  "generatedAt": "2026-09-04T03:09:00Z",
+  "generatedAt": "2026-09-04T05:58:59.165Z",
   "environment": "AWS deployment",
   "dataClassification": "simulated",
-  "database": "PostgreSQL 17",
+  "accountId": "479494991128",
+  "region": "us-east-1",
+  "stackName": "tesis-r4-demo",
+  "instanceId": "i-00ce35091a53ee070",
+  "baseUrl": "http://18.234.234.167:3100",
+  "containerImage": "479494991128.dkr.ecr.us-east-1.amazonaws.com/tesis-r4-api@sha256:b1e4e12ff6d9768d81f0bf2cfa32bd9b57006fafb2da2df84f399cd7ef38277e",
+  "schemaInventory": {
+    "tables": 12,
+    "foreign_keys": 11,
+    "checks": 36,
+    "indexes": 23
+  },
   "procedure": "restart PostgreSQL container, wait for readiness, restart API container and query both database and API",
-  "ssmCommandId": "0c770be0-4beb-4f81-89d4-0b3b27be2ee5",
+  "ssmCommandId": "b24ff174-d929-42d5-b89e-8d517f8a7b92",
   "beforeRestart": {
-    "orders": 100,
-    "historyEntries": 100
+    "orders": 300,
+    "historyEntries": 300
   },
   "afterRestart": {
-    "orders": 100,
-    "historyEntries": 100,
-    "ordersReturnedByApi": 100
+    "orders": 300,
+    "historyEntries": 300,
+    "ordersReturnedByApi": 300
   },
+  "recoveryPercentage": 100,
   "result": "CUMPLE"
 }

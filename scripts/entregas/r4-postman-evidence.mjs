@@ -130,6 +130,12 @@ try {
     baseUrl,
     dataClassification: 'simulated',
     database: 'PostgreSQL 17',
+    deployment: isRemote
+      ? {
+          commit: process.env.R4_COMMIT ?? null,
+          containerImage: process.env.R4_CONTAINER_IMAGE ?? null,
+        }
+      : null,
     iterations: summary.run.stats.iterations,
     requests,
     assertions,

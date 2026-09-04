@@ -1,0 +1,42 @@
+{
+  "resultId": "R4",
+  "generatedAt": "2026-09-04T05:47:15.897Z",
+  "environment": "AWS deployment",
+  "dataClassification": "simulated",
+  "accountId": "479494991128",
+  "region": "us-east-1",
+  "stackName": "tesis-r4-demo",
+  "instanceId": "i-00ce35091a53ee070",
+  "containerImage": "479494991128.dkr.ecr.us-east-1.amazonaws.com/tesis-r4-api@sha256:b1e4e12ff6d9768d81f0bf2cfa32bd9b57006fafb2da2df84f399cd7ef38277e",
+  "backup": {
+    "bucketName": "tesis-r4-backups-479494991128-us-east-1",
+    "objectKey": "r4/20260904T054702Z.dump",
+    "sizeBytes": 81081,
+    "serverSideEncryption": "AES256",
+    "versionId": "XPFMdiT.XValsQIP25tKSoa5zHxQvQRt",
+    "commandId": "6ffe8339-18bb-4452-8c9b-901ace8c7c22"
+  },
+  "restoration": {
+    "temporaryDatabase": "tesis_restore_verification",
+    "sourceCounts": {
+      "orders": 300,
+      "history": 300,
+      "workshops": 7,
+      "order_sizes": 1200,
+      "workshop_capabilities": 188,
+      "allocations": 0
+    },
+    "restoredCounts": {
+      "orders": 300,
+      "history": 300,
+      "workshops": 7,
+      "order_sizes": 1200,
+      "workshop_capabilities": 188,
+      "allocations": 0
+    },
+    "countsMatch": true,
+    "checksumVerified": true,
+    "commandId": "a31e4768-7364-4074-9c5f-320e9f1aef5f"
+  },
+  "result": "CUMPLE"
+}

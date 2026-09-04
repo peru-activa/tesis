@@ -1,8 +1,8 @@
 # Reporte Postman/Newman de R4
 
-Fecha de ejecución: 2026-09-04T03:07:37.207Z
+Fecha de ejecución: 2026-09-04T05:46:15.375Z
 
-Entorno de ejecución: despliegue AWS accesible en http://3.84.126.185:3100, Node.js v24.19.0 y PostgreSQL 17.
+Entorno de ejecución: despliegue AWS accesible en http://18.234.234.167:3100, Node.js v26.7.0 y PostgreSQL 17.
 
 Los datos son simulados. Newman, ejecutor de colecciones Postman, realizó 100 iteraciones mediante la API. La latencia del IOV corresponde al tiempo de la consulta ejecutada por el servicio desplegado y se obtuvo del encabezado estándar `Server-Timing`. La latencia HTTP externa se presenta por separado porque también incorpora la red entre el ejecutor y AWS.
 
@@ -14,13 +14,13 @@ Los datos son simulados. Newman, ejecutor de colecciones Postman, realizó 100 i
 - Solicitudes fallidas: 0.
 - Aserciones ejecutadas: 601.
 - Aserciones fallidas: 0.
-- Latencia promedio de consulta en el servidor: 2.458 ms.
-- Mediana de consulta en el servidor: 2.396 ms.
-- Percentil 95 de consulta en el servidor: 3.604 ms.
-- Latencia máxima de consulta en el servidor: 6.405 ms.
-- Latencia HTTP externa promedio: 152.470 ms.
-- Percentil 95 de latencia HTTP externa: 213.000 ms.
-- Latencia HTTP externa máxima: 416.000 ms.
+- Latencia promedio de consulta en el servidor: 8.823 ms.
+- Mediana de consulta en el servidor: 8.369 ms.
+- Percentil 95 de consulta en el servidor: 13.069 ms.
+- Latencia máxima de consulta en el servidor: 26.464 ms.
+- Latencia HTTP externa promedio: 147.640 ms.
+- Percentil 95 de latencia HTTP externa: 201.000 ms.
+- Latencia HTTP externa máxima: 373.000 ms.
 
 ## Evaluación
 
