@@ -66,9 +66,9 @@ function calendarDaysForWork(
   let elapsed = 0;
   let completed = 0;
   while (completed < requiredWorkingDays && elapsed < 366) {
-    elapsed += 1;
     const day = WORKING_DAY_BY_UTC_INDEX[new Date(startTimestamp + elapsed * DAY_MS).getUTCDay()]!;
     if (workshop.workingDays.includes(day)) completed += 1;
+    elapsed += 1;
   }
   return elapsed;
 }
@@ -98,14 +98,25 @@ function effectiveLeadTimeDays(
   assignedProcesses: Process[] = effectiveRequiredProcesses(request),
 ): number {
   const evaluatedAt = Date.parse(request.evaluatedAt);
+  const fabricReadyAt = evaluatedAt + request.order.fabricSupply.remainingLeadTimeDays * DAY_MS;
   const availableFrom = workshop.availableFrom ? Date.parse(workshop.availableFrom) : evaluatedAt;
-  const waitingDays = Math.max(0, Math.ceil((availableFrom - evaluatedAt) / DAY_MS));
-  const startsAt = Math.max(evaluatedAt, availableFrom);
+  const startsAt = Math.max(fabricReadyAt, availableFrom);
+  const waitingDays = Math.max(0, Math.ceil((startsAt - evaluatedAt) / DAY_MS));
   const rate = effectiveRate(workshop, assignedProcesses);
   const productionWorkingDays = rate
-    ? Math.ceil(workload(request, assignedProcesses) / rate.quantity) * rate.days
+    ? Math.ceil((workload(request, assignedProcesses) * rate.days) / rate.quantity)
     : 0;
-  const requiredWorkingDays = Math.max(workshop.estimatedLeadTimeDays, productionWorkingDays);
+  const processMinimumWorkingDays = Math.max(
+    0,
+    ...assignedProcesses.map(
+      (process) => workshop.minimumLeadTimeDaysByProcess?.[process] ?? 0,
+    ),
+  );
+  const requiredWorkingDays = Math.max(
+    workshop.estimatedLeadTimeDays,
+    processMinimumWorkingDays,
+    productionWorkingDays,
+  );
   return waitingDays + calendarDaysForWork(startsAt, requiredWorkingDays, workshop);
 }
 
@@ -129,11 +140,12 @@ function capacityBeforeDeadline(
   const rate = effectiveRate(workshop, assignedProcesses);
   if (!rate) return undefined;
   const evaluatedAt = Date.parse(request.evaluatedAt);
+  const fabricReadyAt = evaluatedAt + request.order.fabricSupply.remainingLeadTimeDays * DAY_MS;
   const availableFrom = workshop.availableFrom ? Date.parse(workshop.availableFrom) : evaluatedAt;
-  const startsAt = Math.max(evaluatedAt, availableFrom);
+  const startsAt = Math.max(fabricReadyAt, availableFrom);
   const deadline = Date.parse(request.order.requiredBy);
   const workingDays = workingDaysBetween(startsAt, deadline, workshop);
-  const serviceUnits = Math.floor(workingDays / rate.days) * rate.quantity;
+  const serviceUnits = Math.floor((workingDays * rate.quantity) / rate.days);
   if (assignedProcesses.includes('embroidery')) {
     return Math.floor(serviceUnits / request.order.embroideryApplicationsPerGarment);
   }
@@ -143,11 +155,13 @@ function capacityBeforeDeadline(
 }
 
 function supportsMaterial(material: string, workshop: Workshop): boolean {
+  const declaredMaterials = new Set(workshop.materials.map(normalize));
+  if (declaredMaterials.has(normalize(material))) return true;
+  if (workshop.materialMatchingMode === 'declared_only') return false;
+
   const requestedFamily = materialFamilyFor(material);
   if (requestedFamily && workshop.materialFamilies.includes(requestedFamily)) return true;
-
-  const declaredMaterials = new Set(workshop.materials.map(normalize));
-  return declaredMaterials.has(normalize(material));
+  return false;
 }
 
 function supportsPoloType(request: RecommendationRequest, workshop: Workshop): boolean {
@@ -247,9 +261,22 @@ function allocateQuantity(
   if (quantity < minimum || quantity > maximum) return undefined;
 
   let remaining = quantity - minimum;
-  return ordered.map((workshop) => {
+  const extraCapacity = ordered.reduce(
+    (sum, workshop) => sum + Math.max(0, capacityFor(workshop) - workshop.minimumUnits),
+    0,
+  );
+  return ordered.map((workshop, index) => {
     const capacity = capacityFor(workshop);
-    const extra = Math.min(remaining, capacity - workshop.minimumUnits);
+    const availableExtra = Math.max(0, capacity - workshop.minimumUnits);
+    const extra =
+      remaining === 0 || extraCapacity === 0
+        ? 0
+        : index === ordered.length - 1
+          ? Math.min(remaining, availableExtra)
+          : Math.min(
+              remaining,
+              Math.floor(((quantity - minimum) * availableExtra) / extraCapacity),
+            );
     remaining -= extra;
     const assigned = workshop.minimumUnits + extra;
     return {
@@ -305,14 +332,19 @@ function specializedRoutePlans(request: RecommendationRequest): CandidatePlan[] 
   const producerProcesses = [...required].filter(
     (process) => !externalProcesses.has(process) && process !== 'design',
   );
-  const producers = request.workshops.filter(
-    (workshop) =>
+  const producers = request.workshops.filter((workshop) => {
+    const blockingReasons = baseRouteReasons(request, workshop, producerProcesses).filter(
+      (reason) => reason !== 'capacidad insuficiente' && reason !== 'cantidad menor al mínimo',
+    );
+    return (
       workshop.providerType === 'garment_producer' &&
-      baseRouteReasons(request, workshop, producerProcesses).length === 0 &&
+      blockingReasons.length === 0 &&
       producerProcesses.every((process) => workshop.processes.includes(process)) &&
       workshop.technicalCapabilities.includes('garment_sewing') &&
-      workshop.technicalCapabilities.includes('finishing'),
-  );
+      workshop.technicalCapabilities.includes('finishing')
+    );
+  });
+  const producerGroups = [1, 2, 3].flatMap((size) => combinations(producers, size));
   const sublimationProviders = needsSublimation
     ? request.workshops.filter(
         (workshop) =>
@@ -339,13 +371,21 @@ function specializedRoutePlans(request: RecommendationRequest): CandidatePlan[] 
           baseRouteReasons(request, workshop, ['vinyl']).length === 0,
       )
     : [undefined];
-  return producers.flatMap((producer) =>
+  return producerGroups.flatMap((producerGroup) =>
     sublimationProviders.flatMap((sublimationProvider) =>
       embroideryProviders.flatMap((embroideryProvider) =>
         vinylProviders.flatMap((vinylProvider) => {
           if (needsSublimation && !sublimationProvider) return [];
           if (needsEmbroidery && !embroideryProvider) return [];
           if (needsVinyl && !vinylProvider) return [];
+          const primaryProducer = producerGroup[0]!;
+          const producerAllocations = allocateQuantity(
+            request.order.quantity,
+            producerGroup,
+            producerProcesses,
+            request,
+          );
+          if (!producerAllocations) return [];
 
           const steps: Array<Omit<WorkflowStep, 'sequence'>> = [];
           const push = (
@@ -367,14 +407,23 @@ function specializedRoutePlans(request: RecommendationRequest): CandidatePlan[] 
             if (required.has(process)) push(process, workshop, states);
           };
 
-          add('fabric_sourcing', producer);
-          if (needsPatternmaking) add('patternmaking', producer);
-          const designOwner = sublimationProvider ?? vinylProvider ?? producer;
+          for (const producer of producerGroup) add('fabric_sourcing', producer);
+          if (needsPatternmaking) add('patternmaking', primaryProducer);
+          const designOwner = sublimationProvider ?? vinylProvider ?? primaryProducer;
           add('design', designOwner, { outputState: 'digital_layout' });
 
           if (sublimationProvider?.sublimationProfile?.method === 'flat_press') {
-            if (!producer.technicalCapabilities.includes('manual_cutting')) return [];
-            add('cutting', producer, { inputState: 'fabric_roll', outputState: 'cut_panels' });
+            if (
+              producerGroup.some(
+                (producer) => !producer.technicalCapabilities.includes('manual_cutting'),
+              )
+            )
+              return [];
+            for (const producer of producerGroup)
+              add('cutting', producer, {
+                inputState: 'fabric_roll',
+                outputState: 'cut_panels',
+              });
             push('transfer_printing', sublimationProvider, {
               inputState: 'digital_layout',
               outputState: 'printed_transfer',
@@ -398,7 +447,11 @@ function specializedRoutePlans(request: RecommendationRequest): CandidatePlan[] 
               outputState: 'sublimated_cut_panels',
             });
           } else {
-            add('cutting', producer, { inputState: 'fabric_roll', outputState: 'cut_panels' });
+            for (const producer of producerGroup)
+              add('cutting', producer, {
+                inputState: 'fabric_roll',
+                outputState: 'cut_panels',
+              });
           }
 
           if (embroideryProvider) {
@@ -407,23 +460,27 @@ function specializedRoutePlans(request: RecommendationRequest): CandidatePlan[] 
               outputState: needsSublimation ? 'sublimated_cut_panels' : 'cut_panels',
             });
           }
-          add('sewing', producer, {
-            inputState: needsSublimation ? 'sublimated_cut_panels' : 'cut_panels',
-            outputState: 'assembled_garment',
-          });
-          add('printing', producer);
+          for (const producer of producerGroup) {
+            add('sewing', producer, {
+              inputState: needsSublimation ? 'sublimated_cut_panels' : 'cut_panels',
+              outputState: 'assembled_garment',
+            });
+            add('printing', producer);
+          }
           if (vinylProvider) add('vinyl', vinylProvider, { inputState: 'assembled_garment' });
-          for (const process of ['notions', 'ironing'] as Process[]) add(process, producer);
-          add('finishing', producer, {
-            inputState: 'assembled_garment',
-            outputState: 'finished_garment',
-          });
-          add('quality_control', producer);
-          add('delivery', producer);
+          for (const producer of producerGroup) {
+            for (const process of ['notions', 'ironing'] as Process[]) add(process, producer);
+            add('finishing', producer, {
+              inputState: 'assembled_garment',
+              outputState: 'finished_garment',
+            });
+            add('quality_control', producer);
+            add('delivery', producer);
+          }
 
           const routeWorkshops = Array.from(
             new Map(
-              [producer, sublimationProvider, embroideryProvider, vinylProvider]
+              [...producerGroup, sublimationProvider, embroideryProvider, vinylProvider]
                 .filter((item): item is Workshop => Boolean(item))
                 .map((item) => [item.id, item]),
             ).values(),
@@ -450,9 +507,22 @@ function specializedRoutePlans(request: RecommendationRequest): CandidatePlan[] 
               ),
             );
           const leadTime = Math.max(
-            ...routeWorkshops.map((workshop) =>
-              effectiveLeadTimeDays(request, workshop, assignedProcesses(workshop)),
-            ),
+            ...routeWorkshops.map((workshop) => {
+              const producerAllocation = producerAllocations.find(
+                (allocation) => allocation.workshopId === workshop.id,
+              );
+              const allocationRequest = producerAllocation
+                ? {
+                    ...request,
+                    order: { ...request.order, quantity: producerAllocation.quantity },
+                  }
+                : request;
+              return effectiveLeadTimeDays(
+                allocationRequest,
+                workshop,
+                assignedProcesses(workshop),
+              );
+            }),
           );
           const availableDays = Math.floor(
             (Date.parse(request.order.requiredBy) - Date.parse(request.evaluatedAt)) / DAY_MS,
@@ -464,10 +534,13 @@ function specializedRoutePlans(request: RecommendationRequest): CandidatePlan[] 
               workshops: routeWorkshops,
               allocations: routeWorkshops.map((workshop) => {
                 const processes = assignedProcesses(workshop);
+                const producerAllocation = producerAllocations.find(
+                  (allocation) => allocation.workshopId === workshop.id,
+                );
                 return {
                   workshopId: workshop.id,
                   displayName: workshop.displayName,
-                  quantity: request.order.quantity,
+                  quantity: producerAllocation?.quantity ?? request.order.quantity,
                   availableCapacity:
                     capacityBeforeDeadline(request, workshop, processes) ??
                     workshop.availableCapacity,
@@ -560,7 +633,10 @@ export function recommendWorkshops(
         return {
           ...allocation,
           effectiveLeadTimeDays: effectiveLeadTimeDays(
-            request,
+            {
+              ...request,
+              order: { ...request.order, quantity: allocation.quantity },
+            },
             workshop,
             allocation.assignedProcesses ?? effectiveRequiredProcesses(request),
           ),
@@ -613,6 +689,11 @@ export function recommendWorkshops(
         ) as DimensionScores,
         reasons: [
           'el plazo de producción empieza con el diseño aprobado',
+          ...(request.order.fabricSupply.category === 'imported'
+            ? [
+                `la tela importada requiere entre ${request.order.fabricSupply.minimumLeadTimeDays} y ${request.order.fabricSupply.maximumLeadTimeDays} días y fue programada con ${request.order.fabricSupply.remainingLeadTimeDays} días pendientes al evaluar`,
+              ]
+            : []),
           request.order.fabricBuyer === 'workshop'
             ? 'el taller gestiona la compra de la tela especificada por Perú Activa'
             : 'Perú Activa compra la tela y la entrega al taller',

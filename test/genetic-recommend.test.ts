@@ -23,7 +23,7 @@ describe('algoritmo genético de asignación', () => {
 
     assert.deepEqual(first, second);
     assert.equal(first.algorithmVersion, 'ga-0.6.0');
-    assert.equal(first.result.candidates[0]?.candidateId, 'sim-workshop-a');
+    assert.equal(first.result.candidates[0]?.candidateId, 'sim-workshop-b');
     assert.equal(
       first.result.candidates[0]?.allocations.reduce((sum, item) => sum + item.quantity, 0),
       request.order.quantity,
@@ -202,7 +202,7 @@ describe('algoritmo genético de asignación', () => {
     const base = scenario('combined-sublimation-embroidery');
     const result = recommendWorkshops({
       ...base,
-      evaluatedAt: '2026-08-31T09:00:00-05:00',
+      evaluatedAt: '2026-08-30T09:00:00-05:00',
       order: {
         ...base.order,
         quantity: 1000,
@@ -217,7 +217,65 @@ describe('algoritmo genético de asignación', () => {
     assert.ok(
       candidate.allocations.some(
         (allocation) =>
-          allocation.workshopId === 'sim-workshop-b' && allocation.availableCapacity >= 1000,
+          ['sim-workshop-a', 'sim-workshop-b'].includes(allocation.workshopId) &&
+          allocation.availableCapacity >= 1000,
+      ),
+    );
+  });
+
+  it('registra que A y B trabajan algodón y deportivo, pero no licra', () => {
+    const workshops = scenario('sports-sublimation').workshops;
+    for (const id of ['sim-workshop-a', 'sim-workshop-b']) {
+      const workshop = workshops.find((item) => item.id === id);
+      assert.ok(workshop?.materialFamilies.includes('cotton_knit'));
+      assert.ok(workshop?.materialFamilies.includes('sports_knit'));
+      assert.ok(!workshop?.materialFamilies.includes('stretch_knit'));
+      assert.ok(!workshop?.poloTypes?.includes('stretch'));
+    }
+    assert.deepEqual(workshops.find((item) => item.id === 'sim-workshop-a')?.productionRate, {
+      quantity: 2000,
+      days: 6,
+    });
+    assert.deepEqual(workshops.find((item) => item.id === 'sim-workshop-b')?.productionRate, {
+      quantity: 2000,
+      days: 6,
+    });
+    for (const id of ['sim-workshop-a', 'sim-workshop-b']) {
+      const workshop = workshops.find((item) => item.id === id);
+      assert.equal(workshop?.estimatedLeadTimeDays, 2);
+      assert.equal(workshop?.minimumLeadTimeDaysByProcess?.printing, 3);
+    }
+  });
+
+  it('limita el taller H a polos publicitarios básicos de algodón', () => {
+    const base = scenario('balanced-polo');
+    const publicitario = recommendWorkshops({
+      ...base,
+      order: {
+        ...base.order,
+        poloType: 'cotton_advertising',
+        material: 'algodón pyme',
+        quantity: 1000,
+      },
+    });
+    const pima = recommendWorkshops({
+      ...base,
+      order: {
+        ...base.order,
+        poloType: 'cotton_advertising',
+        material: 'pima 20/1',
+        quantity: 1000,
+      },
+    });
+
+    assert.ok(
+      publicitario.candidates.some((candidate) =>
+        candidate.allocations.some((allocation) => allocation.workshopId === 'sim-workshop-j'),
+      ),
+    );
+    assert.ok(
+      pima.candidates.every((candidate) =>
+        candidate.allocations.every((allocation) => allocation.workshopId !== 'sim-workshop-j'),
       ),
     );
   });

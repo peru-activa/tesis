@@ -29,6 +29,30 @@ export const workingDaySchema = z.enum([
   'sunday',
 ]);
 export const fabricBuyerSchema = z.enum(['peru_activa', 'workshop']);
+export const fabricSupplySchema = z
+  .object({
+    category: z.enum(['base', 'imported']),
+    minimumLeadTimeDays: z.number().int().nonnegative(),
+    maximumLeadTimeDays: z.number().int().nonnegative(),
+    remainingLeadTimeDays: z.number().int().nonnegative(),
+  })
+  .refine((supply) => supply.minimumLeadTimeDays <= supply.maximumLeadTimeDays, {
+    message: 'El plazo mínimo de abastecimiento no puede superar el máximo.',
+  })
+  .refine(
+    (supply) =>
+      supply.category === 'base'
+        ? supply.minimumLeadTimeDays === 0 &&
+          supply.maximumLeadTimeDays === 0 &&
+          supply.remainingLeadTimeDays === 0
+        : supply.minimumLeadTimeDays >= 7 &&
+          supply.maximumLeadTimeDays <= 14 &&
+          supply.remainingLeadTimeDays <= supply.maximumLeadTimeDays,
+    {
+      message:
+        'Una tela base no agrega espera y una tela fuera del catálogo de polos debe registrar entre siete y catorce días.',
+    },
+  );
 export const poloTypeSchema = z.enum([
   'cotton_basic',
   'cotton_advertising',
@@ -72,6 +96,12 @@ export const orderSchema = z.object({
   poloType: poloTypeSchema.optional(),
   quantity: z.number().int().positive(),
   fabricBuyer: fabricBuyerSchema,
+  fabricSupply: fabricSupplySchema.default({
+    category: 'base',
+    minimumLeadTimeDays: 0,
+    maximumLeadTimeDays: 0,
+    remainingLeadTimeDays: 0,
+  }),
   requiresNewPattern: z.boolean().default(false),
   embroideryApplicationsPerGarment: z.number().int().positive().max(20).default(1),
   requiredProcesses: z.array(processSchema).min(1),
@@ -89,6 +119,7 @@ export const workshopSchema = z.object({
   poloTypes: z.array(poloTypeSchema).min(1).optional(),
   materials: z.array(z.string().min(1)).min(1),
   materialFamilies: z.array(materialFamilySchema).min(1),
+  materialMatchingMode: z.enum(['family', 'declared_only']).default('family'),
   processes: z.array(processSchema).min(1),
   providerType: providerTypeSchema.default('garment_producer'),
   technicalCapabilities: z.array(technicalCapabilitySchema).default([]),
@@ -133,6 +164,9 @@ export const workshopSchema = z.object({
   workingDays: z.array(workingDaySchema).min(1).optional(),
   availableFrom: z.iso.datetime({ offset: true }).optional(),
   estimatedLeadTimeDays: z.number().nonnegative(),
+  minimumLeadTimeDaysByProcess: z
+    .partialRecord(processSchema, z.number().nonnegative())
+    .optional(),
   estimatedTotalCost: z.number().nonnegative(),
   onTimeRate: z.number().min(0).max(1),
   defectRate: z.number().min(0).max(1),
@@ -168,6 +202,7 @@ export const recommendationRequestSchema = z.object({
 export type RecommendationRequest = z.infer<typeof recommendationRequestSchema>;
 export type Process = z.infer<typeof processSchema>;
 export type FabricBuyer = z.infer<typeof fabricBuyerSchema>;
+export type FabricSupply = z.infer<typeof fabricSupplySchema>;
 export type PoloType = z.infer<typeof poloTypeSchema>;
 export type MaterialFamily = z.infer<typeof materialFamilySchema>;
 export type MaterialState = z.infer<typeof materialStateSchema>;

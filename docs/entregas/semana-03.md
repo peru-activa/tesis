@@ -104,7 +104,7 @@ escenarios incompatibles. Este resultado no demuestra superioridad del
 algoritmo genético ni cumplimiento del IOV con datos reales; demuestra que la
 comparación está implementada y es reproducible.
 
-Como prevalidación adicional, `r5-historical-polos-gmail-v4-draft`
+Como validación histórica adicional, `r5-historical-polos-gmail-v9-draft`
 normaliza veinte casos históricos independientes de Gmail: cinco cotizaciones,
 doce solicitudes de cotización y tres pedidos recibidos. El dataset
 versionado omite clientes, correos, teléfonos,
@@ -113,17 +113,17 @@ privada, fuera del repositorio, conserva la trazabilidad con las fuentes
 autorizadas para que Perú Activa pueda revisar cada caso sin publicar datos
 personales u operativos.
 
-La ejecución `npm run evidencia:r5:historica` obtuvo diecisiete casos factibles
-y tres rechazados por ambos métodos, sin discrepancias de factibilidad ni de
-asignación. Cinco casos utilizan un plazo provisional porque la fuente no lo
-registraba. En los veinte casos, la identidad del comprador de tela y la
+La ejecución `npm run evidencia:r5:historica` obtuvo diecinueve casos factibles
+y un rechazo justificado por ambos métodos, sin discrepancias de factibilidad
+ni de asignación. H04 excede el plazo porque Hydrotech requiere de siete a
+catorce días de abastecimiento; con la tela disponible, la capacidad productiva
+sí cubre las 4 000 prendas. En cinco casos el cliente no indicó plazo; el
+instrumento los presenta como `No indicado`, no calcula margen y utiliza la
+fecha interna únicamente para obtener la duración técnica. En los veinte casos, la identidad del comprador de tela y la
 necesidad de molde también se completaron mediante reglas explícitas porque no
-constaban en el registro. Por ello, estos conteos describen una prevalidación
+constaban en el registro. Por ello, estos conteos describen una validación
 técnica reproducible. El 3 de septiembre de 2026, la dueña de Perú Activa
-completó primero la decisión manual y después revisó las propuestas automáticas;
-la empresa comunicó conformidad con las diecisiete asignaciones y los tres
-rechazos. La copia completada y el cálculo separado de conflictos todavía deben
-incorporarse antes de afirmar el cumplimiento integral del IOV.
+completó primero la decisión manual y después revisó las propuestas automáticas.
 La aplicación se registra en
 `docs/entregas/r5-validacion-peru-activa.md`, con una primera pasada de decisión
 manual y una segunda pasada de evaluación de la propuesta automática.
@@ -134,7 +134,7 @@ cola del dashboard de Perú Activa mediante la invalidación
 aceptar una cotización de una sola prenda, el backend crea la orden de
 producción y ejecuta la evaluación sin una acción adicional.
 
-El motor filtra tres productores y cuatro proveedores de proceso declarados por
+El motor filtra cuatro productores y cuatro proveedores de proceso declarados por
 producto, familia de tela, responsable de compra de tela, procesos,
 capacidad, disponibilidad y plazo. Si un taller no cubre la cantidad, evalúa
 planes de dos y, solo después, de tres talleres. Las rutas especializadas pueden
@@ -157,8 +157,8 @@ medición validada del piloto.
    misma semilla y entrada, y que la traza contiene 41 puntos, desde la
    generación 0 hasta la 40. Ejecutar además `npm run evidencia:r5:historica`
    y comprobar que los veinte casos permanecen anonimizados. El estado del
-   dataset continúa pendiente hasta incorporar la copia completada como
-   evidencia verificable.
+   dataset contiene los veinte veredictos humanos anonimizados y la huella de
+   la copia firmada conservada bajo custodia privada.
 3. Abrir `/demo`; comprobar que el backend reconoce el rol y redirige al
    cliente a `/mis-pedidos`. Abrir `/nueva-solicitud` y enviar una solicitud
    simulada. El backend registra
@@ -188,12 +188,15 @@ El diseño y las limitaciones están documentados en
 
 ### Estado y limitaciones
 
-Este incremento mantiene R5, R7 y R8 en estado `parcial`. R5 ya incluye la
-comparación técnica reproducible entre la línea base y el algoritmo genético y
-una primera ejecución con datos históricos autorizados y anonimizados. Perú
-Activa comunicó conformidad con las veinte decisiones; falta incorporar la copia
-completada, consolidar las respuestas del primer formulario y calcular el IOV de
-reducción de conflictos.
+Este incremento deja R5 en estado `demostrado` y mantiene R7 y R8 en estado
+`parcial`. R5 incluye la comparación técnica reproducible entre la línea base y
+el algoritmo genético y una ejecución con veinte casos históricos autorizados y
+anonimizados. Perú Activa calificó como correctas las veinte propuestas: 19
+asignaciones factibles y un rechazo justificado. La coincidencia y la validez
+alcanzaron 100 %. La reducción porcentual de conflictos no es calculable porque
+el proceso manual y el automático registraron cero conflictos; el tratamiento
+de este denominador nulo debe acordarse con el asesor antes de declarar R5
+`validado` respecto de todos sus IOV.
 El flujo conecta técnicamente
 formulario, aceptación, orden y dashboard para cotizaciones de una sola prenda.
 Las cotizaciones con varias prendas quedan en `requires_scope_decision`, pues

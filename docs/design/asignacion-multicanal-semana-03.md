@@ -10,7 +10,7 @@
 | IOV preparado         | Factibilidad, coincidencia de procesos, restricciones incumplidas y reproducibilidad con datos simulados. |
 | EDT                   | Diseño de arquitectura/contratos e interfaz; avance conectado de EDT1312 y EDT1313.                       |
 | Semana                | Semana 3 del ciclo 2026-2.                                                                                |
-| Evidencia             | Dataset `r5-synthetic-v13`, nueve escenarios, pruebas y demostración local.                               |
+| Evidencia             | Dataset `r5-synthetic-v15`, nueve escenarios, pruebas y demostración local.                               |
 
 Este incremento no demuestra los IOV finales de R5. No utiliza datos históricos
 autorizados ni reporta resultados del piloto. Sí implementa una comparación
@@ -88,7 +88,7 @@ se conserva y será descartada de forma explicable si ningún taller la atiende.
 ## Caso de uso UC-R5-02: comparar los métodos de asignación
 
 1. El evaluador selecciona uno de los nueve escenarios versionados.
-2. La API construye una única entrada con pedido, tres productores, cuatro
+2. La API construye una única entrada con pedido, cuatro productores, cuatro
    proveedores de proceso, restricciones y pesos.
 3. La línea base determinística evalúa la entrada y registra su tiempo medio.
 4. El algoritmo genético usa la misma entrada y la semilla `20260827`.
@@ -123,7 +123,7 @@ en texto estructurado sin consultar ni duplicar reglas de negocio.
 
 ## Dataset reproducible
 
-`r5-synthetic-v13` contiene tres productores y cuatro proveedores de proceso
+`r5-synthetic-v15` contiene cuatro productores y cuatro proveedores de proceso
 declarados por Perú Activa, además de nueve pedidos
 de frontera:
 
@@ -147,12 +147,23 @@ el motor exige que pueda gestionar el aprovisionamiento; si compra Perú Activa,
 el taller solo debe poder trabajar la tela especificada. Esta decisión humana
 se conserva como entrada y ambos métodos reciben exactamente el mismo valor.
 
-La compatibilidad de materiales se evalúa por familias de capacidad. Un taller
-puede declarar simultáneamente algodón, deportivo y licra; las telas concretas
-se conservan como ejemplos y trazabilidad. Por ejemplo, Win, Dry Fit y Zanetti
-pertenecen a la familia deportiva, por lo que un taller que declara esa
-capacidad puede atender cualquiera de ellas. Una tela desconocida solo coincide
+La compatibilidad de materiales se evalúa por familias de capacidad. Los
+talleres A y B pueden confeccionar polos de algodón y deportivos, pero no
+prendas de licra; esta última familia permanece separada. Las telas concretas
+se conservan como ejemplos y trazabilidad. Por ejemplo, Win, Dry Fit, Zanetti e
+Hydrotech pertenecen a la familia deportiva. Una tela desconocida solo coincide
 si el taller la declaró explícitamente.
+
+El pedido consulta un catálogo versionado de telas principales y complementos
+para polos con disponibilidad inmediata. Si una calidad no figura en ese
+catálogo, el motor asume de forma conservadora un abastecimiento de siete a
+catorce días y utiliza catorce días pendientes para comprobar el plazo. La
+espera puede reducirse únicamente cuando Perú Activa confirma stock o una
+compra anticipada.
+
+El taller H atiende exclusivamente polos publicitarios básicos de algodón. Su
+compatibilidad se limita a las telas declaradas y no se extiende a Pima, piqué,
+camiseros, deportivos ni licra, aunque pertenezcan a una familia relacionada.
 
 La capacidad técnica y la capacidad productiva se almacenan por separado. Para
 un pedido sublimado, el motor puede construir una ruta superpuesta. El perfil de
@@ -176,12 +187,12 @@ usa internamente esos datos para construir rutas como sublimación, corte,
 bordado sobre panel, costura y acabado. Cuando el modelo es nuevo, el patronaje
 se asigna al mismo taller productor; los modelos estándar usan moldes existentes.
 
-En las rutas especializadas, la tasa diaria se acumula durante los días
+En las rutas especializadas, la capacidad se prorratea durante los días
 laborables disponibles. El plazo se aproxima mediante el mayor tiempo efectivo
 de las etapas, porque los lotes parciales pasan al siguiente proveedor sin
-esperar que termine el pedido completo. Por tanto, una tasa de 240 polos diarios
-no limita el pedido a 240 unidades: permite hasta 1,200 polos en cinco días si
-el taller está libre.
+esperar que termine el pedido completo. Los talleres A y B registran una
+capacidad máxima de 2,000 polos cada uno por seis días laborables. El taller H
+registra 10,000 polos publicitarios básicos de algodón por el mismo periodo.
 
 La fecha de evaluación representa el momento en que el diseño fue aprobado. El
 plazo productivo se calcula desde ese instante y no vuelve a sumar el tiempo de
