@@ -1,0 +1,50 @@
+{
+  "resultId": "R4",
+  "generatedAt": "2026-09-04T03:07:37.207Z",
+  "tool": "Newman (Postman collection runner)",
+  "runtime": "Node.js v24.19.0",
+  "environment": "AWS deployment",
+  "baseUrl": "http://3.84.126.185:3100",
+  "dataClassification": "simulated",
+  "database": "PostgreSQL 17",
+  "iterations": {
+    "total": 100,
+    "pending": 0,
+    "failed": 0
+  },
+  "requests": {
+    "total": 200,
+    "pending": 0,
+    "failed": 0
+  },
+  "assertions": {
+    "total": 601,
+    "pending": 0,
+    "failed": 0
+  },
+  "failures": 0,
+  "failureDetails": [],
+  "verification": {
+    "createdOrders": 100,
+    "queryExecutions": 100,
+    "allCreatedOrdersRecovered": true,
+    "serverQuery": {
+      "averageMs": 2.458,
+      "medianMs": 2.396,
+      "percentile95Ms": 3.604,
+      "maximumMs": 6.405
+    },
+    "externalHttpResponse": {
+      "averageMs": 152.47,
+      "medianMs": 136,
+      "percentile95Ms": 213,
+      "maximumMs": 416
+    },
+    "latencyLimitMs": 500
+  },
+  "iov": {
+    "allOrdersStoredWithoutLoss": true,
+    "frequentQueriesUnder500Ms": true
+  },
+  "result": "CUMPLE"
+}

@@ -1,0 +1,125 @@
+{
+  "info": {
+    "_postman_id": "c1422225-aed8-4a0a-9e1e-6bfa16eb20c0",
+    "name": "R4 - Base de datos centralizada",
+    "description": "Carga controlada de 100 pedidos simulados y verificacion de integridad y latencia mediante la API respaldada por PostgreSQL.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3194"
+    },
+    {
+      "key": "createdOrderIds",
+      "value": "[]"
+    },
+    {
+      "key": "maximumEndToEndMs",
+      "value": "0"
+    },
+    {
+      "key": "maximumServerQueryMs",
+      "value": "0"
+    }
+  ],
+  "item": [
+    {
+      "name": "Registrar pedido simulado",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-demo-actor",
+            "value": "peru_activa"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"product\": \"polo\",\n  \"quantity\": 100,\n  \"material\": \"algodón\",\n  \"color\": \"Azul marino\",\n  \"sizes\": { \"S\": 20, \"M\": 35, \"L\": 30, \"XL\": 15 },\n  \"customization\": \"printing\",\n  \"designReference\": \"Dato simulado R4 {{$guid}}\",\n  \"requiredBy\": \"2026-09-30\",\n  \"deliveryDistrict\": \"La Victoria\",\n  \"notes\": \"Evidencia reproducible con datos simulados\"\n}"
+        },
+        "url": "{{baseUrl}}/v1/orders",
+        "description": "Registra un pedido simulado. Newman ejecuta la coleccion 100 veces."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Pedido registrado con HTTP 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const payload = pm.response.json();",
+              "pm.test('La respuesta contiene un pedido recomendado', function () {",
+              "  pm.expect(payload.ok).to.eql(true);",
+              "  pm.expect(payload.order.id).to.match(/^PED-/);",
+              "  pm.expect(payload.order.status).to.eql('recommended');",
+              "});",
+              "const ids = JSON.parse(pm.collectionVariables.get('createdOrderIds') || '[]');",
+              "ids.push(payload.order.id);",
+              "pm.collectionVariables.set('createdOrderIds', JSON.stringify(ids));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Consultar pedidos almacenados",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "x-demo-actor",
+            "value": "peru_activa"
+          }
+        ],
+        "url": "{{baseUrl}}/v1/orders",
+        "description": "Consulta PostgreSQL despues de cada alta y verifica todos los identificadores creados hasta la iteracion actual."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Consulta respondio con HTTP 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const payload = pm.response.json();",
+              "const expectedIds = JSON.parse(pm.collectionVariables.get('createdOrderIds') || '[]');",
+              "const storedIds = new Set(payload.orders.map(function (order) { return order.id; }));",
+              "pm.test('No se perdio ningun pedido creado hasta esta iteracion', function () {",
+              "  pm.expect(expectedIds.length).to.eql(pm.info.iteration + 1);",
+              "  pm.expect(expectedIds.every(function (id) { return storedIds.has(id); })).to.eql(true);",
+              "});",
+              "const previousEndToEndMaximum = Number(pm.collectionVariables.get('maximumEndToEndMs') || 0);",
+              "pm.collectionVariables.set('maximumEndToEndMs', String(Math.max(previousEndToEndMaximum, pm.response.responseTime)));",
+              "const serverTiming = pm.response.headers.get('Server-Timing') || '';",
+              "const timingMatch = serverTiming.match(/(?:^|,\\s*)db;dur=([0-9.]+)/);",
+              "pm.test('La respuesta informa la latencia de consulta del servidor', function () {",
+              "  pm.expect(timingMatch).not.to.eql(null);",
+              "});",
+              "const serverQueryMs = timingMatch ? Number(timingMatch[1]) : Number.POSITIVE_INFINITY;",
+              "const previousServerMaximum = Number(pm.collectionVariables.get('maximumServerQueryMs') || 0);",
+              "pm.collectionVariables.set('maximumServerQueryMs', String(Math.max(previousServerMaximum, serverQueryMs)));",
+              "pm.test('La consulta frecuente en PostgreSQL tarda menos de 500 ms', function () {",
+              "  pm.expect(serverQueryMs).to.be.below(500);",
+              "});",
+              "if (pm.info.iteration === pm.info.iterationCount - 1) {",
+              "  pm.test('El conjunto final contiene los 100 pedidos simulados', function () {",
+              "    pm.expect(expectedIds.length).to.eql(100);",
+              "    pm.expect(new Set(expectedIds).size).to.eql(100);",
+              "  });",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ]
+}

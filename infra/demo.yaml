@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Despliegue minimo de API y PostgreSQL para el piloto R4.
+
+Parameters:
+  AllowedCidr:
+    Type: String
+    Description: IPv4 autorizada para ejecutar la prueba Postman/Newman.
+    AllowedPattern: "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}/32$"
+  ContainerImage:
+    Type: String
+    Description: Imagen inmutable de la API en ECR.
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 24
+    Description: Clave generada para PostgreSQL; no se almacena en el repositorio.
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+
+Resources:
+  ApiSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Acceso restringido a la API del piloto R4
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3100
+          ToPort: 3100
+          CidrIp: !Ref AllowedCidr
+          Description: Postman Newman desde la IP autorizada
+      Tags:
+        - Key: Name
+          Value: tesis-r4-api
+        - Key: Project
+          Value: tesis
+        - Key: Environment
+          Value: demo
+        - Key: Owner
+          Value: kevin
+        - Key: ManagedBy
+          Value: iac
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: tesis-r4-instance
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: PullR4Image
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/tesis-r4-api
+      Tags:
+        - Key: Project
+          Value: tesis
+        - Key: Environment
+          Value: demo
+        - Key: Owner
+          Value: kevin
+        - Key: ManagedBy
+          Value: iac
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  DemoInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: t4g.micro
+      IamInstanceProfile: !Ref InstanceProfile
+      SecurityGroupIds:
+        - !GetAtt ApiSecurityGroup.GroupId
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 10
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          dnf install -y docker
+          systemctl enable --now docker
+          docker network create tesis-r4 || true
+          docker volume create tesis-r4-postgres
+          docker run -d \
+            --name tesis-r4-postgres \
+            --restart unless-stopped \
+            --network tesis-r4 \
+            --health-cmd='pg_isready -U tesis -d tesis' \
+            --health-interval=5s \
+            --health-timeout=3s \
+            --health-retries=20 \
+            -e POSTGRES_DB=tesis \
+            -e POSTGRES_USER=tesis \
+            -e POSTGRES_PASSWORD='${DatabasePassword}' \
+            -v tesis-r4-postgres:/var/lib/postgresql/data \
+            postgres:17-alpine
+          until [ "$(docker inspect -f '{{.State.Health.Status}}' tesis-r4-postgres)" = healthy ]; do sleep 2; done
+          aws ecr get-login-password --region ${AWS::Region} | \
+            docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.${AWS::URLSuffix}
+          docker run -d \
+            --name tesis-r4-api \
+            --restart unless-stopped \
+            --network tesis-r4 \
+            -p 3100:3100 \
+            -e NODE_ENV=demo \
+            -e PORT=3100 \
+            -e DATABASE_URL='postgresql://tesis:${DatabasePassword}@tesis-r4-postgres:5432/tesis' \
+            ${ContainerImage}
+      Tags:
+        - Key: Name
+          Value: tesis-r4-demo
+        - Key: Project
+          Value: tesis
+        - Key: Environment
+          Value: demo
+        - Key: Owner
+          Value: kevin
+        - Key: ManagedBy
+          Value: iac
+
+Outputs:
+  InstanceId:
+    Description: Instancia del piloto R4.
+    Value: !Ref DemoInstance
+  ApiBaseUrl:
+    Description: URL restringida para Postman/Newman.
+    Value: !Sub http://${DemoInstance.PublicIp}:3100

@@ -1,0 +1,11 @@
+.git
+.env
+node_modules
+dist
+public/app
+docs
+postman
+scripts
+test
+web
+npm-debug.log*

@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
+import compression from 'compression';
 import express from 'express';
 import { fileURLToPath } from 'node:url';
 import swaggerUi from 'swagger-ui-express';
@@ -235,6 +237,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   });
 
   app.disable('x-powered-by');
+  app.use(compression());
   app.use(express.json({ limit: '16mb' }));
   app.get('/v1/session', async (request, response) => {
     await runIdentityAction(request, response, async (identity) => {
@@ -426,7 +429,10 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.get('/v1/orders', async (request, response) => {
     await runIdentityAction(request, response, async (identity) => {
       requireRole(identity, 'peru_activa', 'workshop');
+      const queryStartedAt = performance.now();
       const orders = await orderStore.list();
+      const queryDurationMs = performance.now() - queryStartedAt;
+      response.set('Server-Timing', `db;dur=${queryDurationMs.toFixed(3)}`);
       response.json({
         ok: true,
         orders:

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="R4 - Base de datos centralizada" tests="200" time="31.495">
+  <testsuite name="Registrar pedido simulado" id="9a6745a0-7211-434c-8b2a-58e81f466ec5" timestamp="2026-09-04T03:07:01.474Z" tests="2" failures="0" errors="0" time="0.162">
+    <testcase name="Pedido registrado con HTTP 201" time="0.127" classname="RegistrarPedidoSimulado"/>
+    <testcase name="La respuesta contiene un pedido recomendado" time="0.127" classname="RegistrarPedidoSimulado"/>
+  </testsuite>
+  <testsuite name="Consultar pedidos almacenados" id="05adfda5-45cb-432b-8de5-d2794c6fd8b7" timestamp="2026-09-04T03:07:01.474Z" tests="5" failures="0" errors="0" time="0.152">
+    <testcase name="Consulta respondio con HTTP 200" time="0.163" classname="ConsultarPedidosAlmacenados"/>
+    <testcase name="No se perdio ningun pedido creado hasta esta iteracion" time="0.163" classname="ConsultarPedidosAlmacenados"/>
+    <testcase name="La respuesta informa la latencia de consulta del servidor" time="0.163" classname="ConsultarPedidosAlmacenados"/>
+    <testcase name="La consulta frecuente en PostgreSQL tarda menos de 500 ms" time="0.163" classname="ConsultarPedidosAlmacenados"/>
+    <testcase name="El conjunto final contiene los 100 pedidos simulados" time="0.163" classname="ConsultarPedidosAlmacenados"/>
+  </testsuite>
+</testsuites>

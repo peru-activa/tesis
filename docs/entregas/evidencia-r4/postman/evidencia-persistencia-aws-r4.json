@@ -1,0 +1,19 @@
+{
+  "resultId": "R4",
+  "generatedAt": "2026-09-04T03:09:00Z",
+  "environment": "AWS deployment",
+  "dataClassification": "simulated",
+  "database": "PostgreSQL 17",
+  "procedure": "restart PostgreSQL container, wait for readiness, restart API container and query both database and API",
+  "ssmCommandId": "0c770be0-4beb-4f81-89d4-0b3b27be2ee5",
+  "beforeRestart": {
+    "orders": 100,
+    "historyEntries": 100
+  },
+  "afterRestart": {
+    "orders": 100,
+    "historyEntries": 100,
+    "ordersReturnedByApi": 100
+  },
+  "result": "CUMPLE"
+}
