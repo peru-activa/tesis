@@ -19,3 +19,13 @@ private/
 docs/entregas/evidencia-r5/*firmad*.pdf
 docs/entregas/evidencia-r5/*correo*.pdf
 docs/entregas/evidencia-r5/*trazabilidad*.pdf
+
+# Artefactos locales retirados temporalmente del repositorio publico.
+docs/entregas/evidencia-r5/r5-resultados-algoritmo.json
+docs/entregas/r5-validacion-peru-activa.md
+docs/entregas/semana-03.md
+docs/resultados.md
+scripts/check-no-ai.mjs
+scripts/entregas/r5-historical-comparison.mjs
+web/public/catalog/buzo-microtec-referencial.png
+web/public/catalog/polo-zanetti-referencial.png
