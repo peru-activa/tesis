@@ -1,0 +1,21 @@
+config:
+  target: "http://127.0.0.1:3192"
+  phases:
+    - duration: 1
+      arrivalCount: 100
+      maxVusers: 100
+      name: "100 clientes concurrentes"
+  ensure:
+    thresholds:
+      - http.response_time.max: 1999
+    conditions:
+      - expression: "vusers.failed == 0"
+scenarios:
+  - name: "Consulta del dashboard del cliente"
+    flow:
+      - think: 1
+      - get:
+          url: "/v1/my-orders"
+          headers:
+            x-demo-client-email: "cliente-r2-01@example.test"
+      - think: 1

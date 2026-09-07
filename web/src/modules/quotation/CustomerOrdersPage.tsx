@@ -12,21 +12,17 @@ export function CustomerOrdersPage() {
   const [session, setSession] = useState<Session>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [connection, setConnection] = useState<'connecting' | 'live' | 'reconnecting'>(
+    'connecting',
+  );
 
-  const load = useCallback(async () => {
+  const loadOrders = useCallback(async () => {
     try {
-      const [sessionResponse, requestsResponse] = await Promise.all([
-        fetch('/v1/session'),
-        fetch('/v1/my-orders'),
-      ]);
-      const sessionPayload = await sessionResponse.json();
+      const requestsResponse = await fetch('/v1/my-orders');
       const requestsPayload = await requestsResponse.json();
-      if (!sessionResponse.ok || !requestsResponse.ok) {
-        throw new Error(
-          requestsPayload.message || sessionPayload.message || 'No se pudieron cargar tus pedidos.',
-        );
+      if (!requestsResponse.ok) {
+        throw new Error(requestsPayload.message || 'No se pudieron cargar tus pedidos.');
       }
-      setSession(sessionPayload);
       setItems(requestsPayload.items);
       setError('');
     } catch (cause) {
@@ -37,17 +33,34 @@ export function CustomerOrdersPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    void Promise.all([
+      loadOrders(),
+      fetch('/v1/session')
+        .then(async (response) => {
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.message || 'No se pudo validar la sesión.');
+          setSession(payload);
+        })
+        .catch((cause) =>
+          setError(cause instanceof Error ? cause.message : 'No se pudo validar la sesión.'),
+        ),
+    ]);
     const apiOrigin =
       import.meta.env.VITE_API_ORIGIN ||
       (import.meta.env.DEV ? 'http://localhost:3100' : undefined);
     const socket = io(apiOrigin);
-    socket.on('quotations.changed', () => void load());
-    socket.on('orders.changed', () => void load());
+    socket.on('connect', () => {
+      setConnection('live');
+      void loadOrders();
+    });
+    socket.on('disconnect', () => setConnection('reconnecting'));
+    socket.on('connect_error', () => setConnection('reconnecting'));
+    socket.on('quotations.changed', () => void loadOrders());
+    socket.on('orders.changed', () => void loadOrders());
     return () => {
       socket.disconnect();
     };
-  }, [load]);
+  }, [loadOrders]);
 
   return (
     <div className="quote-demo customer-orders-shell">
@@ -59,12 +72,20 @@ export function CustomerOrdersPage() {
           </span>
         }
       />
-      <main className="customer-orders-main">
+      <main className="customer-orders-main" data-r2-visible-count={items.length}>
         <section className="customer-orders-heading">
           <div>
             <p className="quote-kicker">TU CUENTA</p>
             <h1>Mis pedidos</h1>
             <p>Revisa aquí tus solicitudes actuales y anteriores.</p>
+            <p className={`customer-live-state ${connection}`} aria-live="polite">
+              <i />
+              {connection === 'live'
+                ? 'Actualizaciones en vivo'
+                : connection === 'reconnecting'
+                  ? 'Reconectando actualizaciones…'
+                  : 'Conectando actualizaciones…'}
+            </p>
           </div>
           <a className="quote-primary" href="/nueva-solicitud">
             Nueva solicitud <span>+</span>
@@ -83,7 +104,7 @@ export function CustomerOrdersPage() {
           </section>
         )}
         {items.length > 0 && (
-          <section className="customer-orders-list">
+          <section className="customer-orders-list" aria-label="Pedidos registrados">
             {items.map((item) => {
               const request = item.quotation;
               const garments = [request.request.garment, ...request.request.additionalGarments];
@@ -102,7 +123,15 @@ export function CustomerOrdersPage() {
                         .map((garment) => (garment.product === 'polo' ? 'Polos' : 'Buzos'))
                         .join(' + ')}
                     </strong>
-                    <span>Entrega {formatDate(request.request.delivery.requiredBy)}</span>
+                    <span>
+                      Entrega solicitada: {formatDate(request.request.delivery.requiredBy)}
+                    </span>
+                    <span>Última actualización: {formatDateTime(item.lastUpdatedAt)}</span>
+                    <span className="customer-order-price">
+                      {request.quotation
+                        ? `Cotización: S/ ${request.quotation.totalPricePEN.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
+                        : 'Cotización pendiente'}
+                    </span>
                   </div>
                   <div
                     className={`customer-order-status ${request.status} ${item.productionOrders[0]?.status || ''}`}
@@ -130,5 +159,13 @@ function formatDate(value: string) {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
+  });
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('es-PE', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'America/Lima',
   });
 }

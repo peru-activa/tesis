@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="R4 - Base de datos centralizada" tests="200" time="40.629">
+  <testsuite name="Registrar pedido simulado" id="83fe947f-b016-4700-ad87-ad2c8aca0041" timestamp="2026-09-04T02:35:55.515Z" tests="2" failures="0" errors="0" time="0.165">
+    <testcase name="Pedido registrado con HTTP 201" time="0.143" classname="RegistrarPedidoSimulado"/>
+    <testcase name="La respuesta contiene un pedido recomendado" time="0.143" classname="RegistrarPedidoSimulado"/>
+  </testsuite>
+  <testsuite name="Consultar pedidos almacenados" id="ee6eb3b3-3358-4bc8-a6c7-6ba5d2e3b05d" timestamp="2026-09-04T02:35:55.515Z" tests="4" failures="5" errors="0" time="0.241">
+    <testcase name="Consulta respondio con HTTP 200" time="0.406" classname="ConsultarPedidosAlmacenados"/>
+    <testcase name="No se perdio ningun pedido creado hasta esta iteracion" time="0.406" classname="ConsultarPedidosAlmacenados"/>
+    <testcase name="La consulta frecuente tarda menos de 500 ms" time="0.406" classname="ConsultarPedidosAlmacenados"/>
+    <testcase name="El conjunto final contiene los 100 pedidos simulados" time="0.406" classname="ConsultarPedidosAlmacenados"/>
+  </testsuite>
+</testsuites>

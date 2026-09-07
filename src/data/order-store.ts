@@ -1,10 +1,18 @@
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import type { OrderAssignment, OrderStatus, PortalOrder } from '../domain/orders.js';
 import type { WorkshopNotification } from '../domain/workshop-notifications.js';
+import { ensurePostgresSchema } from './postgres-schema.js';
+
+export interface OrderStatusHistoryEntry {
+  status: OrderStatus;
+  occurredAt: string;
+}
 
 export interface OrderStore {
   list(): Promise<PortalOrder[]>;
+  listBySourceQuotationIds(quotationIds: string[]): Promise<PortalOrder[]>;
   get(id: string): Promise<PortalOrder | undefined>;
+  history(id: string): Promise<OrderStatusHistoryEntry[]>;
   create(order: PortalOrder): Promise<PortalOrder>;
   assign(
     id: string,
@@ -26,6 +34,7 @@ export interface OrderStore {
 
 export class MemoryOrderStore implements OrderStore {
   private readonly orders = new Map<string, PortalOrder>();
+  private readonly statusHistory = new Map<string, OrderStatusHistoryEntry[]>();
 
   async list(): Promise<PortalOrder[]> {
     return [...this.orders.values()].sort((left, right) =>
@@ -33,12 +42,24 @@ export class MemoryOrderStore implements OrderStore {
     );
   }
 
+  async listBySourceQuotationIds(quotationIds: string[]): Promise<PortalOrder[]> {
+    const requested = new Set(quotationIds);
+    return [...this.orders.values()]
+      .filter((order) => order.source && requested.has(order.source.quotationId))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
   async get(id: string): Promise<PortalOrder | undefined> {
     return this.orders.get(id);
   }
 
+  async history(id: string): Promise<OrderStatusHistoryEntry[]> {
+    return [...(this.statusHistory.get(id) || [])];
+  }
+
   async create(order: PortalOrder): Promise<PortalOrder> {
     this.orders.set(order.id, order);
+    this.statusHistory.set(order.id, [{ status: order.status, occurredAt: order.createdAt }]);
     return order;
   }
 
@@ -58,6 +79,9 @@ export class MemoryOrderStore implements OrderStore {
       updatedAt: assignment.confirmedAt,
     };
     this.orders.set(id, updated);
+    if (updated.status !== current.status) {
+      this.recordStatus(id, updated.status, updated.updatedAt);
+    }
     return updated;
   }
 
@@ -97,6 +121,9 @@ export class MemoryOrderStore implements OrderStore {
       assignment: { ...current.assignment, allocations },
     };
     this.orders.set(id, updated);
+    if (updated.status !== current.status) {
+      this.recordStatus(id, updated.status, updated.updatedAt);
+    }
     return updated;
   }
 
@@ -109,7 +136,13 @@ export class MemoryOrderStore implements OrderStore {
     if (!current) return undefined;
     const updated = { ...current, status, updatedAt: occurredAt };
     this.orders.set(id, updated);
+    this.recordStatus(id, status, occurredAt);
     return updated;
+  }
+
+  private recordStatus(id: string, status: OrderStatus, occurredAt: string): void {
+    const current = this.statusHistory.get(id) || [];
+    this.statusHistory.set(id, [...current, { status, occurredAt }]);
   }
 }
 
@@ -121,27 +154,26 @@ export class PostgresOrderStore implements OrderStore {
   }
 
   private async ensureSchema(): Promise<void> {
-    await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS thesis_orders (
-        id text PRIMARY KEY,
-        created_at timestamptz NOT NULL,
-        updated_at timestamptz NOT NULL,
-        status text NOT NULL,
-        payload jsonb NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS thesis_order_status_history (
-        id bigserial PRIMARY KEY,
-        order_id text NOT NULL REFERENCES thesis_orders(id),
-        status text NOT NULL,
-        occurred_at timestamptz NOT NULL
-      );
-    `);
+    await ensurePostgresSchema(this.pool);
   }
 
   async list(): Promise<PortalOrder[]> {
     await this.ready;
     const result = await this.pool.query<{ payload: PortalOrder }>(
-      'SELECT payload FROM thesis_orders ORDER BY created_at DESC',
+      'SELECT payload FROM orders ORDER BY created_at DESC',
+    );
+    return result.rows.map((row) => row.payload);
+  }
+
+  async listBySourceQuotationIds(quotationIds: string[]): Promise<PortalOrder[]> {
+    if (quotationIds.length === 0) return [];
+    await this.ready;
+    const result = await this.pool.query<{ payload: PortalOrder }>(
+      `SELECT payload
+       FROM orders
+       WHERE source_quotation_id = ANY($1::text[])
+       ORDER BY created_at DESC`,
+      [quotationIds],
     );
     return result.rows.map((row) => row.payload);
   }
@@ -149,10 +181,25 @@ export class PostgresOrderStore implements OrderStore {
   async get(id: string): Promise<PortalOrder | undefined> {
     await this.ready;
     const result = await this.pool.query<{ payload: PortalOrder }>(
-      'SELECT payload FROM thesis_orders WHERE id = $1',
+      'SELECT payload FROM orders WHERE id = $1',
       [id],
     );
     return result.rows[0]?.payload;
+  }
+
+  async history(id: string): Promise<OrderStatusHistoryEntry[]> {
+    await this.ready;
+    const result = await this.pool.query<{ status: OrderStatus; occurred_at: Date | string }>(
+      `SELECT status, occurred_at
+       FROM order_status_history
+       WHERE order_id = $1
+       ORDER BY occurred_at, id`,
+      [id],
+    );
+    return result.rows.map((row) => ({
+      status: row.status,
+      occurredAt: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at,
+    }));
   }
 
   async create(order: PortalOrder): Promise<PortalOrder> {
@@ -161,11 +208,20 @@ export class PostgresOrderStore implements OrderStore {
     try {
       await client.query('BEGIN');
       await client.query(
-        'INSERT INTO thesis_orders (id, created_at, updated_at, status, payload) VALUES ($1, $2, $3, $4, $5)',
-        [order.id, order.createdAt, order.updatedAt, order.status, order],
+        `INSERT INTO orders (
+          id, created_at, updated_at, status, product, polo_type, quantity, material, color,
+          customization, required_by, delivery_district, design_reference, notes,
+          requires_new_pattern, embroidery_applications_per_garment,
+          source_quotation_id, source_garment_index, payload
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9,
+          $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+        )`,
+        this.orderValues(order),
       );
+      await this.replaceOrderDetails(client, order);
       await client.query(
-        'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
+        'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
         [order.id, order.status, order.createdAt],
       );
       await client.query('COMMIT');
@@ -197,11 +253,12 @@ export class PostgresOrderStore implements OrderStore {
     try {
       await client.query('BEGIN');
       await client.query(
-        'UPDATE thesis_orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
+        'UPDATE orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
         [id, updated.updatedAt, updated.status, updated],
       );
+      await this.replaceAssignment(client, updated);
       await client.query(
-        'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
+        'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
         [id, updated.status, updated.updatedAt],
       );
       await client.query('COMMIT');
@@ -249,22 +306,25 @@ export class PostgresOrderStore implements OrderStore {
       updatedAt: occurredAt,
       assignment: { ...current.assignment, allocations },
     };
-    await this.persistUpdate(updated);
+    await this.persistUpdate(updated, current.status);
     return updated;
   }
 
-  private async persistUpdate(updated: PortalOrder): Promise<void> {
+  private async persistUpdate(updated: PortalOrder, previousStatus: OrderStatus): Promise<void> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       await client.query(
-        'UPDATE thesis_orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
+        'UPDATE orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
         [updated.id, updated.updatedAt, updated.status, updated],
       );
-      await client.query(
-        'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
-        [updated.id, updated.status, updated.updatedAt],
-      );
+      await this.replaceAssignment(client, updated);
+      if (updated.status !== previousStatus) {
+        await client.query(
+          'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
+          [updated.id, updated.status, updated.updatedAt],
+        );
+      }
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -286,11 +346,12 @@ export class PostgresOrderStore implements OrderStore {
     try {
       await client.query('BEGIN');
       await client.query(
-        'UPDATE thesis_orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
+        'UPDATE orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
         [id, occurredAt, status, updated],
       );
+      await this.replaceAssignment(client, updated);
       await client.query(
-        'INSERT INTO thesis_order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
+        'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
         [id, status, occurredAt],
       );
       await client.query('COMMIT');
@@ -301,6 +362,110 @@ export class PostgresOrderStore implements OrderStore {
       client.release();
     }
     return updated;
+  }
+
+  private orderValues(order: PortalOrder): unknown[] {
+    return [
+      order.id,
+      order.createdAt,
+      order.updatedAt,
+      order.status,
+      order.draft.product,
+      order.draft.poloType ?? null,
+      order.draft.quantity,
+      order.draft.material,
+      order.draft.color,
+      order.draft.customization,
+      order.draft.requiredBy,
+      order.draft.deliveryDistrict,
+      order.draft.designReference,
+      order.draft.notes,
+      order.draft.requiresNewPattern ?? false,
+      order.draft.embroideryApplicationsPerGarment ?? 1,
+      order.source?.quotationId ?? null,
+      order.source?.garmentIndex ?? null,
+      order,
+    ];
+  }
+
+  private async replaceOrderDetails(client: PoolClient, order: PortalOrder): Promise<void> {
+    await client.query('DELETE FROM order_sizes WHERE order_id = $1', [order.id]);
+    for (const [size, quantity] of Object.entries(order.draft.sizes)) {
+      await client.query(
+        'INSERT INTO order_sizes (order_id, size, quantity) VALUES ($1, $2, $3)',
+        [order.id, size, quantity],
+      );
+    }
+
+    await client.query('DELETE FROM order_processes WHERE order_id = $1', [order.id]);
+    const uniqueProcesses = order.requiredProcesses.filter(
+      (process, index, processes) => processes.indexOf(process) === index,
+    );
+    for (const [index, process] of uniqueProcesses.entries()) {
+      await client.query(
+        'INSERT INTO order_processes (order_id, sequence, process) VALUES ($1, $2, $3)',
+        [order.id, index + 1, process],
+      );
+    }
+
+    await client.query('DELETE FROM order_customizations WHERE order_id = $1', [order.id]);
+    const customizations = [
+      ...(order.draft.customization === 'none' ? [] : [order.draft.customization]),
+      ...(order.draft.additionalCustomizations ?? []),
+    ].filter((value, index, values) => values.indexOf(value) === index);
+    for (const [index, customization] of customizations.entries()) {
+      await client.query(
+        `INSERT INTO order_customizations
+          (order_id, sequence, kind, applications_per_garment)
+         VALUES ($1, $2, $3, $4)`,
+        [
+          order.id,
+          index + 1,
+          customization,
+          customization === 'embroidery'
+            ? (order.draft.embroideryApplicationsPerGarment ?? 1)
+            : null,
+        ],
+      );
+    }
+  }
+
+  private async replaceAssignment(client: PoolClient, order: PortalOrder): Promise<void> {
+    if (!order.assignment) {
+      await client.query('DELETE FROM order_assignments WHERE order_id = $1', [order.id]);
+      return;
+    }
+
+    await client.query(
+      `INSERT INTO order_assignments (order_id, candidate_id, confirmed_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (order_id) DO UPDATE
+       SET candidate_id = EXCLUDED.candidate_id, confirmed_at = EXCLUDED.confirmed_at`,
+      [order.id, order.assignment.candidateId, order.assignment.confirmedAt],
+    );
+    await client.query('DELETE FROM assignment_allocations WHERE order_id = $1', [order.id]);
+    for (const allocation of order.assignment.allocations) {
+      await client.query(
+        `INSERT INTO assignment_allocations
+          (order_id, workshop_id, display_name, quantity, status)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          order.id,
+          allocation.workshopId,
+          allocation.displayName,
+          allocation.quantity,
+          allocation.status,
+        ],
+      );
+      for (const [index, process] of allocation.assignedProcesses.entries()) {
+        await client.query(
+          `INSERT INTO allocation_processes
+            (order_id, workshop_id, sequence, process)
+           VALUES ($1, $2, $3, $4)`,
+          [order.id, allocation.workshopId, index + 1, process],
+        );
+      }
+    }
   }
 }
 

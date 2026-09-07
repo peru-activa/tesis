@@ -40,6 +40,14 @@ export class QuotationService {
     return this.store.listOwnedBy(subject, email);
   }
 
+  getOwnedBy(
+    id: string,
+    subject: string,
+    email: string,
+  ): Promise<QuotationRequest | undefined> {
+    return this.store.getOwnedBy(id, subject, email);
+  }
+
   get(id: string): Promise<QuotationRequest> {
     return this.requireRequest(id);
   }

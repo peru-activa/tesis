@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-09-06T04:51:41.965Z",
+  "files": [
+    {
+      "name": "01-dashboard-lista.png",
+      "bytes": 140521,
+      "sha256": "a084bc3c925f2c17b4cdc38ebe3cd59bdccb82537211ea49953aa9cbba4cdc4d"
+    },
+    {
+      "name": "02-pedido-asignado.png",
+      "bytes": 240060,
+      "sha256": "dfdc44b1b74d405570b8f23684d38f89313e7e159c515abe97bae159e8f5701e"
+    },
+    {
+      "name": "03-pedido-terminado.png",
+      "bytes": 248338,
+      "sha256": "2adf1ac43878af5dc878a6767d926cfe9c971933f00bb5b3405c4ee3e18682c3"
+    },
+    {
+      "name": "04-pedido-movil.png",
+      "bytes": 212659,
+      "sha256": "b39d288af14dd315c37001c52f0a5101fa075fccfc1bfdac9ef031bbb90e64f0"
+    },
+    {
+      "name": "artillery-r2.json",
+      "bytes": 6080,
+      "sha256": "c5a8d6a731d3f13d9d3ca3406ed8971aef60674be84a2188603b07774e85252f"
+    },
+    {
+      "name": "reporte-r2.json",
+      "bytes": 3544,
+      "sha256": "a94780d90400739a712e0bc4a55524cc90fa8359d8c602a772b0c955fdafc002"
+    },
+    {
+      "name": "reporte-r2.md",
+      "bytes": 1322,
+      "sha256": "55b18b88dd30279876edb14ff78fd22bac80251b4561e88637d322e133e7d450"
+    }
+  ]
+}

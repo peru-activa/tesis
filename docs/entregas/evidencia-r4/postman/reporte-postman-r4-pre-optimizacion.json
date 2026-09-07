@@ -1,0 +1,72 @@
+{
+  "result": "NO CUMPLE",
+  "generatedAt": "2026-09-04T02:36:40.500Z",
+  "tool": "Newman (Postman collection runner)",
+  "runtime": "Node.js v24.19.0",
+  "environment": "AWS deployment",
+  "baseUrl": "http://54.172.62.180:3100",
+  "dataClassification": "simulated",
+  "database": "PostgreSQL 17",
+  "iterations": {
+    "total": 100,
+    "pending": 0,
+    "failed": 0
+  },
+  "requests": {
+    "total": 200,
+    "pending": 0,
+    "failed": 0
+  },
+  "assertions": {
+    "total": 501,
+    "pending": 0,
+    "failed": 5
+  },
+  "failures": 5,
+  "failureDetails": [
+    {
+      "iteration": 59,
+      "request": "Consultar pedidos almacenados",
+      "assertion": "La consulta frecuente tarda menos de 500 ms",
+      "message": "expected 759 to be below 500"
+    },
+    {
+      "iteration": 61,
+      "request": "Consultar pedidos almacenados",
+      "assertion": "La consulta frecuente tarda menos de 500 ms",
+      "message": "expected 599 to be below 500"
+    },
+    {
+      "iteration": 64,
+      "request": "Consultar pedidos almacenados",
+      "assertion": "La consulta frecuente tarda menos de 500 ms",
+      "message": "expected 926 to be below 500"
+    },
+    {
+      "iteration": 68,
+      "request": "Consultar pedidos almacenados",
+      "assertion": "La consulta frecuente tarda menos de 500 ms",
+      "message": "expected 673 to be below 500"
+    },
+    {
+      "iteration": 94,
+      "request": "Consultar pedidos almacenados",
+      "assertion": "La consulta frecuente tarda menos de 500 ms",
+      "message": "expected 676 to be below 500"
+    }
+  ],
+  "verification": {
+    "createdOrders": 100,
+    "queryExecutions": 100,
+    "allCreatedOrdersRecovered": true,
+    "averageQueryMs": 240.98,
+    "medianQueryMs": 172,
+    "percentile95QueryMs": 455,
+    "maximumQueryMs": 926,
+    "latencyLimitMs": 500
+  },
+  "iov": {
+    "allOrdersStoredWithoutLoss": true,
+    "frequentQueriesUnder500Ms": false
+  }
+}

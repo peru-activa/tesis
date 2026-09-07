@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
+import compression from 'compression';
 import express from 'express';
 import { fileURLToPath } from 'node:url';
 import swaggerUi from 'swagger-ui-express';
@@ -11,6 +13,7 @@ import { QuotationService } from './application/quotation-service.js';
 import { createOrderStore, type OrderStore } from './data/order-store.js';
 import { week02Demo } from './data/week-02-demo.js';
 import { week03DeclaredWorkshops } from './data/week-03-assignment-scenarios.js';
+import { createWorkshopStore, type WorkshopStore } from './data/workshop-store.js';
 import {
   AccessAuthorizationError,
   requireRole,
@@ -209,6 +212,7 @@ const openApiDocument = {
 export interface AppOptions {
   orderStore?: OrderStore;
   quotationStore?: QuotationStore;
+  workshopStore?: WorkshopStore;
   onOrderUpdated?: (order: PortalOrder) => void;
   onQuotationUpdated?: (quotation: QuotationRequest) => void;
 }
@@ -217,7 +221,8 @@ export function createApp(options: AppOptions = {}): express.Express {
   const app = express();
   const orderStore = options.orderStore ?? createOrderStore();
   const quotationStore = options.quotationStore ?? createQuotationStore();
-  const assignmentService = new AssignmentDemoService(orderStore);
+  const workshopStore = options.workshopStore ?? createWorkshopStore(week03DeclaredWorkshops);
+  const assignmentService = new AssignmentDemoService(orderStore, workshopStore);
   const quotationService = new QuotationService(quotationStore, undefined, {
     ...(options.onQuotationUpdated ? { onUpdated: options.onQuotationUpdated } : {}),
     onAccepted: async (quotation) => {
@@ -232,6 +237,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   });
 
   app.disable('x-powered-by');
+  app.use(compression());
   app.use(express.json({ limit: '16mb' }));
   app.get('/v1/session', async (request, response) => {
     await runIdentityAction(request, response, async (identity) => {
@@ -242,7 +248,9 @@ export function createApp(options: AppOptions = {}): express.Express {
     await runIdentityAction(request, response, async (identity) => {
       requireRole(identity, 'client');
       const quotations = await quotationService.listOwnedBy(identity.subject, identity.email || '');
-      const orders = await orderStore.list();
+      const orders = await orderStore.listBySourceQuotationIds(
+        quotations.map((quotation) => quotation.id),
+      );
       response.json({
         ok: true,
         items: quotations.map((quotation) => customerTrackingItem(quotation, orders)),
@@ -253,17 +261,26 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.get('/v1/my-orders/:quotationId', async (request, response) => {
     await runIdentityAction(request, response, async (identity) => {
       requireRole(identity, 'client');
-      const quotations = await quotationService.listOwnedBy(identity.subject, identity.email || '');
-      const quotation = quotations.find((item) => item.id === request.params.quotationId);
+      const quotation = await quotationService.getOwnedBy(
+        request.params.quotationId,
+        identity.subject,
+        identity.email || '',
+      );
       if (!quotation) {
         response
           .status(404)
           .json({ ok: false, error: 'not_found', message: 'Pedido no encontrado.' });
         return;
       }
+      const orders = await orderStore.listBySourceQuotationIds([quotation.id]);
+      const histories = new Map(
+        await Promise.all(
+          orders.map(async (order) => [order.id, await orderStore.history(order.id)] as const),
+        ),
+      );
       response.json({
         ok: true,
-        item: customerTrackingItem(quotation, await orderStore.list()),
+        item: customerTrackingItem(quotation, orders, histories),
         simulated: identity.authentication === 'local_demo',
       });
     });
@@ -320,9 +337,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     response.redirect('/evidencia-r5'),
   );
   app.get('/demo/asignacion-multicanal', (_request, response) => response.redirect('/peru-activa'));
-  app.get('/portal', (_request, response) =>
-    response.sendFile('index.html', { root: webDirectory }),
-  );
+  app.get('/portal', (_request, response) => response.redirect('/nueva-solicitud'));
   app.get('/openapi.json', (_request, response) => response.json(openApiDocument));
 
   app.get('/health', (_request, response) => {
@@ -353,8 +368,8 @@ export function createApp(options: AppOptions = {}): express.Express {
     });
   });
 
-  app.get('/v1/demos/week-03/assignment-scenarios', (_request, response) => {
-    response.json({ ok: true, ...assignmentService.catalog() });
+  app.get('/v1/demos/week-03/assignment-scenarios', async (_request, response) => {
+    response.json({ ok: true, ...(await assignmentService.catalog()) });
   });
 
   app.post('/v1/demos/week-03/assignment-scenarios/:scenarioId/run', async (request, response) => {
@@ -384,12 +399,15 @@ export function createApp(options: AppOptions = {}): express.Express {
     }
   });
 
-  app.post('/v1/demos/week-03/assignment-scenarios/:scenarioId/compare', (request, response) => {
+  app.post('/v1/demos/week-03/assignment-scenarios/:scenarioId/compare', async (request, response) => {
     try {
       const optionsInput = assignmentScenarioOptionsSchema.parse(request.body || {});
       response.json({
         ok: true,
-        ...assignmentService.compareScenario(request.params.scenarioId, optionsInput.fabricBuyer),
+        ...(await assignmentService.compareScenario(
+          request.params.scenarioId,
+          optionsInput.fabricBuyer,
+        )),
       });
     } catch (error) {
       if (error instanceof AssignmentFlowError && error.code === 'scenario_not_found') {
@@ -420,7 +438,10 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.get('/v1/orders', async (request, response) => {
     await runIdentityAction(request, response, async (identity) => {
       requireRole(identity, 'peru_activa', 'workshop');
+      const queryStartedAt = performance.now();
       const orders = await orderStore.list();
+      const queryDurationMs = performance.now() - queryStartedAt;
+      response.set('Server-Timing', `db;dur=${queryDurationMs.toFixed(3)}`);
       response.json({
         ok: true,
         orders:
@@ -472,7 +493,7 @@ export function createApp(options: AppOptions = {}): express.Express {
           ],
           requiredBy: `${parsed.data.requiredBy}T18:00:00-05:00`,
         },
-        workshops: week03DeclaredWorkshops,
+        workshops: await workshopStore.list(),
       });
       const recommendation = recommendWorkshops(recommendationRequest);
       if (recommendation.candidates.length === 0) {
@@ -567,19 +588,81 @@ export function createApp(options: AppOptions = {}): express.Express {
   return app;
 }
 
-function customerTrackingItem(quotation: QuotationRequest, orders: PortalOrder[]) {
+function customerTrackingItem(
+  quotation: QuotationRequest,
+  orders: PortalOrder[],
+  histories: Map<string, Awaited<ReturnType<OrderStore['history']>>> = new Map(),
+) {
   const orderIds = new Set(quotation.production?.orderIds || []);
+  const productionOrders = orders
+    .filter((order) => orderIds.has(order.id))
+    .map((order) => ({
+      id: order.id,
+      status: order.status,
+      updatedAt: order.updatedAt,
+      assignment: order.assignment,
+      history: histories.get(order.id) || [],
+    }));
+  const timestamps = [quotation.updatedAt, ...productionOrders.map((order) => order.updatedAt)];
   return {
     quotation,
-    productionOrders: orders
-      .filter((order) => orderIds.has(order.id))
-      .map((order) => ({
-        id: order.id,
-        status: order.status,
-        updatedAt: order.updatedAt,
-        assignment: order.assignment,
-      })),
+    productionOrders,
+    lastUpdatedAt: timestamps.reduce((latest, timestamp) =>
+      timestamp > latest ? timestamp : latest,
+    ),
+    timeline: customerTimeline(quotation, productionOrders),
   };
+}
+
+function customerTimeline(
+  quotation: QuotationRequest,
+  orders: Array<{
+    id: string;
+    history: Awaited<ReturnType<OrderStore['history']>>;
+  }>,
+) {
+  const events = [
+    { key: 'request-created', label: 'Solicitud registrada', occurredAt: quotation.createdAt },
+    ...(quotation.quotation
+      ? [
+          {
+            key: 'quotation-sent',
+            label: 'Cotización enviada por Perú Activa',
+            occurredAt: quotation.quotation.quotedAt,
+          },
+        ]
+      : []),
+    ...(quotation.buyerDecision
+      ? [
+          {
+            key: `quotation-${quotation.buyerDecision.decision}`,
+            label:
+              quotation.buyerDecision.decision === 'accepted'
+                ? 'Cotización aceptada y pedido confirmado'
+                : 'Cotización rechazada',
+            occurredAt: quotation.buyerDecision.respondedAt,
+          },
+        ]
+      : []),
+    ...orders.flatMap((order) =>
+      order.history.map((entry, index) => ({
+        key: `${order.id}-${entry.status}-${index}`,
+        label: {
+          registered: 'Pedido registrado',
+          recommended: 'Propuesta de taller calculada',
+          assigned: 'Taller asignado',
+          in_production: 'Producción iniciada',
+          completed: 'Producción terminada',
+        }[entry.status],
+        occurredAt: entry.occurredAt,
+      })),
+    ),
+  ].sort((left, right) => left.occurredAt.localeCompare(right.occurredAt));
+
+  return events.map((event, index) => ({
+    ...event,
+    status: index === events.length - 1 ? ('current' as const) : ('complete' as const),
+  }));
 }
 
 async function runIdentityAction(

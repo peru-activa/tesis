@@ -1,9 +1,11 @@
 import { Pool } from 'pg';
+import { ensurePostgresSchema } from '../data/postgres-schema.js';
 import type { QuotationRequest } from '../domain/quotation-requests.js';
 
 export interface QuotationStore {
   list(): Promise<QuotationRequest[]>;
   listOwnedBy(subject: string, email: string): Promise<QuotationRequest[]>;
+  getOwnedBy(id: string, subject: string, email: string): Promise<QuotationRequest | undefined>;
   get(id: string): Promise<QuotationRequest | undefined>;
   save(request: QuotationRequest): Promise<QuotationRequest>;
 }
@@ -27,6 +29,21 @@ export class MemoryQuotationStore implements QuotationStore {
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
+  async getOwnedBy(
+    id: string,
+    subject: string,
+    email: string,
+  ): Promise<QuotationRequest | undefined> {
+    const request = this.requests.get(id);
+    if (
+      request?.owner?.subject === subject ||
+      (request && !request.owner && request.request.customer.contact.trim().toLowerCase() === email)
+    ) {
+      return request;
+    }
+    return undefined;
+  }
+
   async get(id: string): Promise<QuotationRequest | undefined> {
     return this.requests.get(id);
   }
@@ -45,25 +62,13 @@ export class PostgresQuotationStore implements QuotationStore {
   }
 
   private async ensureSchema(): Promise<void> {
-    await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS thesis_quotation_requests (
-        id text PRIMARY KEY,
-        created_at timestamptz NOT NULL,
-        updated_at timestamptz NOT NULL,
-        status text NOT NULL,
-        payload jsonb NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS thesis_quotation_requests_status_idx
-        ON thesis_quotation_requests(status);
-      CREATE INDEX IF NOT EXISTS thesis_quotation_requests_owner_subject_idx
-        ON thesis_quotation_requests ((payload->'owner'->>'subject'));
-    `);
+    await ensurePostgresSchema(this.pool);
   }
 
   async list(): Promise<QuotationRequest[]> {
     await this.ready;
     const result = await this.pool.query<{ payload: QuotationRequest }>(
-      'SELECT payload FROM thesis_quotation_requests ORDER BY created_at DESC',
+      'SELECT payload FROM quotation_requests ORDER BY created_at DESC',
     );
     return result.rows.map((row) => row.payload);
   }
@@ -72,7 +77,7 @@ export class PostgresQuotationStore implements QuotationStore {
     await this.ready;
     const result = await this.pool.query<{ payload: QuotationRequest }>(
       `SELECT payload
-       FROM thesis_quotation_requests
+       FROM quotation_requests
        WHERE payload->'owner'->>'subject' = $1
           OR (
             payload->'owner' IS NULL
@@ -84,10 +89,32 @@ export class PostgresQuotationStore implements QuotationStore {
     return result.rows.map((row) => row.payload);
   }
 
+  async getOwnedBy(
+    id: string,
+    subject: string,
+    email: string,
+  ): Promise<QuotationRequest | undefined> {
+    await this.ready;
+    const result = await this.pool.query<{ payload: QuotationRequest }>(
+      `SELECT payload
+       FROM quotation_requests
+       WHERE id = $1
+         AND (
+           payload->'owner'->>'subject' = $2
+           OR (
+             payload->'owner' IS NULL
+             AND lower(payload->'request'->'customer'->>'contact') = $3
+           )
+         )`,
+      [id, subject, email],
+    );
+    return result.rows[0]?.payload;
+  }
+
   async get(id: string): Promise<QuotationRequest | undefined> {
     await this.ready;
     const result = await this.pool.query<{ payload: QuotationRequest }>(
-      'SELECT payload FROM thesis_quotation_requests WHERE id = $1',
+      'SELECT payload FROM quotation_requests WHERE id = $1',
       [id],
     );
     return result.rows[0]?.payload;
@@ -96,7 +123,7 @@ export class PostgresQuotationStore implements QuotationStore {
   async save(request: QuotationRequest): Promise<QuotationRequest> {
     await this.ready;
     await this.pool.query(
-      `INSERT INTO thesis_quotation_requests (id, created_at, updated_at, status, payload)
+      `INSERT INTO quotation_requests (id, created_at, updated_at, status, payload)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (id) DO UPDATE
        SET updated_at = EXCLUDED.updated_at, status = EXCLUDED.status, payload = EXCLUDED.payload`,

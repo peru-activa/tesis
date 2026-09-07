@@ -69,7 +69,8 @@ Variables requeridas al activar Access:
 
 - `CF_ACCESS_TEAM_DOMAIN`;
 - `CF_ACCESS_AUD`;
-- `PERU_ACTIVA_EMAIL`.
+- `PERU_ACTIVA_EMAILS`, lista separada por comas de cuentas internas;
+- `PERU_ACTIVA_EMAIL`, compatibilidad con la configuración anterior.
 
 En desarrollo, sin `CF_ACCESS_AUD`, el backend usa identidades simuladas
 configuradas localmente. Esta excepción falla cerrada en producción.
