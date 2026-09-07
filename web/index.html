@@ -7,7 +7,58 @@
     <title>Portal de pedidos · Perú Activa</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main class="portal-recovery" role="status">
+        <img src="/logos/peru-activa-logo.webp" alt="Perú Activa" />
+        <h1>Estamos abriendo el portal</h1>
+        <p>
+          Si esta pantalla no cambia, abre el enlace directamente en Safari o Chrome y vuelve a
+          intentarlo.
+        </p>
+        <a href="">Reintentar</a>
+      </main>
+    </div>
+    <style>
+      .portal-recovery {
+        box-sizing: border-box;
+        width: min(34rem, calc(100% - 2rem));
+        margin: 12vh auto 0;
+        border-top: 0.35rem solid #17243a;
+        background: #fff;
+        padding: clamp(1.5rem, 7vw, 3rem);
+        color: #17243a;
+        font-family: Arial, sans-serif;
+        box-shadow: 0 1rem 3rem rgb(23 36 58 / 12%);
+      }
+      .portal-recovery img {
+        width: auto;
+        height: 3rem;
+        padding: 0.35rem;
+        background: #17243a;
+      }
+      .portal-recovery h1 {
+        margin: 1.25rem 0 0.6rem;
+        font-family: Georgia, serif;
+        font-size: clamp(1.8rem, 8vw, 2.8rem);
+        line-height: 1.05;
+      }
+      .portal-recovery p {
+        margin: 0;
+        color: #5f6d82;
+        line-height: 1.55;
+      }
+      .portal-recovery a {
+        display: inline-flex;
+        min-height: 2.75rem;
+        align-items: center;
+        margin-top: 1.25rem;
+        background: #c5212e;
+        padding: 0 1rem;
+        color: #fff;
+        font-weight: 700;
+        text-decoration: none;
+      }
+    </style>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
