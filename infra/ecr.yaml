@@ -1,0 +1,26 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Repositorio de imagenes del piloto R4 de la tesis.
+
+Resources:
+  Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: tesis-r4-api
+      EmptyOnDelete: true
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      Tags:
+        - Key: Project
+          Value: tesis
+        - Key: Environment
+          Value: demo
+        - Key: Owner
+          Value: kevin
+        - Key: ManagedBy
+          Value: iac
+
+Outputs:
+  RepositoryUri:
+    Description: URI del repositorio ECR.
+    Value: !GetAtt Repository.RepositoryUri

@@ -5,7 +5,8 @@
     <bpmn:task id="Task_VerifyEmail" name="Access verifica el correo" />
     <bpmn:exclusiveGateway id="Gateway_Valid" name="¿Identidad válida?" />
     <bpmn:task id="Task_LoadOwned" name="Backend consulta pedidos del propietario" />
-    <bpmn:task id="Task_ShowHistory" name="Portal muestra pedidos actuales y pasados" />
+    <bpmn:task id="Task_ShowHistory" name="Portal muestra cotización, progreso e historial" />
+    <bpmn:task id="Task_RefreshOwned" name="Portal vuelve a consultar con identidad" />
     <bpmn:endEvent id="End_Authorized" name="Seguimiento disponible" />
     <bpmn:endEvent id="End_Denied" name="Acceso denegado" />
     <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_Link" targetRef="Task_VerifyEmail" />
@@ -14,5 +15,11 @@
     <bpmn:sequenceFlow id="Flow_4" sourceRef="Task_LoadOwned" targetRef="Task_ShowHistory" />
     <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_ShowHistory" targetRef="End_Authorized" />
     <bpmn:sequenceFlow id="Flow_6" name="No" sourceRef="Gateway_Valid" targetRef="End_Denied" />
+    <bpmn:boundaryEvent id="Boundary_WaitChange" attachedToRef="Task_ShowHistory" cancelActivity="false">
+      <bpmn:signalEventDefinition signalRef="Signal_OrderChanged" />
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Boundary_WaitChange" targetRef="Task_RefreshOwned" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Task_RefreshOwned" targetRef="Task_ShowHistory" />
   </bpmn:process>
+  <bpmn:signal id="Signal_OrderChanged" name="orders.changed o quotations.changed" />
 </bpmn:definitions>

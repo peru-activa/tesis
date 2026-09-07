@@ -152,7 +152,10 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
                   title="Solicitud del cliente"
                   description="Este es el mismo resumen que el cliente revisó antes de enviarlo."
                 />
-                <QuotationRequestSummary draft={request.request} />
+                <QuotationRequestSummary
+                  draft={request.request}
+                  showPendingPrice={!request.quotation}
+                />
                 {request.request.notes && (
                   <div className="pa-request-notes">
                     <b>Nota del cliente</b>

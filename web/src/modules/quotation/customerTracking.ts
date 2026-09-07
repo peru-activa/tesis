@@ -10,6 +10,14 @@ export interface CustomerTrackingItem {
     status: ProductionOrderStatus;
     updatedAt: string;
     assignment?: { workshopId: string; displayName: string; confirmedAt: string };
+    history?: Array<{ status: ProductionOrderStatus; occurredAt: string }>;
+  }>;
+  lastUpdatedAt: string;
+  timeline: Array<{
+    key: string;
+    label: string;
+    occurredAt: string;
+    status: 'complete' | 'current';
   }>;
 }
 

@@ -156,7 +156,7 @@ export function QuotationRequestForm({
     <FormProvider {...form}>
       <form className="quote-form-shell mx-auto max-w-5xl" noValidate onSubmit={handleFormSubmit}>
         <ProgressBar step={step} labels={steps.map((item) => item.label)} />
-        <section className="quote-sheet">
+        <section className={`quote-sheet${step === 1 && !hasGarments ? ' product-empty' : ''}`}>
           {currentStep?.content}
           <FormErrorSummary
             ref={errorSummaryRef}

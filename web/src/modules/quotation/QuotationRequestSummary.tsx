@@ -18,7 +18,13 @@ const poloTypeLabels = {
   stretch: 'Licra',
 };
 
-export function QuotationRequestSummary({ draft }: { draft: QuotationRequestDraft }) {
+export function QuotationRequestSummary({
+  draft,
+  showPendingPrice = true,
+}: {
+  draft: QuotationRequestDraft;
+  showPendingPrice?: boolean;
+}) {
   const garments = [draft.garment, ...draft.additionalGarments];
 
   return (
@@ -111,13 +117,15 @@ export function QuotationRequestSummary({ draft }: { draft: QuotationRequestDraf
           </dd>
         </div>
       </dl>
-      <div className="quote-price-note">
-        <span>S/ —</span>
-        <div>
-          <strong>El precio se enviará después.</strong>
-          <p>No se calcula automáticamente con este formulario.</p>
+      {showPendingPrice ? (
+        <div className="quote-price-note">
+          <span>S/ —</span>
+          <div>
+            <strong>El precio se enviará después.</strong>
+            <p>No se calcula automáticamente con este formulario.</p>
+          </div>
         </div>
-      </div>
+      ) : null}
     </>
   );
 }

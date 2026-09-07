@@ -1,0 +1,32 @@
+# syntax=docker/dockerfile:1
+
+FROM node:24-alpine AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+
+COPY tsconfig.json tsconfig.build.json vite.config.ts ./
+COPY src ./src
+COPY web ./web
+RUN npm run build && npm prune --omit=dev --no-audit --no-fund
+
+FROM node:24-alpine AS runtime
+
+ENV NODE_ENV=production \
+    PORT=3100
+
+WORKDIR /app
+
+COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build --chown=node:node /app/public/app ./public/app
+COPY --chown=node:node db ./db
+
+USER node
+
+EXPOSE 3100
+
+CMD ["node", "dist/server.js"]

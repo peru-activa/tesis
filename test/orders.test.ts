@@ -67,6 +67,7 @@ describe('portal order flow', () => {
     const listResponse = await fetch(`${baseUrl}/v1/orders`, {
       headers: { 'x-demo-actor': 'peru_activa' },
     });
+    assert.match(listResponse.headers.get('server-timing') ?? '', /^db;dur=\d+(?:\.\d+)?$/);
     const list = await listResponse.json();
     assert.equal(list.orders.length, 1);
     assert.equal(list.orders[0].id, created.order.id);

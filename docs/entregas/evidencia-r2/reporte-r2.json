@@ -1,0 +1,141 @@
+{
+  "result": "R2",
+  "generatedAt": "2026-09-06T04:51:41.958Z",
+  "dataClassification": "simulated",
+  "environment": {
+    "application": "local build",
+    "database": "local PostgreSQL isolated schema",
+    "awsModified": false,
+    "schema": "r2_evidence_85b70aeb86d846a3a845457c5bc21f81",
+    "normalizedTables": [
+      "allocation_processes",
+      "assignment_allocations",
+      "order_assignments",
+      "order_customizations",
+      "order_processes",
+      "order_sizes",
+      "order_status_history",
+      "orders",
+      "quotation_requests",
+      "workshop_availability",
+      "workshop_capabilities",
+      "workshops"
+    ],
+    "legacyThesisTables": []
+  },
+  "formDatabaseDashboardFlow": {
+    "submissionEndpointUsedByForm": "POST /v1/quotation-requests",
+    "registeredQuotationRequests": 12,
+    "normalizedOrdersCreated": 12,
+    "databaseCounts": {
+      "quotation_requests": 12,
+      "orders": 12,
+      "linked_orders": 12,
+      "client_owners": 3
+    },
+    "dashboardBrowserVerification": [
+      {
+        "email": "cliente-r2-01@example.test",
+        "registered": 4,
+        "visible": 4,
+        "coveragePercent": 100,
+        "foreignVisible": 0,
+        "expectedQuotationIds": [
+          "COT-3A8706DB",
+          "COT-3D47C92D",
+          "COT-CA6A6FD7",
+          "COT-D47F348E"
+        ],
+        "visibleQuotationIds": [
+          "COT-3A8706DB",
+          "COT-3D47C92D",
+          "COT-CA6A6FD7",
+          "COT-D47F348E"
+        ]
+      },
+      {
+        "email": "cliente-r2-02@example.test",
+        "registered": 4,
+        "visible": 4,
+        "coveragePercent": 100,
+        "foreignVisible": 0,
+        "expectedQuotationIds": [
+          "COT-0201641B",
+          "COT-2B6139F8",
+          "COT-68A9E171",
+          "COT-6D1DBA3C"
+        ],
+        "visibleQuotationIds": [
+          "COT-0201641B",
+          "COT-2B6139F8",
+          "COT-68A9E171",
+          "COT-6D1DBA3C"
+        ]
+      },
+      {
+        "email": "cliente-r2-03@example.test",
+        "registered": 4,
+        "visible": 4,
+        "coveragePercent": 100,
+        "foreignVisible": 0,
+        "expectedQuotationIds": [
+          "COT-1348518D",
+          "COT-29AF7216",
+          "COT-718A91C3",
+          "COT-C56310F4"
+        ],
+        "visibleQuotationIds": [
+          "COT-1348518D",
+          "COT-29AF7216",
+          "COT-718A91C3",
+          "COT-C56310F4"
+        ]
+      }
+    ]
+  },
+  "isolation": {
+    "listForeignRecordsVisible": 0,
+    "foreignDetailStatus": 404,
+    "passed": true
+  },
+  "quotationPersistence": {
+    "quotationId": "COT-CA6A6FD7",
+    "totalPricePEN": 1921,
+    "visibleAfterAssignmentAndCompletion": true,
+    "stalePendingPriceMessageVisible": false
+  },
+  "visibleUpdateLatency": {
+    "limitMs": 2000,
+    "measurement": "status POST start to matching updatedAt rendered in Chromium DOM after Socket.io notification and refetch",
+    "samples": 8,
+    "averageMs": 243.872,
+    "p50Ms": 28.913,
+    "p95Ms": 648.141,
+    "maximumMs": 648.141,
+    "samplesMs": [
+      28.913,
+      493.269,
+      25.646,
+      16.972,
+      27.39,
+      220.945,
+      648.141,
+      489.698
+    ]
+  },
+  "load": {
+    "virtualUsers": 100,
+    "limitMs": 2000,
+    "created": 100,
+    "completed": 100,
+    "failed": 0,
+    "http200": 100,
+    "maximumResponseMs": 5
+  },
+  "iov": {
+    "registeredOrdersVisiblePercent": 100,
+    "registeredOrdersVisibleTechnicalCheck": true,
+    "visibleUpdatesUnderTwoSecondsTechnicalCheck": true,
+    "userJointValidationPending": true
+  }
+}

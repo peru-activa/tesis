@@ -147,7 +147,11 @@ export default function App() {
   if (window.location.pathname === '/demo/asignacion-multicanal')
     return <RouteRedirect to="/peru-activa" />;
   if (window.location.pathname === '/demo/semana-2') return <Week02Demo />;
-  return <PortalApp />;
+  if (window.location.pathname.startsWith('/mis-pedidos/'))
+    return <RouteRedirect to="/mis-pedidos" />;
+  if (window.location.pathname === '/portal')
+    return <RouteRedirect to="/nueva-solicitud" />;
+  return <RouteRedirect to="/demo" />;
 }
 
 function PortalApp() {

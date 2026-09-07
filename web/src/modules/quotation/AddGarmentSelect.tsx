@@ -13,7 +13,7 @@ interface AddGarmentSelectProps {
 
 export function AddGarmentSelect({ disabled, another = false, onAdd }: AddGarmentSelectProps) {
   return (
-    <div className="quote-add-native">
+    <div className={`quote-add-native${another ? ' another' : ''}`}>
       <select
         value=""
         aria-label={another ? 'Agregar otra prenda' : 'Agregar prenda'}

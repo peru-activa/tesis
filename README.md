@@ -84,8 +84,9 @@ El desarrollo reutiliza el patrón de OpenTextil: la aplicación no administra
 contraseñas. En producción, la API valida el JWT firmado que Cloudflare Access
 entrega en `Cf-Access-Jwt-Assertion`, incluido su emisor y audiencia. El correo
 verificado identifica al propietario de cada solicitud; por ello un cliente
-solo puede listar y abrir sus propios pedidos. El correo configurado en
-`PERU_ACTIVA_EMAIL` obtiene el rol operativo para cotizar y confirmar talleres.
+solo puede listar y abrir sus propios pedidos. Los correos separados por comas
+en `PERU_ACTIVA_EMAILS` obtienen el rol operativo para cotizar y confirmar
+talleres. `PERU_ACTIVA_EMAIL` se conserva como configuración compatible.
 
 En local, `.env` define `LOCAL_CLIENT_EMAIL` y
 `LOCAL_PERU_ACTIVA_EMAIL`. Los cinco talleres simulados ingresan con estos
@@ -105,17 +106,18 @@ la posesión de un teléfono.
 La demostración externa autorizada está disponible en
 `https://pedidos.opentextil.com`. Cloudflare Access usa el proveedor “Código
 por correo” y el backend valida `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` y
-`PERU_ACTIVA_EMAIL`. El túnel apunta al artefacto compilado local en el puerto
-3101; por ello el portal solo permanece disponible mientras el Mac, el backend
-y el conector estén encendidos. La operación y reversión se documentan en
+`PERU_ACTIVA_EMAILS`. Un conector saliente ejecutado en AWS dirige el dominio al
+contenedor de la aplicación dentro de su red Docker privada. La operación y
+reversión se documentan en
 [`docs/operations/cloudflare-access-local.md`](docs/operations/cloudflare-access-local.md).
 
 ## PostgreSQL
 
 Los comandos `npm run dev` y `npm start` cargan automáticamente el archivo local
 ignorado `.env`. En la instalación local auditada contiene `DATABASE_URL` para
-PostgreSQL 17 en el puerto 5432. Los pedidos y cotizaciones persisten al
-reiniciar el backend.
+PostgreSQL 17 en el puerto 5432. Los pedidos, su historial de estados, las
+cotizaciones y las especificaciones técnicas de talleres persisten al reiniciar
+el backend.
 
 Como alternativa reproducible con Docker:
 
@@ -129,6 +131,11 @@ para pruebas aisladas; ese modo no conserva información después de reiniciar.
 
 El esquema reproducible está en [`db/schema.sql`](db/schema.sql). Los datos de
 la demostración son simulados y están rotulados como tales en el portal.
+
+La evidencia específica de R4 se reproduce con `npm run evidencia:r4`. El
+comando usa un esquema temporal aislado, comprueba que 100 pedidos se recuperen
+sin pérdida después de reabrir la conexión y mide la latencia de las consultas
+frecuentes frente al límite de 500 ms.
 
 ## Verificación
 

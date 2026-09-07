@@ -1,0 +1,54 @@
+{
+  "result": "NO CUMPLE",
+  "generatedAt": "2026-09-04T03:00:24.106Z",
+  "tool": "Newman (Postman collection runner)",
+  "runtime": "Node.js v24.19.0",
+  "environment": "AWS deployment",
+  "baseUrl": "http://54.82.11.156:3100",
+  "dataClassification": "simulated",
+  "database": "PostgreSQL 17",
+  "iterations": {
+    "total": 100,
+    "pending": 0,
+    "failed": 0
+  },
+  "requests": {
+    "total": 200,
+    "pending": 0,
+    "failed": 0
+  },
+  "assertions": {
+    "total": 501,
+    "pending": 0,
+    "failed": 2
+  },
+  "failures": 2,
+  "failureDetails": [
+    {
+      "iteration": 49,
+      "request": "Consultar pedidos almacenados",
+      "assertion": "La consulta frecuente tarda menos de 500 ms",
+      "message": "expected 713 to be below 500"
+    },
+    {
+      "iteration": 57,
+      "request": "Consultar pedidos almacenados",
+      "assertion": "La consulta frecuente tarda menos de 500 ms",
+      "message": "expected 601 to be below 500"
+    }
+  ],
+  "verification": {
+    "createdOrders": 100,
+    "queryExecutions": 100,
+    "allCreatedOrdersRecovered": true,
+    "averageQueryMs": 174.61,
+    "medianQueryMs": 147,
+    "percentile95QueryMs": 282,
+    "maximumQueryMs": 713,
+    "latencyLimitMs": 500
+  },
+  "iov": {
+    "allOrdersStoredWithoutLoss": true,
+    "frequentQueriesUnder500Ms": false
+  }
+}

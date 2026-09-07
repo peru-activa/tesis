@@ -204,6 +204,26 @@ describe('quotation request flow', () => {
     const completedTrackingResponse = await fetch(`${baseUrl}/v1/my-orders/${created.request.id}`);
     const completedTracking = await completedTrackingResponse.json();
     assert.equal(completedTracking.item.productionOrders[0].status, 'completed');
+    assert.equal(completedTracking.item.quotation.quotation.totalPricePEN, 1_920);
+    assert.equal(
+      completedTracking.item.lastUpdatedAt,
+      completedTracking.item.productionOrders[0].updatedAt,
+    );
+    assert.deepEqual(
+      completedTracking.item.productionOrders[0].history.map(
+        (entry: { status: string }) => entry.status,
+      ),
+      ['recommended', 'assigned', 'in_production', 'completed'],
+    );
+    assert.ok(
+      completedTracking.item.timeline.some(
+        (entry: { label: string }) => entry.label === 'Cotización aceptada y pedido confirmado',
+      ),
+    );
+    assert.equal(
+      completedTracking.item.timeline.at(-1).label,
+      'Producción terminada',
+    );
 
     const repeatedCompletionResponse = await fetch(
       `${baseUrl}/v1/orders/${productionOrder.id}/status`,
