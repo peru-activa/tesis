@@ -4,6 +4,27 @@ Estado verificado: 6 de septiembre de 2026, zona horaria `America/Lima`.
 
 ## Actualización del 7 de septiembre de 2026
 
+Se desplegó el commit
+`61a41040af452dac7d68242b25ab0d66f8c08a78` mediante la imagen ARM64
+inmutable
+`sha256:a205e3661a7a20c12504acb9c3735ba79dac09e5aca0c31f7a9f4c6089667fe1`.
+La ronda adapta el formulario a anchos de 320 a 430 px, elimina desbordes y
+superposiciones, eleva los objetivos táctiles visibles a un mínimo de 44 px,
+evita el zoom involuntario de controles en iOS e incorpora una pantalla de
+recuperación cuando el frontend no puede iniciar. El origen, el túnel y
+PostgreSQL aprobaron la verificación posterior; la imagen anterior permanece
+detenida con el nombre `tesis-r4-api-rollback-f874f2f0`.
+
+El incidente móvil descrito como pantalla en blanco después de ingresar un PIN
+ocurre antes de que la aplicación intervenga. Cloudflare Access consume cada
+PIN una sola vez y requiere iniciar y completar el acceso en la misma instancia
+del navegador. Para evitar que una aplicación de correo abra un contexto sin
+la cookie de la aplicación, el usuario debe abrir primero el dominio en Safari
+o Chrome, solicitar un PIN nuevo y escribirlo una sola vez en esa misma pestaña.
+La comprobación autenticada en un teléfono real continúa pendiente; no se
+considera sustituida por las verificaciones locales ni por la respuesta del
+origen.
+
 Se desplegó la imagen ARM64 inmutable
 `sha256:f874f2f020f3c30a6cb003dabdafb3ecf3aea94f20420ee61a008d2ad7d45386`
 para reemplazar el campo libre de color por un selector nativo compacto con
