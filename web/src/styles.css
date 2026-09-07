@@ -1434,6 +1434,72 @@ summary:focus-visible {
   color: #94a3b8;
   font-size: 0.68rem;
 }
+.quote-color-field {
+  margin-top: 1.35rem;
+}
+.quote-color-picker {
+  display: flex;
+  width: min(100%, 28rem);
+  min-height: 4.25rem;
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: 0.45rem;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+}
+.quote-color-picker:hover,
+.quote-color-picker:focus-within {
+  border-color: var(--quote-red);
+  box-shadow: 0 0 0 3px rgb(197 33 46 / 0.12);
+}
+.quote-color-picker input[type='color'] {
+  flex: 0 0 auto;
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  background: transparent;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+.quote-color-picker input[type='color']::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.quote-color-picker input[type='color']::-webkit-color-swatch {
+  border: 0;
+  border-radius: 50%;
+}
+.quote-color-picker input[type='color']::-moz-color-swatch {
+  border: 0;
+  border-radius: 50%;
+}
+.quote-color-copy {
+  min-width: 0;
+  flex: 1;
+}
+.quote-color-copy strong,
+.quote-color-copy small {
+  display: block;
+}
+.quote-color-copy strong {
+  color: var(--quote-navy);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+.quote-color-copy small {
+  margin-top: 0.12rem;
+  color: #64748b;
+  font-size: 0.64rem;
+}
+.quote-color-action {
+  color: var(--quote-red);
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
 .quote-control {
   display: block;
   margin-top: 0.45rem;
