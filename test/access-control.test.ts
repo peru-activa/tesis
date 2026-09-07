@@ -131,6 +131,31 @@ describe('aislamiento de datos por identidad', () => {
     );
   });
 
+  it('la cuenta interna conserva una vista personal aislada por propietario', async () => {
+    const ownedByPeruActiva = await createQuotationAsPeruActiva();
+    const ownedByClient = await createQuotation('cliente-externo@example.test');
+
+    const personalListResponse = await fetch(`${baseUrl}/v1/my-orders`, {
+      headers: peruActivaHeaders,
+    });
+    assert.equal(personalListResponse.status, 200);
+    const personalList = await personalListResponse.json();
+    assert.deepEqual(
+      personalList.items.map((item: { quotation: { id: string } }) => item.quotation.id),
+      [ownedByPeruActiva.id],
+    );
+
+    const ownedDetail = await fetch(`${baseUrl}/v1/my-orders/${ownedByPeruActiva.id}`, {
+      headers: peruActivaHeaders,
+    });
+    assert.equal(ownedDetail.status, 200);
+
+    const foreignDetail = await fetch(`${baseUrl}/v1/my-orders/${ownedByClient.id}`, {
+      headers: peruActivaHeaders,
+    });
+    assert.equal(foreignDetail.status, 404);
+  });
+
   it('solo Perú Activa puede registrar una cotización', async () => {
     const quotation = await createQuotation('cliente-c@example.test');
     const payload = {
@@ -181,6 +206,16 @@ async function createQuotation(email: string) {
   const response = await fetch(`${baseUrl}/v1/quotation-requests`, {
     method: 'POST',
     headers: clientHeaders(email),
+    body: JSON.stringify(draft),
+  });
+  assert.equal(response.status, 201);
+  return (await response.json()).request as { id: string };
+}
+
+async function createQuotationAsPeruActiva() {
+  const response = await fetch(`${baseUrl}/v1/quotation-requests`, {
+    method: 'POST',
+    headers: peruActivaHeaders,
     body: JSON.stringify(draft),
   });
   assert.equal(response.status, 201);

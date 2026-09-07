@@ -8,6 +8,8 @@ interface TextOptionPickerProps<T extends string> {
   selected?: TextOption<T>;
   expanded: boolean;
   onEdit: () => void;
+  onPreview: (option: TextOption<T>) => void;
+  onPreviewEnd: () => void;
   onSelect: (option: TextOption<T>) => void;
 }
 
@@ -19,6 +21,8 @@ export function TextOptionPicker<T extends string>({
   selected,
   expanded,
   onEdit,
+  onPreview,
+  onPreviewEnd,
   onSelect,
 }: TextOptionPickerProps<T>) {
   return (
@@ -35,11 +39,14 @@ export function TextOptionPicker<T extends string>({
           </button>
         </div>
       ) : (
-        <div className="quote-text-option-grid">
+        <div className="quote-text-option-grid" onMouseLeave={onPreviewEnd}>
           {options.map((option) => (
             <label
               className={selected?.value === option.value ? 'selected' : ''}
               key={option.value}
+              onBlur={onPreviewEnd}
+              onFocus={() => onPreview(option)}
+              onMouseEnter={() => onPreview(option)}
             >
               <input
                 className="quote-visually-hidden"

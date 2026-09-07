@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { PeruActivaHeader } from '../../components/PeruActivaHeader';
 import { fetchAsPeruActiva, fetchAsWorkshop } from '../../lib/actor-api';
@@ -64,7 +64,7 @@ type Notification = {
     whatsapp: { status: 'preview_only'; messageText: string };
   };
 };
-type Order = {
+export type Order = {
   id: string;
   status: 'registered' | 'recommended' | 'assigned' | 'in_production' | 'completed';
   draft: Scenario['draft'] & { color: string; sizes: Record<string, number> };
@@ -154,6 +154,8 @@ export function MultichannelDemo({
   const [seed, setSeed] = useState<number>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [openOrderRequest, setOpenOrderRequest] = useState(0);
+  const assignmentPanelRef = useRef<HTMLElement>(null);
 
   const actorFetch = useCallback(
     (input: RequestInfo | URL, init?: RequestInit) =>
@@ -233,6 +235,21 @@ export function MultichannelDemo({
 
   const selected = scenarios.find((scenario) => scenario.id === selectedScenario);
   const activeNotification = order?.notification ?? notifications[0];
+
+  function openOrder(selectedOrder: Order) {
+    setOrder(selectedOrder);
+    setError('');
+    setOpenOrderRequest((current) => current + 1);
+  }
+
+  useEffect(() => {
+    if (openOrderRequest === 0) return;
+    const panel = assignmentPanelRef.current;
+    if (!panel) return;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    panel.focus({ preventScroll: true });
+  }, [openOrderRequest]);
+
   async function confirm(candidateId: string) {
     if (!order) return;
     setBusy(true);
@@ -245,7 +262,7 @@ export function MultichannelDemo({
     const payload = await response.json();
     setBusy(false);
     if (!response.ok) {
-      setError('No se pudo confirmar la asignación.');
+      setError(payload.message || 'No se pudo confirmar la asignación.');
       return;
     }
     setOrder(payload.order);
@@ -342,18 +359,24 @@ export function MultichannelDemo({
 
         {view === 'peru-activa' && (
           <>
-            <IncomingQueue quotations={quotations} orders={orders} onOpenOrder={setOrder} />
+            <IncomingQueue quotations={quotations} orders={orders} onOpenOrder={openOrder} />
 
             {order?.source?.type === 'quotation' && (
-              <section className="mc-panel mc-result-panel mc-live-assignment" aria-live="polite">
+              <section
+                id="assignment-review"
+                ref={assignmentPanelRef}
+                className="mc-panel mc-result-panel mc-live-assignment"
+                aria-live="polite"
+                tabIndex={-1}
+              >
                 <div className="mc-panel-heading">
                   <span>✓</span>
                   <div>
-                    <h2>Taller sugerido</h2>
-                    <p>Revisa y confirma antes de enviar</p>
+                    <h2>Revisión de asignación</h2>
+                    <p>Pedido {order.id}</p>
                   </div>
                 </div>
-                <CandidateList order={order} busy={busy} onConfirm={confirm} />
+                <CandidateList order={order} busy={busy} error={error} onConfirm={confirm} />
               </section>
             )}
           </>
@@ -480,7 +503,7 @@ export function WorkshopAccessPage() {
   );
 }
 
-function IncomingQueue({
+export function IncomingQueue({
   quotations,
   orders,
   onOpenOrder,
@@ -542,7 +565,12 @@ function IncomingQueue({
                     {quotation.status === 'pending_quote' ? 'Abrir y cotizar' : 'Ver cotización'}
                   </a>
                 ) : linkedOrder ? (
-                  <button onClick={() => onOpenOrder(linkedOrder)}>Abrir {linkedOrder.id}</button>
+                  <button
+                    aria-controls="assignment-review"
+                    onClick={() => onOpenOrder(linkedOrder)}
+                  >
+                    Abrir {linkedOrder.id}
+                  </button>
                 ) : (
                   <span className="mc-queue-placeholder">
                     {quotation.status === 'accepted' ? 'Aceptada' : '—'}
@@ -579,15 +607,43 @@ function QuotationState({ quotation }: { quotation: IncomingQuotation }) {
   );
 }
 
-function CandidateList({
+export function CandidateList({
   order,
   busy,
+  error,
   onConfirm,
 }: {
   order: Order;
   busy: boolean;
+  error: string;
   onConfirm: (id: string) => void;
 }) {
+  if (order.status === 'registered') {
+    return (
+      <div className="mc-no-plan" role="status">
+        <span aria-hidden="true">!</span>
+        <p className="mc-kicker">ASIGNACIÓN DETENIDA</p>
+        <h3>No hay un plan factible</h3>
+        <p>
+          Ningún taller registrado cumple a la vez la capacidad, la fecha, la tela y los procesos
+          requeridos. Este pedido no puede asignarse hasta revisar esas condiciones.
+        </p>
+        {order.recommendation.rejected.length > 0 && (
+          <details>
+            <summary>Ver por qué se descartaron los talleres</summary>
+            <ul>
+              {order.recommendation.rejected.map((workshop) => (
+                <li key={workshop.workshopId}>
+                  <b>{workshop.displayName}</b>
+                  <span>{workshop.reasons.join(' ')}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
+    );
+  }
   if (order.status !== 'recommended')
     return (
       <div className="mc-published">
@@ -597,11 +653,12 @@ function CandidateList({
             ? 'PEDIDO TERMINADO'
             : order.status === 'in_production'
               ? 'PEDIDO EN PRODUCCIÓN'
-              : 'PUBLICADO EN AMBOS CANALES'}
+              : 'ASIGNACIÓN CONFIRMADA'}
         </p>
         <h3>{order.assignment?.displayName}</h3>
         <p>
-          La bandeja web y la vista previa de WhatsApp ya muestran la misma orden <b>{order.id}</b>.
+          El cliente y los talleres asignados ya pueden ver el nuevo estado de la orden{' '}
+          <b>{order.id}</b>.
         </p>
         <p className="mc-handoff">Abre “Vista del taller” para comprobar el resultado.</p>
       </div>
@@ -615,6 +672,11 @@ function CandidateList({
           {order.recommendation.candidates.length === 1 ? 'plan factible' : 'planes factibles'}
         </span>
       </div>
+      {error && (
+        <p className="mc-assignment-error" role="alert">
+          {error}
+        </p>
+      )}
       {order.recommendation.candidates[0] && (
         <CandidateCard
           candidate={order.recommendation.candidates[0]}
@@ -699,7 +761,9 @@ function CandidateCard({
           disabled={busy}
           onClick={() => onConfirm(candidate.candidateId)}
         >
-          Confirmar este plan
+          {candidate.allocations.length === 1
+            ? 'Confirmar y asignar al taller'
+            : `Confirmar y asignar a ${candidate.allocations.length} talleres`}
         </button>
       </div>
     </article>

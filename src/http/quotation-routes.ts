@@ -40,7 +40,7 @@ export function createQuotationRouter(
 
   router.post('/', async (request, response) => {
     await runAuthorizedAction(request, response, resolveIdentity, async (identity) => {
-      requireRole(identity, 'client');
+      requireRole(identity, 'client', 'peru_activa');
       if (!identity.email) {
         throw new AccessAuthorizationError(
           'unauthenticated',
@@ -93,9 +93,9 @@ export function createQuotationRouter(
 
   router.post('/:id/decision', async (request, response) => {
     await runAuthorizedAction(request, response, resolveIdentity, async (identity) => {
-      requireRole(identity, 'client');
+      requireRole(identity, 'client', 'peru_activa');
       const quotation = await service.get(request.params.id);
-      ensureCanRead(quotation, identity);
+      ensureIsOwner(quotation, identity);
       const parsed = buyerDecisionSchema.safeParse(request.body);
       if (!parsed.success) {
         response
@@ -124,6 +124,11 @@ function isOwnedBy(quotation: QuotationRequest, identity: AuthenticatedIdentity)
 function ensureCanRead(quotation: QuotationRequest, identity: AuthenticatedIdentity): void {
   if (identity.role === 'peru_activa') return;
   if (identity.role === 'client' && isOwnedBy(quotation, identity)) return;
+  throw new QuotationFlowError('not_found', 'Solicitud no encontrada.');
+}
+
+function ensureIsOwner(quotation: QuotationRequest, identity: AuthenticatedIdentity): void {
+  if (isOwnedBy(quotation, identity)) return;
   throw new QuotationFlowError('not_found', 'Solicitud no encontrada.');
 }
 

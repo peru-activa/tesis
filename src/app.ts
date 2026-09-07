@@ -246,7 +246,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   });
   app.get('/v1/my-orders', async (request, response) => {
     await runIdentityAction(request, response, async (identity) => {
-      requireRole(identity, 'client');
+      requireRole(identity, 'client', 'peru_activa');
       const quotations = await quotationService.listOwnedBy(identity.subject, identity.email || '');
       const orders = await orderStore.listBySourceQuotationIds(
         quotations.map((quotation) => quotation.id),
@@ -260,7 +260,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   });
   app.get('/v1/my-orders/:quotationId', async (request, response) => {
     await runIdentityAction(request, response, async (identity) => {
-      requireRole(identity, 'client');
+      requireRole(identity, 'client', 'peru_activa');
       const quotation = await quotationService.getOwnedBy(
         request.params.quotationId,
         identity.subject,
