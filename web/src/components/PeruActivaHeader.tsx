@@ -13,7 +13,7 @@ export function PeruActivaHeader({ homeHref, right }: { homeHref?: string; right
 
   return (
     <header className="quote-header">
-      <div className="mx-auto flex min-h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-7">
+      <div className="quote-header-inner mx-auto flex min-h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-7">
         {homeHref ? <a href={homeHref}>{logo}</a> : logo}
         <div className="quote-header-actions">
           {right}
