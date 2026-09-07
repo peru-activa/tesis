@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
 import type { QuotationRequestDraft } from '../../../../src/domain/quotation-requests';
 import { readDesignAttachment } from './designAttachment';
+import { ColorPicker } from './ColorPicker';
 import { Choice, dateAfter, InputField, StepTitle } from './QuoteUi';
 import { garmentField, type Garment, type GarmentPath } from './quotationFormModel';
 import { QuotationRequestSummary } from './QuotationRequestSummary';
@@ -75,9 +76,15 @@ export function DesignStep({ path, number }: { path: GarmentPath; number: string
         title={`¿Cómo debe quedar el ${garment.product}?`}
         description="Elige el color y la personalización."
       />
-      <InputField label="Color">
-        <input {...register(garmentField(path, 'color'))} placeholder="Ejemplo: azul marino" />
-      </InputField>
+      <ColorPicker
+        value={garment.color}
+        onChange={(color) =>
+          setValue(garmentField(path, 'color'), color, {
+            shouldDirty: true,
+            shouldValidate: true,
+          })
+        }
+      />
       <fieldset className="mt-6">
         <legend className="quote-field-label">Personalización</legend>
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
