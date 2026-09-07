@@ -4,6 +4,14 @@ Estado verificado: 6 de septiembre de 2026, zona horaria `America/Lima`.
 
 ## Actualización del 7 de septiembre de 2026
 
+Se desplegó la imagen ARM64 inmutable
+`sha256:f874f2f020f3c30a6cb003dabdafb3ecf3aea94f20420ee61a008d2ad7d45386`
+para reemplazar el campo libre de color por un selector nativo compacto con
+muestra circular. El formulario conserva los colores escritos en solicitudes
+anteriores y registra los nuevos tonos como valores hexadecimales. La imagen
+anterior permanece detenida como reversión inmediata; el túnel y PostgreSQL
+continuaron operativos durante la actualización.
+
 Se desplegó la imagen inmutable
 `sha256:48302257f1956ef59e057b96d533189725d224713739b0ef258281ce5f66a10e`
 para permitir que una cuenta interna de Perú Activa use también la vista
