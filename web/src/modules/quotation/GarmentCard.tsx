@@ -59,7 +59,9 @@ export function GarmentCard({
     selectedSleeve,
     setEditorMode,
     setPreviewedCollar,
+    setPreviewedCut,
     setPreviewedFabric,
+    setPreviewedSleeve,
     sleeveOptions,
     sleeveSectionRef,
     title,
@@ -142,6 +144,8 @@ export function GarmentCard({
                             selected={selectedCut}
                             expanded={editorMode === 'cut' || !selectedCut}
                             onEdit={() => setEditorMode('cut')}
+                            onPreview={setPreviewedCut}
+                            onPreviewEnd={() => setPreviewedCut(undefined)}
                             onSelect={selectCut}
                           />
                         </div>
@@ -156,6 +160,8 @@ export function GarmentCard({
                             selected={selectedSleeve}
                             expanded={editorMode === 'sleeve' || !selectedSleeve}
                             onEdit={() => setEditorMode('sleeve')}
+                            onPreview={setPreviewedSleeve}
+                            onPreviewEnd={() => setPreviewedSleeve(undefined)}
                             onSelect={selectSleeve}
                           />
                         </div>

@@ -2,6 +2,18 @@
 
 Estado verificado: 6 de septiembre de 2026, zona horaria `America/Lima`.
 
+## Actualización del 7 de septiembre de 2026
+
+Se desplegó la imagen inmutable
+`sha256:48302257f1956ef59e057b96d533189725d224713739b0ef258281ce5f66a10e`
+para permitir que una cuenta interna de Perú Activa use también la vista
+personal de sus solicitudes y para hacer explícita la revisión de asignación
+desde la bandeja operativa. La misma ronda conecta el hover y el foco de las
+opciones de corte y manga con el preview lateral del formulario. Las consultas
+personales continúan filtradas por el propietario autenticado. La imagen
+anterior queda disponible como reversión inmediata; PostgreSQL y el conector de
+Cloudflare no fueron reemplazados.
+
 ## Alcance
 
 Esta publicación permite ejecutar el formulario y el seguimiento de pedidos

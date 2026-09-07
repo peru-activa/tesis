@@ -47,7 +47,9 @@ SMS. Cloudflare Access no verifica teléfonos.
 - El correo enviado dentro del formulario es un dato de contacto y no concede
   propiedad ni permisos.
 - Solo `peru_activa` lista todas las solicitudes, cotiza y confirma talleres.
-- Un cliente solo lista, consulta y responde sus propias solicitudes.
+- Las cuentas `client` y `peru_activa` pueden crear solicitudes y usar la vista
+  personal. Esta última siempre filtra por el propietario autenticado, incluso
+  para una cuenta interna, por lo que no expone solicitudes de otros clientes.
 - Un taller solo recibe notificaciones cuyo `workshopId` coincide con su
   identidad simulada.
 - Los encabezados de identidad local se ignoran cuando la petición contiene la

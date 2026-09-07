@@ -12,8 +12,12 @@
 ## Desarrollo técnico
 
 El dashboard conserva las rutas existentes `/mis-pedidos` y
-`/mis-pedidos/:quotationId`. La API identifica al cliente, consulta en
-PostgreSQL únicamente sus solicitudes y recupera las órdenes relacionadas por
+`/mis-pedidos/:quotationId`. La API consulta en PostgreSQL únicamente las
+solicitudes de la identidad autenticada y compone su seguimiento
+con las órdenes de producción relacionadas. Una cuenta interna de Perú Activa
+puede usar la misma vista personal para solicitudes propias, sin que su permiso
+operativo para listar todas las solicitudes amplíe los datos devueltos por estas
+rutas. Las órdenes relacionadas se recuperan mediante
 `orders.source_quotation_id`. El control se repite en la consulta de detalle;
 una solicitud perteneciente a otra identidad se responde como inexistente.
 Las rutas de detalle mal formadas regresan a la lista del cliente y la ruta

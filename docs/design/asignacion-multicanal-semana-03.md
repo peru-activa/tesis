@@ -57,21 +57,25 @@ se conserva y será descartada de forma explicable si ningún taller la atiende.
 
 ### Flujo principal
 
-1. Perú Activa selecciona un escenario reproducible.
-2. La API valida la entrada y ejecuta la línea base heurística.
-3. El motor descarta talleres inviables y ordena los elegibles.
-4. La interfaz muestra la propuesta, sus factores y las razones de descarte.
+1. Perú Activa abre la orden `PED-XXXXXXXX` vinculada con la cotización aceptada.
+2. La interfaz desplaza y enfoca el panel de revisión de esa orden.
+3. La API ya validó la entrada y ejecutó la línea base heurística al aceptar la
+   cotización.
+4. El panel muestra los planes elegibles, sus factores y las razones de descarte.
 5. Perú Activa confirma un plan calculado de uno, dos o tres talleres.
 6. La API guarda la asignación y construye una notificación por taller con su cantidad.
 7. La proyección web queda publicada únicamente para los talleres asignados.
 8. Se genera una vista previa local de WhatsApp con los mismos datos operativos.
 9. Socket.io publica el pedido actualizado y las vistas abiertas se refrescan.
+10. El cliente observa `Taller asignado` y los cambios posteriores en su panel
+    `Mis pedidos` sin recibir datos internos de otros pedidos o talleres.
 
 ### Flujos alternativos
 
 - Si ningún taller cubre el pedido, la API evalúa primero combinaciones de dos
   talleres y luego de tres; si aún no existe capacidad suficiente, devuelve las
-  razones y no crea una asignación.
+  razones y no crea una asignación. La interfaz muestra `No hay un plan factible`
+  y no ofrece un botón de confirmación.
 - Si se intenta confirmar un taller descartado, la API rechaza la operación.
 - Si se reinicia el servicio sin PostgreSQL, los datos temporales se pierden.
 

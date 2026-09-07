@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QuotationRequestForm } from './QuotationRequestForm';
@@ -42,6 +42,43 @@ describe('QuotationRequestForm', () => {
       expect.stringContaining('/catalog/polo-cuello-v-manga-larga-referencial.webp'),
     );
     expect(screen.getByRole('combobox', { name: 'Agregar otra prenda' })).toBeTruthy();
+  });
+
+  it('previsualiza corte y manga al pasar el mouse antes de seleccionar', async () => {
+    const user = userEvent.setup();
+    Element.prototype.scrollTo = vi.fn();
+    render(<QuotationRequestForm busy={false} error="" onSubmit={vi.fn()} />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Agregar prenda' }), 'polo');
+    await user.click(screen.getByRole('radio', { name: 'Redondo' }));
+
+    const princessLabel = screen.getByRole('radio', { name: 'Princesa dama' }).closest('label');
+    expect(princessLabel).not.toBeNull();
+    fireEvent.mouseEnter(princessLabel!);
+    expect(screen.getByText('Cuello redondo · Princesa dama')).toBeTruthy();
+
+    await user.click(screen.getByRole('radio', { name: 'Estándar' }));
+    const longSleeveLabel = screen.getByRole('radio', { name: 'Manga larga' }).closest('label');
+    expect(longSleeveLabel).not.toBeNull();
+    fireEvent.mouseEnter(longSleeveLabel!);
+
+    expect(
+      screen.getByRole('img', {
+        name: 'Polo azul marino referencial de manga larga con cuello redondo',
+      }),
+    ).toHaveProperty(
+      'src',
+      expect.stringContaining('/catalog/polo-cuello-redondo-manga-larga-referencial.webp'),
+    );
+    expect(screen.getByText('Cuello redondo · Estándar · Manga larga')).toBeTruthy();
+
+    fireEvent.mouseLeave(longSleeveLabel!.parentElement!);
+    expect(
+      screen.getByRole('img', { name: 'Polo azul marino referencial con cuello redondo' }),
+    ).toHaveProperty(
+      'src',
+      expect.stringContaining('/catalog/polo-cuello-redondo-referencial.webp'),
+    );
   });
 
   it('permite agregar la talla 16 y nunca muestra NaN al vaciar su cantidad', async () => {

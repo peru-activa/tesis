@@ -39,6 +39,8 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
     ),
   );
   const [previewedCollar, setPreviewedCollar] = useState<PoloCollarOption>();
+  const [previewedCut, setPreviewedCut] = useState<TextOption<PoloCut>>();
+  const [previewedSleeve, setPreviewedSleeve] = useState<TextOption<PoloSleeve>>();
   const [previewedFabric, setPreviewedFabric] = useState<FabricOption>();
 
   const fabricPickerOpen = editorMode === 'fabric';
@@ -47,6 +49,8 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
     editingCustomFabric ||
     (garment.fabric.mode === 'specified' && Boolean(fabricName?.trim()) && !selectedFabric);
   const previewCollar = previewedCollar ?? selectedCollar ?? poloCollars[0];
+  const previewCut = previewedCut ?? selectedCut;
+  const previewSleeve = previewedSleeve ?? selectedSleeve;
   const previewFabric = previewedFabric ?? selectedFabric;
   const hasFabricSelection =
     garment.fabric.mode === 'proposal' || Boolean(fabricName?.trim().length);
@@ -77,7 +81,7 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
     (garment.fabric.mode === 'proposal'
       ? 'Tela por recomendar'
       : (selectedFabric?.title ?? (customFabric ? fabricName : undefined)));
-  const longSleeve = selectedSleeve?.value === 'manga_larga';
+  const longSleeve = previewSleeve?.value === 'manga_larga';
   const previewImage =
     garment.product === 'polo'
       ? longSleeve
@@ -92,7 +96,7 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
       : (previewFabric?.alt ?? '');
   const previewTitle =
     garment.product === 'polo'
-      ? [previewCollar.value, selectedSleeve?.label].filter(Boolean).join(' · ')
+      ? [previewCollar.value, previewCut?.label, previewSleeve?.label].filter(Boolean).join(' · ')
       : productLabel;
 
   useEffect(() => {
@@ -131,6 +135,7 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
   }
 
   function selectCut(option: TextOption<PoloCut>) {
+    setPreviewedCut(undefined);
     setValue(garmentField(path, 'cut'), option.value, {
       shouldDirty: true,
       shouldValidate: true,
@@ -143,6 +148,7 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
   }
 
   function selectSleeve(option: TextOption<PoloSleeve>) {
+    setPreviewedSleeve(undefined);
     setValue(garmentField(path, 'sleeve'), option.value, {
       shouldDirty: true,
       shouldValidate: true,
@@ -243,7 +249,9 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
     selectedSleeve,
     setEditorMode,
     setPreviewedCollar,
+    setPreviewedCut,
     setPreviewedFabric,
+    setPreviewedSleeve,
     sleeveOptions: poloSleeves,
     sleeveSectionRef,
     title,
