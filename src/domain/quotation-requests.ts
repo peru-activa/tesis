@@ -64,6 +64,14 @@ const designAttachmentSchema = z.object({
     ),
 });
 
+const designApplicationSchema = z.object({
+  placement: z.string().trim().max(120),
+  attachment: designAttachmentSchema.optional(),
+  method: activeCustomizationSchema.optional(),
+  widthCm: z.number().min(1).max(100).optional(),
+  heightCm: z.number().min(1).max(100).optional(),
+});
+
 const fabricSchema = z.discriminatedUnion('mode', [
   z.object({
     mode: z.literal('specified'),
@@ -94,11 +102,11 @@ const garmentSchema = z
     applicationCount: z
       .number('Indica cuántos logos o diseños se aplicarán.')
       .int('La cantidad de logos o diseños debe ser un número entero.')
-      .min(0)
-      .max(20),
+      .min(0),
     customizationDetails: z.string().trim().max(300),
     designReference: z.string().trim().max(300),
     designAttachment: designAttachmentSchema.optional(),
+    designApplications: z.array(designApplicationSchema).optional(),
   })
   .superRefine((garment, context) => {
     const sizeTotal = garment.sizes.reduce((sum, item) => sum + item.quantity, 0);
@@ -177,11 +185,41 @@ const garmentSchema = z
         message: 'Indica dónde se aplicará el logo o diseño.',
       });
     }
-    if (hasCustomization && garment.designReference.length < 3 && !garment.designAttachment) {
+    const hasDesignAttachment =
+      Boolean(garment.designAttachment) ||
+      (garment.designApplications ?? []).some((application) => Boolean(application.attachment));
+    if (hasCustomization && garment.designReference.length < 3 && !hasDesignAttachment) {
       context.addIssue({
         code: 'custom',
-        path: ['designReference'],
-        message: 'Describe el diseño o adjunta una imagen o PDF de referencia.',
+        path: ['designApplications'],
+        message: 'Adjunta una imagen o PDF para cada logo o diseño.',
+      });
+    }
+    garment.designApplications?.forEach((application, index) => {
+      if (application.attachment && !application.method) {
+        context.addIssue({
+          code: 'custom',
+          path: ['designApplications', index, 'method'],
+          message: 'Indica cómo se aplicará cada logo o diseño.',
+        });
+      }
+    });
+    if ((garment.designApplications?.length ?? 0) > garment.applicationCount) {
+      context.addIssue({
+        code: 'custom',
+        path: ['designApplications'],
+        message: 'La cantidad de archivos no puede superar la cantidad de logos o diseños.',
+      });
+    }
+    const attachmentBytes = (garment.designApplications ?? []).reduce(
+      (total, application) => total + (application.attachment?.sizeBytes ?? 0),
+      0,
+    );
+    if (attachmentBytes > 10_000_000) {
+      context.addIssue({
+        code: 'custom',
+        path: ['designApplications'],
+        message: 'Los archivos de diseño pueden sumar hasta 10 MB por prenda.',
       });
     }
   });

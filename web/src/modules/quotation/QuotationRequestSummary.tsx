@@ -83,7 +83,19 @@ export function QuotationRequestSummary({
                     ),
                   ].join(' + ')}
                 </p>
-                {garment.designAttachment && <p>Adjunto: {garment.designAttachment.name}</p>}
+                {(garment.designApplications ?? [])
+                  .map((application) => application.attachment?.name)
+                  .filter(Boolean).length > 0 ? (
+                  <p>
+                    Adjuntos:{' '}
+                    {(garment.designApplications ?? [])
+                      .map((application) => application.attachment?.name)
+                      .filter(Boolean)
+                      .join(', ')}
+                  </p>
+                ) : (
+                  garment.designAttachment && <p>Adjunto: {garment.designAttachment.name}</p>
+                )}
               </section>
             </div>
           );
