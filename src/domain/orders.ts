@@ -22,7 +22,7 @@ export const orderDraftSchema = z
       .max(3)
       .optional(),
     requiresNewPattern: z.boolean().optional(),
-    embroideryApplicationsPerGarment: z.number().int().positive().max(20).optional(),
+    embroideryApplicationsPerGarment: z.number().int().positive().optional(),
     designReference: z.string().trim().min(3).max(160),
     requiredBy: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     deliveryDistrict: z.string().trim().min(2).max(80),
