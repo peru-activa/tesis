@@ -77,7 +77,6 @@ export function QuotationRequestForm({
   const submissionFields: FieldPath<QuotationRequestDraft>[] = [
     ...garments.flatMap((garment) => [
       garmentField(garment.path, 'product'),
-      garmentField(garment.path, 'poloType'),
       garmentField(garment.path, 'model'),
       garmentField(garment.path, 'audience'),
       garmentField(garment.path, 'sleeve'),
@@ -104,7 +103,6 @@ export function QuotationRequestForm({
         ...(garment.product === 'polo'
           ? [
               garmentField(garment.path, 'model'),
-              garmentField(garment.path, 'poloType'),
               garmentField(garment.path, 'audience'),
               garmentField(garment.path, 'sleeve'),
               garmentField(garment.path, 'cut'),

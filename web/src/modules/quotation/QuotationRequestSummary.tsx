@@ -10,14 +10,6 @@ const customizationLabels: Record<QuotationRequestDraft['garment']['customizatio
   vinyl: 'Vinil',
 };
 
-const poloTypeLabels = {
-  cotton_basic: 'Básico de algodón',
-  cotton_advertising: 'Publicitario de algodón',
-  collared: 'Camisero',
-  sports: 'Deportivo',
-  stretch: 'Licra',
-};
-
 export function QuotationRequestSummary({
   draft,
   showPendingPrice = true,
@@ -76,13 +68,7 @@ export function QuotationRequestSummary({
                 </h3>
                 <p>
                   {garment.product === 'polo'
-                    ? [
-                        garment.poloType ? poloTypeLabels[garment.poloType] : undefined,
-                        garment.model,
-                        cutLabel,
-                        sleeveLabel,
-                        garment.color,
-                      ]
+                    ? [garment.model, cutLabel, sleeveLabel, garment.color]
                         .filter(Boolean)
                         .join(' · ')
                     : `${garment.model} para ${garment.audience} · ${garment.color}`}

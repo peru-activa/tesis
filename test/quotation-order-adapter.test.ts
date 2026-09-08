@@ -63,7 +63,6 @@ describe('adaptador de cotización aceptada', () => {
       },
       garment: {
         product: 'polo',
-        poloType: 'sports',
         model: 'Cuello redondo',
         audience: 'unisex',
         sleeve: 'manga_corta',

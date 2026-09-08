@@ -2,6 +2,24 @@
 
 Estado verificado: 6 de septiembre de 2026, zona horaria `America/Lima`.
 
+## Actualización del 8 de septiembre de 2026
+
+Se desplegó la imagen ARM64 inmutable
+`sha256:ab5b78f3ba55ef18f1bf11a75286ddd2050d25ced4a535c56d3787793fb4b4b4`
+para retirar del formulario del cliente el campo redundante `Tipo de polo`. La
+solicitud conserva modelo, corte, manga y tela/calidad como datos independientes;
+la categoría técnica que necesita el algoritmo se infiere posteriormente desde
+la tela y el modelo. La verificación completa aprobó 65 pruebas de backend, 15
+pruebas web, comprobación de tipos y compilación de producción.
+
+Después del reemplazo, el origen respondió HTTP 200, Cloudflare Access mantuvo
+la redirección de autenticación, PostgreSQL aceptó conexiones y el túnel siguió
+activo. El bundle publicado contiene `Tela / calidad` y no contiene `Tipo de
+polo`; la inspección visual autenticada confirmó que un polo comienza
+directamente por la selección del cuello. La imagen anterior
+`sha256:a205e3661a7a20c12504acb9c3735ba79dac09e5aca0c31f7a9f4c6089667fe1`
+permanece detenida como reversión.
+
 ## Actualización del 7 de septiembre de 2026
 
 Se desplegó el commit
