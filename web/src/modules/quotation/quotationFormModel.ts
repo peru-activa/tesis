@@ -16,13 +16,14 @@ export function createEmptyGarment(product: Product): Garment {
     sizes: [],
     color: '',
     fabric: { mode: 'specified', name: '' },
-    customization: 'embroidery',
+    customization: 'none',
     additionalCustomizations: [],
     patternMode: 'standard',
-    applicationCount: 1,
+    applicationCount: 0,
     customizationDetails: '',
     designReference: '',
     designAttachment: undefined,
+    designApplications: [],
   };
 }
 
