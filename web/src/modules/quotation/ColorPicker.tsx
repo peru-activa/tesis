@@ -29,6 +29,14 @@ export function ColorPicker({
   return (
     <fieldset className="quote-color-field">
       <legend className="quote-field-label">Color de la prenda</legend>
+      <div className="quote-color-notice" role="note" aria-label="Antes de elegir el color">
+        <strong>Antes de elegir el color</strong>
+        <p>
+          El color en pantalla es referencial; la disponibilidad depende de la tela seleccionada.
+          Después de firmar el contrato, recibirás sin costo una muestra física para aprobar el
+          color final antes de producir.
+        </p>
+      </div>
       <label className="quote-color-picker">
         <input
           type="color"
@@ -46,9 +54,6 @@ export function ColorPicker({
           {selected ? 'Cambiar' : 'Elegir'}
         </span>
       </label>
-      <p className="quote-color-availability">
-        El color mostrado es referencial y está sujeto a disponibilidad de tela.
-      </p>
     </fieldset>
   );
 }

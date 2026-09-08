@@ -10,9 +10,9 @@ describe('ColorPicker', () => {
     const input = screen.getByLabelText('Elegir color');
     expect(screen.getByText('Elegir color')).toBeTruthy();
     expect(screen.getByText('Color de la prenda')).toBeTruthy();
-    expect(
-      screen.getByText('El color mostrado es referencial y está sujeto a disponibilidad de tela.'),
-    ).toBeTruthy();
+    expect(screen.getByRole('note', { name: 'Antes de elegir el color' }).textContent).toContain(
+      'El color en pantalla es referencial; la disponibilidad depende de la tela seleccionada. Después de firmar el contrato, recibirás sin costo una muestra física para aprobar el color final antes de producir.',
+    );
 
     fireEvent.change(input, { target: { value: '#c5212e' } });
 

@@ -1501,12 +1501,24 @@ summary:focus-visible {
   font-weight: 900;
   text-transform: uppercase;
 }
-.quote-color-availability {
+.quote-color-notice {
   width: min(100%, 28rem);
-  margin: 0.5rem 0 0;
-  color: #64748b;
-  font-size: 0.68rem;
+  margin-top: 0.45rem;
+  border: 1px solid #f0cf8b;
+  border-left: 4px solid var(--quote-thread);
+  background: #fffbeb;
+  padding: 0.8rem 0.9rem;
+  color: #6b5530;
+  font-size: 0.72rem;
   line-height: 1.5;
+}
+.quote-color-notice strong {
+  display: block;
+  color: var(--quote-navy);
+  font-size: 0.74rem;
+}
+.quote-color-notice p {
+  margin: 0.2rem 0 0;
 }
 .quote-control {
   display: block;

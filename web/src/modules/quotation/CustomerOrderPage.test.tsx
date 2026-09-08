@@ -110,11 +110,9 @@ describe('CustomerOrderPage', () => {
     expect(screen.getByRole('heading', { name: 'Progreso de producción' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Cambios registrados' })).toBeTruthy();
     expect(screen.getAllByText('Taller asignado').length).toBeGreaterThan(0);
-    expect(
-      screen.getByText(
-        'Cuando firmes el contrato, te enviaremos gratuitamente una muestra física para confirmar el color final.',
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText(/cuando se firme el contrato/i).textContent).toContain(
+      'Siguiente paso: cuando se firme el contrato, enviaremos la muestra física sin costo para confirmar el color final.',
+    );
     expect(container.querySelector('[aria-current="step"]')?.textContent).toContain(
       'Taller asignado',
     );
