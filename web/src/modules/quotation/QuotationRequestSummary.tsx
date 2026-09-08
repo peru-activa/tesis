@@ -1,4 +1,8 @@
-import type { QuotationRequestDraft } from '../../../../src/domain/quotation-requests';
+import {
+  resolveGarmentSizeCategory,
+  type GarmentSizeCategory,
+  type QuotationRequestDraft,
+} from '../../../../src/domain/quotation-requests';
 import { GarmentPreview } from './GarmentPreview';
 import { findFabricOption, poloCollars, poloCuts, poloSleeves } from './quotationCatalog';
 
@@ -41,6 +45,15 @@ export function QuotationRequestSummary({
                 ? collar?.longSleeveAlt
                 : collar?.alt
               : fabric?.alt;
+          const sizesByCategory = garment.sizes.reduce<
+            Record<GarmentSizeCategory, typeof garment.sizes>
+          >(
+            (result, size) => {
+              if (size.quantity > 0) result[resolveGarmentSizeCategory(size)].push(size);
+              return result;
+            },
+            { adult: [], child: [] },
+          );
 
           return (
             <div className="quote-review-item" key={`${garment.product}-${index}`}>
@@ -83,6 +96,22 @@ export function QuotationRequestSummary({
                     ),
                   ].join(' + ')}
                 </p>
+                {sizesByCategory.adult.length > 0 && (
+                  <p>
+                    <strong>Adultos:</strong>{' '}
+                    {sizesByCategory.adult
+                      .map((size) => size.size + ' × ' + size.quantity)
+                      .join(', ')}
+                  </p>
+                )}
+                {sizesByCategory.child.length > 0 && (
+                  <p>
+                    <strong>Niños:</strong>{' '}
+                    {sizesByCategory.child
+                      .map((size) => size.size + ' × ' + size.quantity)
+                      .join(', ')}
+                  </p>
+                )}
                 {(garment.designApplications ?? [])
                   .map((application) => application.attachment?.name)
                   .filter(Boolean).length > 0 ? (

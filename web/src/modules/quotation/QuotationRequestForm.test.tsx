@@ -145,8 +145,16 @@ describe('QuotationRequestForm', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /#C5212E/i })).toBeTruthy());
     await user.click(screen.getByRole('button', { name: /continuar/i }));
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Agregar talla' }), '16');
-    const sizeQuantity = screen.getByRole('spinbutton', { name: 'Cantidad para talla 16' });
+    expect(screen.getByRole('combobox', { name: 'Agregar talla para adultos' })).toBeTruthy();
+    expect(screen.queryByRole('combobox', { name: 'Agregar talla infantil' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Agregar tallas para niños' }));
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Agregar talla infantil' }),
+      '16',
+    );
+    const sizeQuantity = screen.getByRole('spinbutton', {
+      name: 'Cantidad para talla infantil 16',
+    });
     await user.clear(sizeQuantity);
 
     expect(document.body.textContent).not.toContain('NaN');
@@ -155,9 +163,46 @@ describe('QuotationRequestForm', () => {
       'Indica una cantidad válida para la talla',
     );
 
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Cantidad para talla 16' }), {
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Cantidad para talla infantil 16' }), {
       target: { value: '20' },
     });
+    expect(await screen.findByText('20 de 20')).toBeTruthy();
+  });
+
+  it('separa las tallas adultas de las infantiles y suma ambas categorías', async () => {
+    const user = userEvent.setup();
+    Element.prototype.scrollTo = vi.fn();
+    render(<QuotationRequestForm busy={false} error="" onSubmit={vi.fn()} />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Agregar prenda' }), 'polo');
+    await user.click(screen.getByRole('radio', { name: 'Redondo' }));
+    await user.click(screen.getByRole('radio', { name: 'Estándar' }));
+    await user.click(screen.getByRole('radio', { name: 'Manga corta' }));
+    await user.click(screen.getByRole('radio', { name: /Zanetti/i }));
+    await user.click(screen.getByRole('button', { name: /continuar/i }));
+    await user.click(screen.getByRole('button', { name: /elegir color/i }));
+    fireEvent.change(screen.getByLabelText('Seleccionar color'), {
+      target: { value: '#c5212e' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Usar este color' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /#C5212E/i })).toBeTruthy());
+    await user.click(screen.getByRole('button', { name: /continuar/i }));
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Agregar talla para adultos' }),
+      'M',
+    );
+    await user.type(screen.getByRole('spinbutton', { name: 'Cantidad para talla adulta M' }), '12');
+    await user.click(screen.getByRole('button', { name: 'Agregar tallas para niños' }));
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Agregar talla infantil' }),
+      '10',
+    );
+    await user.type(
+      screen.getByRole('spinbutton', { name: 'Cantidad para talla infantil 10' }),
+      '8',
+    );
+
     expect(await screen.findByText('20 de 20')).toBeTruthy();
   });
 });
