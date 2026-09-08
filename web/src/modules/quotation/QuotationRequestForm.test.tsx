@@ -11,6 +11,7 @@ describe('QuotationRequestForm', () => {
     render(<QuotationRequestForm busy={false} error="" onSubmit={vi.fn()} />);
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Agregar prenda' }), 'polo');
+    expect(screen.queryByRole('combobox', { name: 'Tipo de polo' })).toBeNull();
     await user.click(screen.getByRole('button', { name: /continuar/i }));
 
     const summary = await screen.findByRole('alert');
