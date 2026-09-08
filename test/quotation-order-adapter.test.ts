@@ -68,7 +68,10 @@ describe('adaptador de cotización aceptada', () => {
         sleeve: 'manga_corta',
         cut: 'estandar',
         quantity: 200,
-        sizes: [{ size: 'M', quantity: 200 }],
+        sizes: [
+          { size: 'M', category: 'adult', quantity: 150 },
+          { size: '10', category: 'child', quantity: 50 },
+        ],
         color: 'Azul y blanco',
         fabric: { mode: 'specified', name: 'Dry Fit' },
         customization: 'sublimation',
@@ -111,5 +114,7 @@ describe('adaptador de cotización aceptada', () => {
     ]);
     assert.equal(adapted.draft.poloType, 'sports');
     assert.equal(adapted.draft.embroideryApplicationsPerGarment, 1);
+    assert.equal(adapted.draft.sizes.M, 150);
+    assert.equal(adapted.draft.sizes['Niño 10'], 50);
   });
 });
