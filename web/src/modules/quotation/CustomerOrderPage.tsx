@@ -122,6 +122,12 @@ export function CustomerOrderPage({ quotationId }: { quotationId: string }) {
                   </div>
                 </dl>
                 <p>{item.quotation.quotation.conditions}</p>
+                {item.quotation.status === 'accepted' ? (
+                  <p className="customer-color-sample-note">
+                    <strong>Siguiente paso:</strong> cuando se firme el contrato, enviaremos la
+                    muestra física sin costo para confirmar el color final.
+                  </p>
+                ) : null}
                 {error && <p className="customer-orders-error">{error}</p>}
                 {item.quotation.status === 'quoted' ? (
                   <div className="customer-decision-actions">
