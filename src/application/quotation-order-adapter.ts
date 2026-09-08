@@ -8,7 +8,7 @@ import { orderDraftSchema, type OrderDraft } from '../domain/orders.js';
 import type { QuotationRequest } from '../domain/quotation-requests.js';
 import { fabricSupplyForPoloMaterial } from '../data/polo-fabrics.js';
 import { canonicalSublimationMaterial } from '../data/sublimation-materials.js';
-import type { QuotationRequestDraft } from '../domain/quotation-requests.js';
+import { garmentSizeOrderLabel, type QuotationRequestDraft } from '../domain/quotation-requests.js';
 
 export interface AdaptedQuotationOrder {
   draft: OrderDraft;
@@ -41,7 +41,9 @@ export function adaptAcceptedQuotation(
     quantity: garment.quantity,
     material: fabricCategory(quotation.quotation.selectedFabric),
     color: garment.color,
-    sizes: Object.fromEntries(garment.sizes.map((item) => [item.size, item.quantity])),
+    sizes: Object.fromEntries(
+      garment.sizes.map((item) => [garmentSizeOrderLabel(item), item.quantity]),
+    ),
     customization: garment.customization,
     additionalCustomizations: garment.additionalCustomizations,
     requiresNewPattern: garment.patternMode === 'new',

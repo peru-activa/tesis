@@ -14,11 +14,30 @@ export const customizationSchema = z.enum([
   'vinyl',
 ]);
 const activeCustomizationSchema = z.enum(['embroidery', 'printing', 'sublimation', 'vinyl']);
+export const sizeCategorySchema = z.enum(['adult', 'child']);
+
+export type GarmentSizeCategory = z.infer<typeof sizeCategorySchema>;
+
+export function resolveGarmentSizeCategory(size: {
+  size: string;
+  category?: GarmentSizeCategory | undefined;
+}): GarmentSizeCategory {
+  if (size.category) return size.category;
+  return /^\d+$/.test(size.size.trim()) ? 'child' : 'adult';
+}
+
+export function garmentSizeOrderLabel(size: {
+  size: string;
+  category?: GarmentSizeCategory | undefined;
+}): string {
+  return resolveGarmentSizeCategory(size) === 'child' ? `Niño ${size.size}` : size.size;
+}
 
 const sizesSchema = z
   .array(
     z.object({
       size: z.string().trim().min(1, 'Indica la talla.').max(20),
+      category: sizeCategorySchema.optional(),
       quantity: z
         .number('Indica una cantidad válida para la talla.')
         .int('La cantidad por talla debe ser un número entero.')
@@ -31,7 +50,7 @@ const sizesSchema = z
   .superRefine((sizes, context) => {
     const seen = new Set<string>();
     sizes.forEach((item, index) => {
-      const normalized = item.size.toLocaleUpperCase('es-PE');
+      const normalized = `${resolveGarmentSizeCategory(item)}:${item.size.toLocaleUpperCase('es-PE')}`;
       if (seen.has(normalized)) {
         context.addIssue({
           code: 'custom',
