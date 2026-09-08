@@ -2,6 +2,20 @@
 
 Estado verificado: 6 de septiembre de 2026, zona horaria `America/Lima`.
 
+## Incidente corregido el 8 de septiembre de 2026
+
+Un reemplazo manual de `tesis-r4-api` conservó la imagen y la conexión a
+PostgreSQL, pero omitió `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` y
+`PERU_ACTIVA_EMAILS`. Cloudflare completaba el inicio de sesión, mientras la API
+rechazaba la sesión por configuración incompleta. Se recreó el contenedor con
+el entorno del rollback inmediato y se verificaron `/health`, el rechazo
+correcto de un JWT inválido, PostgreSQL y las conexiones del túnel.
+
+La plantilla de infraestructura declara ahora las tres variables como
+parámetros obligatorios. Además, el servidor valida la configuración al
+arrancar en los entornos `demo` y `production`; una sustitución incompleta deja
+de superar la comprobación de salud y debe revertirse antes de publicar.
+
 ## Actualización del 8 de septiembre de 2026
 
 Se desplegó la imagen ARM64 inmutable

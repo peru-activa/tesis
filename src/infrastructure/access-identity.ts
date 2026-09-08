@@ -10,8 +10,8 @@ import {
 let cachedTeamDomain = '';
 let cachedJwks: ReturnType<typeof createRemoteJWKSet> | undefined;
 
-function requiredSetting(name: string): string {
-  const value = process.env[name]?.trim();
+function requiredSetting(name: string, environment: NodeJS.ProcessEnv = process.env): string {
+  const value = environment[name]?.trim();
   if (!value) {
     throw new AccessAuthorizationError(
       'configuration_error',
@@ -40,8 +40,8 @@ export function roleForVerifiedEmail(email: string, peruActivaEmails: string[]):
   return peruActivaEmails.includes(normalizedEmail(email)) ? 'peru_activa' : 'client';
 }
 
-function configuredPeruActivaEmails(): string[] {
-  const emails = parseEmailList(process.env.PERU_ACTIVA_EMAILS, process.env.PERU_ACTIVA_EMAIL);
+function configuredPeruActivaEmails(environment: NodeJS.ProcessEnv = process.env): string[] {
+  const emails = parseEmailList(environment.PERU_ACTIVA_EMAILS, environment.PERU_ACTIVA_EMAIL);
   if (emails.length === 0) {
     throw new AccessAuthorizationError(
       'configuration_error',
@@ -49,6 +49,16 @@ function configuredPeruActivaEmails(): string[] {
     );
   }
   return emails;
+}
+
+export function assertCloudflareAccessConfiguration(
+  environment: NodeJS.ProcessEnv = process.env,
+): void {
+  if (environment.NODE_ENV !== 'demo' && environment.NODE_ENV !== 'production') return;
+
+  requiredSetting('CF_ACCESS_TEAM_DOMAIN', environment);
+  requiredSetting('CF_ACCESS_AUD', environment);
+  configuredPeruActivaEmails(environment);
 }
 
 function normalizedTeamDomain(): string {

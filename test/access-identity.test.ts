@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { parseEmailList, roleForVerifiedEmail } from '../src/infrastructure/access-identity.js';
+import {
+  assertCloudflareAccessConfiguration,
+  parseEmailList,
+  roleForVerifiedEmail,
+} from '../src/infrastructure/access-identity.js';
 
 describe('clasificación de correos verificados', () => {
   it('normaliza y combina los correos internos configurados', () => {
@@ -18,5 +22,34 @@ describe('clasificación de correos verificados', () => {
     assert.equal(roleForVerifiedEmail('navarro.kevin@pucp.edu.pe', staff), 'peru_activa');
     assert.equal(roleForVerifiedEmail('CLIENTE.NUEVO@EJEMPLO.COM', staff), 'client');
     assert.equal(roleForVerifiedEmail('otra.persona@gmail.com', staff), 'client');
+  });
+});
+
+describe('configuracion de Cloudflare Access', () => {
+  it('no exige variables de Access durante el desarrollo local', () => {
+    assert.doesNotThrow(() => assertCloudflareAccessConfiguration({ NODE_ENV: 'development' }));
+  });
+
+  it('impide iniciar el entorno demo cuando falta una variable obligatoria', () => {
+    assert.throws(
+      () =>
+        assertCloudflareAccessConfiguration({
+          NODE_ENV: 'demo',
+          CF_ACCESS_TEAM_DOMAIN: 'opentextil.cloudflareaccess.com',
+          PERU_ACTIVA_EMAILS: 'operaciones@example.test',
+        }),
+      /Falta configurar CF_ACCESS_AUD/,
+    );
+  });
+
+  it('acepta la configuracion completa del entorno demo', () => {
+    assert.doesNotThrow(() =>
+      assertCloudflareAccessConfiguration({
+        NODE_ENV: 'demo',
+        CF_ACCESS_TEAM_DOMAIN: 'opentextil.cloudflareaccess.com',
+        CF_ACCESS_AUD: 'audience-value-for-tests',
+        PERU_ACTIVA_EMAILS: 'operaciones@example.test',
+      }),
+    );
   });
 });

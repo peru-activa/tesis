@@ -1,8 +1,10 @@
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { createApp } from './app.js';
+import { assertCloudflareAccessConfiguration } from './infrastructure/access-identity.js';
 
 const port = Number(process.env.PORT || 3100);
+assertCloudflareAccessConfiguration();
 let io: Server | undefined;
 const app = createApp({
   onOrderUpdated: () => io?.emit('orders.changed'),
