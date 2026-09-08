@@ -14,6 +14,19 @@ Parameters:
     NoEcho: true
     MinLength: 24
     Description: Clave generada para PostgreSQL; no se almacena en el repositorio.
+  CloudflareAccessTeamDomain:
+    Type: String
+    Description: Dominio del equipo de Cloudflare Access, sin protocolo.
+  CloudflareAccessAudience:
+    Type: String
+    NoEcho: true
+    MinLength: 20
+    Description: Audiencia de la aplicacion de Cloudflare Access.
+  PeruActivaEmails:
+    Type: String
+    NoEcho: true
+    MinLength: 3
+    Description: Correos operativos separados por comas para asignar el rol de Peru Activa.
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
@@ -199,6 +212,9 @@ Resources:
             -e NODE_ENV=demo \
             -e PORT=3100 \
             -e DATABASE_URL='postgresql://tesis:${DatabasePassword}@tesis-r4-postgres:5432/tesis' \
+            -e CF_ACCESS_TEAM_DOMAIN='${CloudflareAccessTeamDomain}' \
+            -e CF_ACCESS_AUD='${CloudflareAccessAudience}' \
+            -e PERU_ACTIVA_EMAILS='${PeruActivaEmails}' \
             ${ContainerImage}
           install -m 0750 /dev/stdin /usr/local/sbin/tesis-r4-backup <<'BACKUP_SCRIPT'
           #!/bin/bash
