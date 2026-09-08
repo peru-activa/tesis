@@ -49,10 +49,21 @@ export function adaptAcceptedQuotation(
       ? garment.applicationCount
       : 1,
     designReference:
-      garment.designReference || garment.designAttachment?.name || 'Sin referencia de diseño',
+      garment.designReference ||
+      garment.designApplications
+        ?.map((application) => application.attachment?.name)
+        .filter(Boolean)
+        .join(', ') ||
+      garment.designAttachment?.name ||
+      'Sin referencia de diseño',
     requiredBy: quotation.request.delivery.requiredBy,
     deliveryDistrict: quotation.request.delivery.location,
-    notes: [`Modelo: ${garment.model}`, garment.customizationDetails, quotation.request.notes]
+    notes: [
+      `Modelo: ${garment.model}`,
+      garment.designApplications?.map((application) => application.placement).join(' | ') ||
+        garment.customizationDetails,
+      quotation.request.notes,
+    ]
       .filter(Boolean)
       .join(' · '),
   });

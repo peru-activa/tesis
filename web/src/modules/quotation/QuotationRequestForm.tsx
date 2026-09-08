@@ -17,6 +17,11 @@ import {
 } from './QuotationDetailSteps';
 import type { Product } from './quotationCatalog';
 import { createEmptyDraft, garmentField, type GarmentPath } from './quotationFormModel';
+import {
+  clearQuotationSession,
+  loadQuotationSession,
+  saveQuotationSession,
+} from './quotationSession';
 
 interface QuotationRequestFormProps {
   busy: boolean;
@@ -37,16 +42,18 @@ export function QuotationRequestForm({
   onSubmit,
   authenticatedEmail,
 }: QuotationRequestFormProps) {
+  const [restoredSession] = useState(() => loadQuotationSession(window.sessionStorage));
   const form = useForm<QuotationRequestDraft>({
     resolver: zodResolver(quotationRequestDraftSchema),
-    defaultValues: createEmptyDraft(dateAfter(14)),
+    defaultValues: restoredSession?.draft ?? createEmptyDraft(dateAfter(14)),
     mode: 'onChange',
   });
-  const [step, setStep] = useState(1);
-  const [hasGarments, setHasGarments] = useState(false);
+  const [step, setStep] = useState(restoredSession?.step ?? 1);
+  const [hasGarments, setHasGarments] = useState(restoredSession?.hasGarments ?? false);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const primaryProduct = useWatch({ control: form.control, name: 'garment.product' });
   const additionalGarments = useWatch({ control: form.control, name: 'additionalGarments' });
+  const draft = useWatch({ control: form.control });
   const garments = hasGarments
     ? [
         { path: 'garment' as const, product: primaryProduct },
@@ -91,6 +98,7 @@ export function QuotationRequestForm({
       garmentField(garment.path, 'customizationDetails'),
       garmentField(garment.path, 'designReference'),
       garmentField(garment.path, 'designAttachment'),
+      garmentField(garment.path, 'designApplications'),
     ]),
     ...contactFields,
   ];
@@ -128,6 +136,18 @@ export function QuotationRequestForm({
   ];
   const currentStep = steps[step - 1] ?? steps[0];
 
+  useEffect(() => {
+    if (step > steps.length) setStep(steps.length);
+  }, [step, steps.length]);
+
+  useEffect(() => {
+    saveQuotationSession(window.sessionStorage, {
+      draft: draft as QuotationRequestDraft,
+      hasGarments,
+      step,
+    });
+  }, [draft, hasGarments, step]);
+
   async function nextStep() {
     if (!currentStep || (step === 1 && !hasGarments)) return;
     if (await form.trigger(currentStep.fields)) {
@@ -147,7 +167,10 @@ export function QuotationRequestForm({
       await nextStep();
       return;
     }
-    await form.handleSubmit(onSubmit, focusErrorSummary)();
+    await form.handleSubmit(async (values) => {
+      await onSubmit(values);
+      clearQuotationSession(window.sessionStorage);
+    }, focusErrorSummary)();
   }
 
   return (
@@ -220,12 +243,7 @@ function createGarmentSteps(
   const detailStart = start + steps.length;
   steps.push(
     {
-      label: `${label} ${garmentNumber} · tallas`,
-      fields: [garmentField(path, 'sizes')],
-      content: <QuantityStep path={path} number={formatStepNumber(detailStart)} />,
-    },
-    {
-      label: `${label} ${garmentNumber} · diseño`,
+      label: `${label} ${garmentNumber} · personalización`,
       fields: [
         garmentField(path, 'color'),
         garmentField(path, 'fabric'),
@@ -235,8 +253,14 @@ function createGarmentSteps(
         garmentField(path, 'customizationDetails'),
         garmentField(path, 'designReference'),
         garmentField(path, 'designAttachment'),
+        garmentField(path, 'designApplications'),
       ],
-      content: <DesignStep path={path} number={formatStepNumber(detailStart + 1)} />,
+      content: <DesignStep path={path} />,
+    },
+    {
+      label: `${label} ${garmentNumber} · tallas`,
+      fields: [garmentField(path, 'sizes')],
+      content: <QuantityStep path={path} number={formatStepNumber(detailStart + 1)} />,
     },
   );
 

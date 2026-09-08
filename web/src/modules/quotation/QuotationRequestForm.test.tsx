@@ -1,9 +1,12 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QuotationRequestForm } from './QuotationRequestForm';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  sessionStorage.clear();
+});
 
 describe('QuotationRequestForm', () => {
   it('explica los errores cuando el primer paso está incompleto', async () => {
@@ -82,6 +85,45 @@ describe('QuotationRequestForm', () => {
     );
   });
 
+  it('agrega espacios de logo sin pedir una cantidad por adelantado', async () => {
+    const user = userEvent.setup();
+    Element.prototype.scrollTo = vi.fn();
+    const { container } = render(<QuotationRequestForm busy={false} error="" onSubmit={vi.fn()} />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Agregar prenda' }), 'polo');
+    await user.click(screen.getByRole('radio', { name: 'Redondo' }));
+    await user.click(screen.getByRole('radio', { name: 'Estándar' }));
+    await user.click(screen.getByRole('radio', { name: 'Manga corta' }));
+    await user.click(screen.getByRole('radio', { name: /Zanetti/i }));
+    await user.click(screen.getByRole('button', { name: /continuar/i }));
+
+    expect(screen.queryByText('¿Cuántos logos o diseños?')).toBeNull();
+    const addInput = container.querySelector<HTMLInputElement>(
+      '.quote-design-hidden-inputs input[type="file"]',
+    );
+    expect(addInput).not.toBeNull();
+    for (let index = 1; index <= 4; index += 1) {
+      await user.click(screen.getByRole('button', { name: /agregar otro logo/i }));
+      fireEvent.change(addInput!, {
+        target: {
+          files: [new File(['logo'], `logo-${index}.png`, { type: 'image/png' })],
+        },
+      });
+      await user.click(
+        await screen.findByRole('button', {
+          name: 'Bordado',
+        }),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: `Editar Logo ${index}` })).toBeTruthy(),
+      );
+    }
+    expect(screen.getByRole('button', { name: 'Eliminar Logo 4' })).toBeTruthy();
+    expect(screen.queryByText(/Describe el diseño/i)).toBeNull();
+    expect(screen.getAllByRole('spinbutton', { name: /Ancho del Logo/i })).toHaveLength(4);
+    expect(screen.getAllByRole('spinbutton', { name: /Alto del Logo/i })).toHaveLength(4);
+  });
+
   it('permite agregar la talla 16 y nunca muestra NaN al vaciar su cantidad', async () => {
     const user = userEvent.setup();
     Element.prototype.scrollTo = vi.fn();
@@ -94,6 +136,15 @@ describe('QuotationRequestForm', () => {
     await user.click(screen.getByRole('radio', { name: /Zanetti/i }));
     await user.click(screen.getByRole('button', { name: /continuar/i }));
 
+    expect(screen.getByText('Polo 1 · personalización')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /elegir color/i }));
+    fireEvent.change(screen.getByLabelText('Seleccionar color'), {
+      target: { value: '#c5212e' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Usar este color' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /#C5212E/i })).toBeTruthy());
+    await user.click(screen.getByRole('button', { name: /continuar/i }));
+
     await user.selectOptions(screen.getByRole('combobox', { name: 'Agregar talla' }), '16');
     const sizeQuantity = screen.getByRole('spinbutton', { name: 'Cantidad para talla 16' });
     await user.clear(sizeQuantity);
@@ -104,7 +155,9 @@ describe('QuotationRequestForm', () => {
       'Indica una cantidad válida para la talla',
     );
 
-    await user.type(screen.getByRole('spinbutton', { name: 'Cantidad para talla 16' }), '20');
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Cantidad para talla 16' }), {
+      target: { value: '20' },
+    });
     expect(await screen.findByText('20 de 20')).toBeTruthy();
   });
 });
