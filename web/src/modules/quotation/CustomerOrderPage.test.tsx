@@ -110,6 +110,11 @@ describe('CustomerOrderPage', () => {
     expect(screen.getByRole('heading', { name: 'Progreso de producción' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Cambios registrados' })).toBeTruthy();
     expect(screen.getAllByText('Taller asignado').length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(
+        'Cuando firmes el contrato, te enviaremos gratuitamente una muestra física para confirmar el color final.',
+      ),
+    ).toBeTruthy();
     expect(container.querySelector('[aria-current="step"]')?.textContent).toContain(
       'Taller asignado',
     );
@@ -118,5 +123,27 @@ describe('CustomerOrderPage', () => {
     );
     expect(screen.queryByRole('button', { name: 'Aceptar cotización' })).toBeNull();
     expect(screen.queryByText('El precio se enviará después.')).toBeNull();
+  });
+
+  it('no promete la muestra física antes de aceptar la cotización', async () => {
+    const quotedItem: CustomerTrackingItem = {
+      ...item,
+      quotation: {
+        ...item.quotation,
+        status: 'quoted',
+        buyerDecision: undefined,
+        production: undefined,
+      },
+      productionOrders: [],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, item: quotedItem }) }),
+    );
+
+    render(<CustomerOrderPage quotationId={quotedItem.quotation.id} />);
+
+    expect(await screen.findByText('COTIZACIÓN PARA REVISAR')).toBeTruthy();
+    expect(screen.queryByText(/te enviaremos gratuitamente una muestra física/i)).toBeNull();
   });
 });

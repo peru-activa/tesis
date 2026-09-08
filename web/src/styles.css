@@ -809,6 +809,7 @@ summary:focus-visible {
 .customer-quotation-card dl div { padding:1rem;background:#f5f6f8 }
 .customer-quotation-card dt { color:#768196;font-size:.75rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase }
 .customer-quotation-card dd { margin-top:.3rem;color:var(--pa-ink);font-weight:800 }
+.customer-color-sample-note { margin-top:1rem;border-left:3px solid #16715b;background:#f0fdf4;padding:.8rem .9rem;color:#166534;font-size:.75rem;font-weight:750;line-height:1.5 }
 .customer-decision-actions { display:flex;justify-content:flex-end;gap:.75rem;margin-top:1.5rem }
 .customer-request-summary>div:first-child h2 { margin-top:.25rem;font-family:Georgia,'Times New Roman',serif;font-size:2rem }
 @media(max-width:700px){.customer-orders-main,.customer-order-main{width:min(100% - 1rem,72rem);padding-top:1rem}.customer-orders-heading,.customer-order-heading{align-items:stretch;flex-direction:column;padding:1.5rem}.customer-order-row{grid-template-columns:1fr auto;gap:.8rem;padding:1.25rem}.customer-order-status{grid-column:1/-1;justify-self:start}.customer-quotation-card dl{grid-template-columns:1fr}.customer-decision-actions{align-items:stretch;flex-direction:column-reverse}.customer-status-history{grid-template-columns:1fr;padding:1.5rem}.customer-production-progress ol{grid-template-columns:1fr;gap:1rem}.customer-production-progress li{display:grid;grid-template-columns:2rem 1fr;grid-template-rows:auto auto;align-items:center;padding:0;text-align:left;column-gap:.7rem}.customer-production-progress li::after{top:-1rem;right:auto;bottom:calc(50% + 1rem);left:1rem;width:.2rem;height:auto}.customer-production-progress li:first-child::after{display:block}.customer-production-progress li:first-child::after{content:none}.customer-production-progress li>span{grid-row:1/3}.customer-production-progress li>b{align-self:end;margin-top:0}.customer-production-progress li>small{align-self:start}.customer-order-meta{align-items:flex-start;flex-direction:column}.customer-next-action{align-items:flex-start}}
@@ -1499,6 +1500,13 @@ summary:focus-visible {
   font-size: 0.7rem;
   font-weight: 900;
   text-transform: uppercase;
+}
+.quote-color-availability {
+  width: min(100%, 28rem);
+  margin: 0.5rem 0 0;
+  color: #64748b;
+  font-size: 0.68rem;
+  line-height: 1.5;
 }
 .quote-control {
   display: block;

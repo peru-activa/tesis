@@ -28,7 +28,7 @@ export function ColorPicker({
 
   return (
     <fieldset className="quote-color-field">
-      <legend className="quote-field-label">Color</legend>
+      <legend className="quote-field-label">Color de la prenda</legend>
       <label className="quote-color-picker">
         <input
           type="color"
@@ -46,6 +46,9 @@ export function ColorPicker({
           {selected ? 'Cambiar' : 'Elegir'}
         </span>
       </label>
+      <p className="quote-color-availability">
+        El color mostrado es referencial y está sujeto a disponibilidad de tela.
+      </p>
     </fieldset>
   );
 }
