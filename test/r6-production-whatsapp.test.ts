@@ -4,7 +4,10 @@ import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 import { createApp } from '../src/app.js';
 import { MemoryOrderStore } from '../src/data/order-store.js';
-import type { ProductionStatus, ProductionWhatsApp } from '../src/infrastructure/production-whatsapp.js';
+import type { PortalOrder } from '../src/domain/orders.js';
+import type { QuotationRequest } from '../src/domain/quotation-requests.js';
+import type { WorkshopNotification } from '../src/domain/workshop-notifications.js';
+import { ProductionWhatsAppClient, type ProductionStatus, type ProductionWhatsApp } from '../src/infrastructure/production-whatsapp.js';
 
 test('R6 confirma el plan, envía una intención por taller y expone aceptación y avance', async () => {
   const sent: Array<{ orderId: string; workshopId: string; quantity: number; fabricBuyer: string | undefined }> = [];
@@ -57,4 +60,32 @@ test('R6 confirma el plan, envía una intención por taller y expone aceptación
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
+});
+
+test('R6 entrega el PNG al taller de sublimación y solo tela y tallas a confección', async () => {
+  const sent: Array<Record<string, unknown>> = [];
+  const client = new ProductionWhatsAppClient(
+    'http://127.0.0.1:8022',
+    'test-coordination-secret-more-than-32-bytes',
+    async (_input, init) => {
+      sent.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return new Response(JSON.stringify({ orderId: 'PED-TEST', workshopId: 'sim', state: 'capacity_pending', effects: [], lastError: null }), { status: 200 });
+    },
+  );
+  const order = { id: 'PED-TEST', fabricBuyer: 'peru_activa' } as PortalOrder;
+  const base = {
+    orderId: 'PED-TEST', workshopId: 'sim', workshopName: 'Taller simulado', product: 'polo',
+    quantity: 10, material: 'dry fit', color: 'azul', sizes: { M: 10 },
+    requiredBy: '2026-11-01', deliveryDistrict: 'Lima', notes: 'Prueba', designReference: 'logo simulado',
+  };
+  const notification = (processes: string[]) => ({ content: { ...base, requiredProcesses: processes } }) as unknown as WorkshopNotification;
+  const quotation = {
+    request: { garment: { designAttachment: { name: 'logo.png', mediaType: 'image/png', dataUrl: 'data:image/png;base64,iVBORw0KGgo=' } } },
+  } as QuotationRequest;
+  await client.assign(order, notification(['sewing', 'finishing']), quotation);
+  await client.assign(order, notification(['sublimation', 'cutting']), quotation);
+  assert.deepEqual(sent[0]!.attachments, []);
+  assert.equal((sent[1]!.attachments as unknown[]).length, 1);
+  assert.equal(sent[0]!.fabricBuyer, 'Perú Activa');
+  assert.deepEqual(sent[0]!.sizes, { M: 10 });
 });
