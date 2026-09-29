@@ -64,6 +64,13 @@ type Notification = {
     whatsapp: { status: 'preview_only'; messageText: string };
   };
 };
+type CoordinationStatus = {
+  orderId: string;
+  workshopId: string;
+  state: string;
+  effects: Array<{ phase: string; state: string; provider_receipt_id: string | null }>;
+  lastError: string | null;
+};
 export type Order = {
   id: string;
   status: 'registered' | 'recommended' | 'assigned' | 'in_production' | 'completed';
@@ -150,6 +157,7 @@ export function MultichannelDemo({
   const [orders, setOrders] = useState<Order[]>([]);
   const [quotations, setQuotations] = useState<IncomingQuotation[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [coordination, setCoordination] = useState<CoordinationStatus[]>([]);
   const [dataset, setDataset] = useState('');
   const [seed, setSeed] = useState<number>();
   const [busy, setBusy] = useState(false);
@@ -238,6 +246,7 @@ export function MultichannelDemo({
 
   function openOrder(selectedOrder: Order) {
     setOrder(selectedOrder);
+    setCoordination([]);
     setError('');
     setOpenOrderRequest((current) => current + 1);
   }
@@ -249,6 +258,26 @@ export function MultichannelDemo({
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     panel.focus({ preventScroll: true });
   }, [openOrderRequest]);
+
+  async function refreshCoordination(orderId: string) {
+    const response = await actorFetch(`/v1/orders/${orderId}/production-coordination`);
+    if (!response.ok) return;
+    const payload = await response.json();
+    setCoordination((payload.coordination || []).filter(Boolean));
+  }
+
+  useEffect(() => {
+    if (view === 'peru-activa' && order?.assignment) void refreshCoordination(order.id);
+  }, [order?.id, order?.assignment, view]);
+
+  async function requestProgress(workshopId: string) {
+    if (!order) return;
+    setBusy(true);
+    const response = await actorFetch(`/v1/orders/${order.id}/production-coordination/${workshopId}/progress`, { method: 'POST' });
+    if (!response.ok) setError('No se pudo enviar la consulta de avance.');
+    else await refreshCoordination(order.id);
+    setBusy(false);
+  }
 
   async function confirm(candidateId: string) {
     if (!order) return;
@@ -262,10 +291,12 @@ export function MultichannelDemo({
     const payload = await response.json();
     setBusy(false);
     if (!response.ok) {
+      if (payload.order) setOrder(payload.order);
       setError(payload.message || 'No se pudo confirmar la asignación.');
       return;
     }
     setOrder(payload.order);
+    setCoordination(payload.coordination || []);
     setOrders((current) => [
       payload.order,
       ...current.filter((item) => item.id !== payload.order.id),
@@ -377,6 +408,25 @@ export function MultichannelDemo({
                   </div>
                 </div>
                 <CandidateList order={order} busy={busy} error={error} onConfirm={confirm} />
+                {order.assignment && (
+                  <div className="mc-published" aria-live="polite">
+                    <h3>Coordinación por WhatsApp</h3>
+                    {coordination.length === 0 && <p>Consulta el estado del envío a los talleres asignados.</p>}
+                    {coordination.map((item) => (
+                      <div key={item.workshopId}>
+                        <p><b>{item.workshopId}</b>: {item.state}</p>
+                        <p>Recibos de Meta: {item.effects.filter((effect) => effect.provider_receipt_id).length}</p>
+                        {item.lastError && <p role="alert">{item.lastError}</p>}
+                        {['accepted', 'in_progress', 'blocked'].includes(item.state) && (
+                          <button type="button" disabled={busy} onClick={() => void requestProgress(item.workshopId)}>
+                            Preguntar cómo va
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => void refreshCoordination(order.id)}>Actualizar estado</button>
+                  </div>
+                )}
               </section>
             )}
           </>
