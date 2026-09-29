@@ -84,6 +84,7 @@ export class AssignmentDemoService {
       status: 'recommended',
       draft: scenario.draft,
       requiredProcesses: scenario.requiredProcesses,
+      fabricBuyer: fabricBuyer ?? scenario.fabricBuyer,
       recommendation,
       simulation: {
         datasetVersion: WEEK_03_DATASET_VERSION,
@@ -147,6 +148,7 @@ export class AssignmentDemoService {
       status: hasCandidate ? 'recommended' : 'registered',
       draft: adapted.draft,
       requiredProcesses: adapted.requiredProcesses,
+      ...(quotation.quotation ? { fabricBuyer: quotation.quotation.fabricBuyer } : {}),
       recommendation,
       simulation: {
         datasetVersion: WEEK_03_DATASET_VERSION,
@@ -169,6 +171,10 @@ export class AssignmentDemoService {
   async confirm(orderId: string, candidateId: string): Promise<PortalOrder> {
     const order = await this.orders.get(orderId);
     if (!order) throw new AssignmentFlowError('order_not_found');
+    if (order.assignment) {
+      if (order.assignment.candidateId === candidateId || order.assignment.workshopId === candidateId) return order;
+      throw new AssignmentFlowError('invalid_order_transition');
+    }
 
     const candidate = order.recommendation.candidates.find(
       (item) => item.candidateId === candidateId || item.workshopId === candidateId,

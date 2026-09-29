@@ -44,7 +44,7 @@ const draft = {
   },
   additionalGarments: [],
   delivery: {
-    requiredBy: '2026-09-30',
+    requiredBy: new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10),
     location: 'Lima Metropolitana',
   },
   notes: '',
@@ -108,7 +108,7 @@ describe('quotation request flow', () => {
           lineItems: [{ garmentIndex: 0, unitPricePEN: 60 }],
           selectedFabric: 'Zanetti 100 % poliéster',
           fabricBuyer: 'workshop',
-          validUntil: '2026-09-05',
+          validUntil: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
           conditions: 'Incluye confección y un bordado por prenda.',
         }),
       },

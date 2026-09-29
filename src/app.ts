@@ -14,6 +14,7 @@ import { createOrderStore, type OrderStore } from './data/order-store.js';
 import { week02Demo } from './data/week-02-demo.js';
 import { week03DeclaredWorkshops } from './data/week-03-assignment-scenarios.js';
 import { createWorkshopStore, type WorkshopStore } from './data/workshop-store.js';
+import { productionWhatsAppFromEnvironment, type ProductionWhatsApp } from './infrastructure/production-whatsapp.js';
 import {
   AccessAuthorizationError,
   requireRole,
@@ -206,6 +207,18 @@ const openApiDocument = {
         responses: { 200: { description: 'Notificaciones publicadas' } },
       },
     },
+    '/v1/orders/{id}/production-coordination': {
+      get: {
+        summary: 'Consultar recibos de Meta y aceptación explícita por taller',
+        responses: { 200: { description: 'Estado por taller del plan confirmado' } },
+      },
+    },
+    '/v1/orders/{id}/production-coordination/{workshopId}/progress': {
+      post: {
+        summary: 'Enviar consulta de avance a un taller que aceptó el pedido',
+        responses: { 200: { description: 'Consulta enviada o ya pendiente' } },
+      },
+    },
   },
 } as const;
 
@@ -213,6 +226,7 @@ export interface AppOptions {
   orderStore?: OrderStore;
   quotationStore?: QuotationStore;
   workshopStore?: WorkshopStore;
+  productionWhatsApp?: ProductionWhatsApp;
   onOrderUpdated?: (order: PortalOrder) => void;
   onQuotationUpdated?: (quotation: QuotationRequest) => void;
 }
@@ -222,6 +236,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   const orderStore = options.orderStore ?? createOrderStore();
   const quotationStore = options.quotationStore ?? createQuotationStore();
   const workshopStore = options.workshopStore ?? createWorkshopStore(week03DeclaredWorkshops);
+  const productionWhatsApp = options.productionWhatsApp ?? productionWhatsAppFromEnvironment();
   const assignmentService = new AssignmentDemoService(orderStore, workshopStore);
   const quotationService = new QuotationService(quotationStore, undefined, {
     ...(options.onQuotationUpdated ? { onUpdated: options.onQuotationUpdated } : {}),
@@ -513,6 +528,7 @@ export function createApp(options: AppOptions = {}): express.Express {
         status: 'recommended',
         draft: parsed.data,
         requiredProcesses: recommendationRequest.order.requiredProcesses,
+        fabricBuyer: 'peru_activa',
         recommendation,
       };
       await orderStore.create(order);
@@ -537,7 +553,16 @@ export function createApp(options: AppOptions = {}): express.Express {
           parsed.data.candidateId || parsed.data.workshopId || '',
         );
         options.onOrderUpdated?.(updated);
-        response.json({ ok: true, order: updated });
+        if (!productionWhatsApp) {
+          response.json({ ok: true, order: updated });
+          return;
+        }
+        const quotation = updated.source ? await quotationStore.get(updated.source.quotationId) : undefined;
+        const coordination = [];
+        for (const notification of updated.notifications ?? []) {
+          coordination.push(await productionWhatsApp.assign(updated, notification, quotation));
+        }
+        response.json({ ok: true, order: updated, coordination });
       } catch (error) {
         if (error instanceof AssignmentFlowError && error.code === 'order_not_found') {
           response.status(404).json({ ok: false, error: error.code });
@@ -547,8 +572,47 @@ export function createApp(options: AppOptions = {}): express.Express {
           response.status(409).json({ ok: false, error: error.code });
           return;
         }
+        if (error instanceof AssignmentFlowError && error.code === 'invalid_order_transition') {
+          response.status(409).json({ ok: false, error: error.code });
+          return;
+        }
+        if (productionWhatsApp && !(error instanceof AssignmentFlowError)) {
+          response.status(424).json({
+            ok: false,
+            error: 'production_coordination_failed',
+            message: error instanceof Error ? error.message : 'No se completó el envío a WhatsApp.',
+            order: await orderStore.get(request.params.id),
+          });
+          return;
+        }
         throw error;
       }
+    });
+  });
+
+  app.get('/v1/orders/:id/production-coordination', async (request, response) => {
+    await runIdentityAction(request, response, async (identity) => {
+      requireRole(identity, 'peru_activa');
+      const order = await orderStore.get(request.params.id);
+      if (!order?.assignment) { response.status(404).json({ ok: false, error: 'order_not_assigned' }); return; }
+      if (!productionWhatsApp) { response.status(503).json({ ok: false, error: 'coordination_unconfigured' }); return; }
+      const coordination = await Promise.all(order.assignment.allocations.map((item) =>
+        productionWhatsApp.status(order.id, item.workshopId)));
+      response.json({ ok: true, coordination });
+    });
+  });
+
+  app.post('/v1/orders/:id/production-coordination/:workshopId/progress', async (request, response) => {
+    await runIdentityAction(request, response, async (identity) => {
+      requireRole(identity, 'peru_activa');
+      const order = await orderStore.get(request.params.id);
+      if (!order?.assignment?.allocations.some((item) => item.workshopId === request.params.workshopId)) {
+        response.status(404).json({ ok: false, error: 'workshop_not_assigned' });
+        return;
+      }
+      if (!productionWhatsApp) { response.status(503).json({ ok: false, error: 'coordination_unconfigured' }); return; }
+      const coordination = await productionWhatsApp.progress(order.id, request.params.workshopId);
+      response.json({ ok: true, coordination });
     });
   });
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Process, RecommendationResult } from './contracts.js';
+import type { FabricBuyer, Process, RecommendationResult } from './contracts.js';
 import type { WorkshopNotification } from './workshop-notifications.js';
 
 const sizesSchema = z
@@ -64,6 +64,7 @@ export interface PortalOrder {
   status: OrderStatus;
   draft: OrderDraft;
   requiredProcesses: Process[];
+  fabricBuyer?: FabricBuyer;
   recommendation: RecommendationResult;
   assignment?: OrderAssignment;
   notification?: WorkshopNotification;
