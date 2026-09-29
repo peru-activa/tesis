@@ -71,6 +71,18 @@ type CoordinationStatus = {
   effects: Array<{ phase: string; state: string; provider_receipt_id: string | null }>;
   lastError: string | null;
 };
+const coordinationLabels: Record<string, string> = {
+  capacity_pending: 'Consultando capacidad',
+  capacity_yes: 'Capacidad confirmada; enviando especificaciones',
+  capacity_no: 'Sin capacidad',
+  order_pending: 'Especificaciones enviadas; esperando aceptación',
+  accepted: 'Pedido aceptado por WhatsApp',
+  declined: 'Pedido rechazado por WhatsApp',
+  progress_pending: 'Consultando avance',
+  in_progress: 'En proceso',
+  finished: 'Terminado',
+  blocked: 'Taller reportó un bloqueo',
+};
 export type Order = {
   id: string;
   status: 'registered' | 'recommended' | 'assigned' | 'in_production' | 'completed';
@@ -414,7 +426,7 @@ export function MultichannelDemo({
                     {coordination.length === 0 && <p>Consulta el estado del envío a los talleres asignados.</p>}
                     {coordination.map((item) => (
                       <div key={item.workshopId}>
-                        <p><b>{item.workshopId}</b>: {item.state}</p>
+                        <p><b>{item.workshopId}</b>: {coordinationLabels[item.state] || item.state}</p>
                         <p>Recibos de Meta: {item.effects.filter((effect) => effect.provider_receipt_id).length}</p>
                         {item.lastError && <p role="alert">{item.lastError}</p>}
                         {['accepted', 'in_progress', 'blocked'].includes(item.state) && (
@@ -710,6 +722,7 @@ export function CandidateList({
           El cliente y los talleres asignados ya pueden ver el nuevo estado de la orden{' '}
           <b>{order.id}</b>.
         </p>
+        {error && <p className="mc-assignment-error" role="alert">{error}</p>}
         <p className="mc-handoff">Abre “Vista del taller” para comprobar el resultado.</p>
       </div>
     );

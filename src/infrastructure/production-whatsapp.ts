@@ -51,9 +51,13 @@ export class ProductionWhatsAppClient implements ProductionWhatsApp {
   async assign(order: PortalOrder, notification: WorkshopNotification, quotation?: QuotationRequest): Promise<ProductionStatus> {
     const content = notification.content;
     const garment = quotation?.request.garment;
-    const files = [garment?.designAttachment, ...(garment?.designApplications ?? []).map((item) => item.attachment)]
-      .filter((item): item is NonNullable<typeof item> => Boolean(item))
-      .map((item) => ({ filename: item.name, mediaType: item.mediaType, dataUrl: item.dataUrl }));
+    const needsArtwork = content.requiredProcesses.some((process) =>
+      ['design', 'transfer_printing', 'sublimation', 'printing', 'embroidery', 'vinyl'].includes(process));
+    const files = needsArtwork
+      ? [garment?.designAttachment, ...(garment?.designApplications ?? []).map((item) => item.attachment)]
+          .filter((item): item is NonNullable<typeof item> => Boolean(item))
+          .map((item) => ({ filename: item.name, mediaType: item.mediaType, dataUrl: item.dataUrl }))
+      : [];
     const fabricBuyer = order.fabricBuyer || quotation?.quotation?.fabricBuyer;
     if (!fabricBuyer) throw new Error('missing_fabric_buyer');
     const result = await this.request('/production/assignments', 'POST', {
@@ -74,12 +78,12 @@ export class ProductionWhatsAppClient implements ProductionWhatsApp {
       requiredBy: content.requiredBy,
       deliveryDistrict: content.deliveryDistrict,
       notes: content.notes,
-      designReference: content.designReference,
-      designInstructions: garment?.designApplications?.map((application) => [
+      designReference: needsArtwork ? content.designReference : 'No aplica para esta etapa',
+      designInstructions: needsArtwork ? garment?.designApplications?.map((application) => [
         application.method,
         application.placement,
         application.widthCm && application.heightCm ? `${application.widthCm} × ${application.heightCm} cm` : '',
-      ].filter(Boolean).join(', ')).join('; ') || garment?.customizationDetails || '',
+      ].filter(Boolean).join(', ')).join('; ') || garment?.customizationDetails || '' : '',
       attachments: files,
     });
     if (!result) throw new Error('production_assignment_missing');
