@@ -106,13 +106,15 @@ export class QuotationService {
 
   async respond(id: string, input: BuyerDecisionDraft): Promise<QuotationRequest> {
     const current = await this.requireRequest(id);
+    const parsed = buyerDecisionSchema.parse(input);
+    if (current.status === parsed.decision && current.buyerDecision?.decision === parsed.decision)
+      return current;
     if (current.status !== 'quoted' || !current.quotation) {
       throw new QuotationFlowError(
         'invalid_state',
         'La solicitud debe tener una cotización antes de responder.',
       );
     }
-    const parsed = buyerDecisionSchema.parse(input);
     const respondedAt = this.now().toISOString();
     const decided: QuotationRequest = {
       ...current,
