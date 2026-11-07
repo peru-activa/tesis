@@ -285,7 +285,10 @@ export function MultichannelDemo({
   async function requestProgress(workshopId: string) {
     if (!order) return;
     setBusy(true);
-    const response = await actorFetch(`/v1/orders/${order.id}/production-coordination/${workshopId}/progress`, { method: 'POST' });
+    const response = await actorFetch(
+      `/v1/orders/${order.id}/production-coordination/${workshopId}/progress`,
+      { method: 'POST' },
+    );
     if (!response.ok) setError('No se pudo enviar la consulta de avance.');
     else await refreshCoordination(order.id);
     setBusy(false);
@@ -423,20 +426,33 @@ export function MultichannelDemo({
                 {order.assignment && (
                   <div className="mc-published" aria-live="polite">
                     <h3>Coordinación por WhatsApp</h3>
-                    {coordination.length === 0 && <p>Consulta el estado del envío a los talleres asignados.</p>}
+                    {coordination.length === 0 && (
+                      <p>Consulta el estado del envío a los talleres asignados.</p>
+                    )}
                     {coordination.map((item) => (
                       <div key={item.workshopId}>
-                        <p><b>{item.workshopId}</b>: {coordinationLabels[item.state] || item.state}</p>
-                        <p>Recibos de Meta: {item.effects.filter((effect) => effect.provider_receipt_id).length}</p>
+                        <p>
+                          <b>{item.workshopId}</b>: {coordinationLabels[item.state] || item.state}
+                        </p>
+                        <p>
+                          Recibos de Meta:{' '}
+                          {item.effects.filter((effect) => effect.provider_receipt_id).length}
+                        </p>
                         {item.lastError && <p role="alert">{item.lastError}</p>}
                         {['accepted', 'in_progress', 'blocked'].includes(item.state) && (
-                          <button type="button" disabled={busy} onClick={() => void requestProgress(item.workshopId)}>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void requestProgress(item.workshopId)}
+                          >
                             Preguntar cómo va
                           </button>
                         )}
                       </div>
                     ))}
-                    <button type="button" onClick={() => void refreshCoordination(order.id)}>Actualizar estado</button>
+                    <button type="button" onClick={() => void refreshCoordination(order.id)}>
+                      Actualizar estado
+                    </button>
                   </div>
                 )}
               </section>
@@ -598,7 +614,7 @@ export function IncomingQueue({
           {quotations.slice(0, 6).map((quotation) => {
             const garments = [quotation.request.garment, ...quotation.request.additionalGarments];
             const units = garments.reduce((sum, garment) => sum + garment.quantity, 0);
-            const linkedOrder = orders.find((item) =>
+            const linkedOrders = orders.filter((item) =>
               quotation.production?.orderIds.includes(item.id),
             );
             return (
@@ -626,13 +642,18 @@ export function IncomingQueue({
                   <a className="mc-open-quotation" href={`/peru-activa/pedidos/${quotation.id}`}>
                     {quotation.status === 'pending_quote' ? 'Abrir y cotizar' : 'Ver cotización'}
                   </a>
-                ) : linkedOrder ? (
-                  <button
-                    aria-controls="assignment-review"
-                    onClick={() => onOpenOrder(linkedOrder)}
-                  >
-                    Abrir {linkedOrder.id}
-                  </button>
+                ) : linkedOrders.length > 0 ? (
+                  <div className="mc-open-orders">
+                    {linkedOrders.map((linkedOrder) => (
+                      <button
+                        key={linkedOrder.id}
+                        aria-controls="assignment-review"
+                        onClick={() => onOpenOrder(linkedOrder)}
+                      >
+                        Abrir {linkedOrder.id}
+                      </button>
+                    ))}
+                  </div>
                 ) : (
                   <span className="mc-queue-placeholder">
                     {quotation.status === 'accepted' ? 'Aceptada' : '—'}
@@ -722,7 +743,11 @@ export function CandidateList({
           El cliente y los talleres asignados ya pueden ver el nuevo estado de la orden{' '}
           <b>{order.id}</b>.
         </p>
-        {error && <p className="mc-assignment-error" role="alert">{error}</p>}
+        {error && (
+          <p className="mc-assignment-error" role="alert">
+            {error}
+          </p>
+        )}
         <p className="mc-handoff">Abre “Vista del taller” para comprobar el resultado.</p>
       </div>
     );

@@ -14,6 +14,9 @@ export function QuotationPriceBreakdown({ request }: { request: QuotationRequest
             <span>
               {garment.product === 'polo' ? 'Polos' : 'Buzos'} · {garment.quantity} × S/{' '}
               {item.unitPricePEN.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+              {item.selectedFabric && (
+                <small style={{ display: 'block' }}>{item.selectedFabric}</small>
+              )}
             </span>
             <b>
               S/{' '}

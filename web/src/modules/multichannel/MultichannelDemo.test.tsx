@@ -67,6 +67,33 @@ afterEach(() => {
 });
 
 describe('mesa de asignación de Perú Activa', () => {
+  it('permite abrir cada orden de una solicitud con varias prendas', async () => {
+    const second = { ...order, id: 'PED-SECOND', source: { ...order.source!, garmentIndex: 1 } };
+    const multiple = {
+      ...quotation,
+      production: { ...quotation.production, orderIds: [order.id, second.id] },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const payload = url.includes('assignment-scenarios')
+          ? { scenarios: [], workshops: [], datasetVersion: 'test', seed: 1 }
+          : url.includes('workshop-notifications')
+            ? { notifications: [] }
+            : url.includes('quotation-requests')
+              ? { requests: [multiple] }
+              : { orders: [order, second] };
+        return { ok: true, json: async () => payload } as Response;
+      }),
+    );
+    render(<MultichannelDemo view="peru-activa" />);
+    expect(await screen.findByRole('button', { name: `Abrir ${order.id}` })).toBeTruthy();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: `Abrir ${second.id}` }));
+    expect(screen.getByText(`Pedido ${second.id}`)).toBeTruthy();
+  });
+
   it('abre, enfoca y explica un pedido sin talleres factibles', async () => {
     vi.stubGlobal(
       'fetch',

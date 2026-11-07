@@ -659,9 +659,12 @@ function customerTrackingItem(
 ) {
   const orderIds = new Set(quotation.production?.orderIds || []);
   const productionOrders = orders
-    .filter((order) => orderIds.has(order.id))
+    .filter((order) => orderIds.has(order.id) || order.source?.quotationId === quotation.id)
     .map((order) => ({
       id: order.id,
+      garmentIndex: order.source?.garmentIndex,
+      product: order.draft.product,
+      quantity: order.draft.quantity,
       status: order.status,
       updatedAt: order.updatedAt,
       assignment: order.assignment,
