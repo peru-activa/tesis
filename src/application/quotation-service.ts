@@ -3,6 +3,7 @@ import {
   buyerDecisionSchema,
   quotationRequestDraftSchema,
   sellerQuotationDraftSchema,
+  isDeliveryDateConfirmed,
   type BuyerDecisionDraft,
   type QuotationRequest,
   type QuotationRequestDraft,
@@ -40,11 +41,7 @@ export class QuotationService {
     return this.store.listOwnedBy(subject, email);
   }
 
-  getOwnedBy(
-    id: string,
-    subject: string,
-    email: string,
-  ): Promise<QuotationRequest | undefined> {
+  getOwnedBy(id: string, subject: string, email: string): Promise<QuotationRequest | undefined> {
     return this.store.getOwnedBy(id, subject, email);
   }
 
@@ -74,6 +71,12 @@ export class QuotationService {
       );
     }
     const quotation = sellerQuotationDraftSchema.parse(input);
+    if (!isDeliveryDateConfirmed(quotation, current.request.delivery.requiredBy)) {
+      throw new QuotationFlowError(
+        'invalid_state',
+        'Perú Activa debe confirmar expresamente la fecha solicitada antes de enviar la cotización.',
+      );
+    }
     const garments = [current.request.garment, ...current.request.additionalGarments];
     if (quotation.lineItems) {
       const indexes = new Set(quotation.lineItems.map((item) => item.garmentIndex));
@@ -113,6 +116,15 @@ export class QuotationService {
       throw new QuotationFlowError(
         'invalid_state',
         'La solicitud debe tener una cotización antes de responder.',
+      );
+    }
+    if (
+      parsed.decision === 'accepted' &&
+      !isDeliveryDateConfirmed(current.quotation, current.request.delivery.requiredBy)
+    ) {
+      throw new QuotationFlowError(
+        'invalid_state',
+        'La fecha solicitada aún no está confirmada por Perú Activa. Solicita que actualice la cotización.',
       );
     }
     const respondedAt = this.now().toISOString();

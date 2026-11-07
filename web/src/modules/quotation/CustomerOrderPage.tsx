@@ -3,6 +3,8 @@ import { io } from 'socket.io-client';
 import { PeruActivaHeader } from '../../components/PeruActivaHeader';
 import { QuotationPriceBreakdown } from './QuotationPriceBreakdown';
 import { QuotationRequestSummary } from './QuotationRequestSummary';
+import { isDeliveryDateConfirmed } from '../../../../src/domain/quotation-requests';
+import { DeliveryConfirmationSummary } from './DeliveryConfirmation';
 import { trackingLabel, type CustomerTrackingItem } from './customerTracking';
 
 export function CustomerOrderPage({ quotationId }: { quotationId: string }) {
@@ -122,6 +124,11 @@ export function CustomerOrderPage({ quotationId }: { quotationId: string }) {
                   </div>
                 </dl>
                 <p>{item.quotation.quotation.conditions}</p>
+                <DeliveryConfirmationSummary
+                  quotation={item.quotation.quotation}
+                  requiredBy={item.quotation.request.delivery.requiredBy}
+                  accepted={item.quotation.status === 'accepted'}
+                />
                 {item.quotation.status === 'accepted' ? (
                   <p className="customer-color-sample-note">
                     <strong>Siguiente paso:</strong> cuando se firme el contrato, enviaremos la
@@ -140,7 +147,13 @@ export function CustomerOrderPage({ quotationId }: { quotationId: string }) {
                     </button>
                     <button
                       className="quote-primary"
-                      disabled={busy}
+                      disabled={
+                        busy ||
+                        !isDeliveryDateConfirmed(
+                          item.quotation.quotation,
+                          item.quotation.request.delivery.requiredBy,
+                        )
+                      }
                       onClick={() => void decide('accepted')}
                     >
                       {busy ? 'Guardando…' : 'Aceptar cotización'} <span>✓</span>

@@ -96,6 +96,33 @@ const item: CustomerTrackingItem = {
 };
 
 describe('CustomerOrderPage', () => {
+  it('muestra la confirmación del plazo y bloquea aceptar una fecha no confirmada', async () => {
+    const quoted = structuredClone(item);
+    quoted.quotation.status = 'quoted';
+    quoted.productionOrders = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, item: quoted }) }),
+    );
+    render(<CustomerOrderPage quotationId={item.quotation.id} />);
+    expect(await screen.findByText('Fecha de entrega pendiente de confirmación')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Aceptar cotización/ })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    cleanup();
+    quoted.quotation.quotation!.deliveryConfirmation = {
+      requiredBy: quoted.quotation.request.delivery.requiredBy,
+      confirmed: true,
+    };
+    render(<CustomerOrderPage quotationId={item.quotation.id} />);
+    expect(await screen.findByText('Fecha de entrega confirmada por Perú Activa')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Aceptar cotización/ })).toHaveProperty(
+      'disabled',
+      false,
+    );
+  });
+
   it('conserva la cotización y explica el estado del pedido confirmado', async () => {
     vi.stubGlobal(
       'fetch',

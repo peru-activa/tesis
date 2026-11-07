@@ -164,6 +164,7 @@ describe('aislamiento de datos por identidad', () => {
     const payload = {
       totalPricePEN: 1_000,
       lineItems: [{ garmentIndex: 0, unitPricePEN: 50 }],
+      deliveryConfirmation: { requiredBy: draft.delivery.requiredBy, confirmed: true },
       selectedFabric: 'Algodón pima 20/1',
       fabricBuyer: 'workshop',
       validUntil: '2026-09-05',
