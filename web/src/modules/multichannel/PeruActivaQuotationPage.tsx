@@ -92,21 +92,31 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
       .filter(Boolean)
       .join(' / ');
     form.reset({
-      totalPricePEN: 0,
-      lineItems: garments.map((_garment, garmentIndex) => ({
+      totalPricePEN: request.quotation?.totalPricePEN ?? 0,
+      lineItems: garments.map((garment, garmentIndex) => ({
         garmentIndex,
-        unitPricePEN: 0,
+        unitPricePEN:
+          request.quotation?.lineItems?.find((item) => item.garmentIndex === garmentIndex)
+            ?.unitPricePEN ?? 0,
+        selectedFabric:
+          request.quotation?.lineItems?.find((item) => item.garmentIndex === garmentIndex)
+            ?.selectedFabric ??
+          request.quotation?.selectedFabric ??
+          (garment.fabric.mode === 'specified' ? garment.fabric.name : ''),
       })),
-      selectedFabric: requestedFabrics,
-      fabricBuyer: 'workshop',
-      validUntil: dateAfter(7),
-      conditions: 'Incluye confección y personalización. Pago y entrega según coordinación.',
+      selectedFabric: request.quotation?.selectedFabric ?? requestedFabrics,
+      fabricBuyer: request.quotation?.fabricBuyer ?? 'workshop',
+      validUntil: request.quotation?.validUntil ?? dateAfter(7),
+      conditions:
+        request.quotation?.conditions ??
+        'Incluye confección y personalización. Pago y entrega según coordinación.',
     });
   }, [form, request?.id]);
 
   useEffect(() => {
     form.setValue('totalPricePEN', totalPricePEN, { shouldValidate: true });
-  }, [form, totalPricePEN]);
+    form.setValue('selectedFabric', lineItems[0]?.selectedFabric ?? '', { shouldValidate: true });
+  }, [form, totalPricePEN, lineItems]);
 
   return (
     <div className="quote-demo mc-shell">
@@ -165,7 +175,7 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
               </section>
 
               <aside className="quote-sheet pa-quotation-panel">
-                {request.status === 'pending_quote' ? (
+                {request.status === 'pending_quote' || request.status === 'quoted' ? (
                   <form onSubmit={form.handleSubmit(sendQuotation)}>
                     <StepTitle
                       number="02"
@@ -204,6 +214,14 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
                                 })}
                               />
                             </InputField>
+                            <InputField
+                              label={`Tela ofrecida para ${garment.product === 'polo' ? 'polos' : 'buzos'}`}
+                            >
+                              <input
+                                {...form.register(`lineItems.${index}.selectedFabric`)}
+                                placeholder="Tela acordada para esta prenda"
+                              />
+                            </InputField>
                             <span className="pa-line-subtotal">
                               Subtotal: S/{' '}
                               {subtotal.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
@@ -218,12 +236,7 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
                         S/ {totalPricePEN.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                       </strong>
                     </div>
-                    <InputField label="Tela ofrecida">
-                      <input
-                        {...form.register('selectedFabric')}
-                        placeholder="Ejemplo: algodón jersey 30/1"
-                      />
-                    </InputField>
+                    <input type="hidden" {...form.register('selectedFabric')} />
                     <InputField label="¿Quién compra la tela?">
                       <select {...form.register('fabricBuyer')}>
                         <option value="workshop">Taller productor</option>

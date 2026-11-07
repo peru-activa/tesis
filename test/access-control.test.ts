@@ -34,7 +34,10 @@ const draft = {
     designReference: 'Logo institucional simulado',
   },
   additionalGarments: [],
-  delivery: { requiredBy: '2026-09-30', location: 'Lima Metropolitana' },
+  delivery: {
+    requiredBy: new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10),
+    location: 'Lima Metropolitana',
+  },
   notes: '',
 };
 
