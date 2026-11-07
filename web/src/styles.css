@@ -3011,3 +3011,7 @@ summary:focus-visible {
 .customer-garment-assignments h2 { margin-bottom: 16px; font-size: 20px; font-weight: 700; }
 .customer-garment-assignments article { display: grid; gap: 6px; border-top: 1px solid #e5e7e7; padding: 16px 0; }
 .customer-garment-assignments article small { color: #59635d; }
+
+.customer-copy-order { display: inline-flex; margin-top: 18px; }
+.customer-copy-hint { font-size: 13px; color: #606666; margin: 8px 0 20px; }
+.customer-copy-notice { padding: 14px 18px; border: 1px solid #d5dfd7; background: #f1f7f1; border-radius: 12px; margin: 16px 0; font-size: 14px; }

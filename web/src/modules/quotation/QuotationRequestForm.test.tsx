@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QuotationRequestForm } from './QuotationRequestForm';
+import { createEmptyDraft } from './quotationFormModel';
 
 afterEach(() => {
   cleanup();
@@ -9,6 +10,50 @@ afterEach(() => {
 });
 
 describe('QuotationRequestForm', () => {
+  it('carga una copia editable conservando las prendas y pidiendo una nueva fecha', async () => {
+    const draft = createEmptyDraft('');
+    draft.customer = {
+      contactName: 'Cliente de prueba',
+      businessName: 'Empresa de prueba',
+      contact: 'anterior@example.test',
+    };
+    draft.garment = {
+      ...draft.garment,
+      model: 'Cuello redondo',
+      sleeve: 'manga_corta',
+      cut: 'estandar',
+      color: 'Azul',
+      fabric: { mode: 'specified', name: 'Zanetti' },
+      sizes: [{ size: 'M', quantity: 20 }],
+      customization: 'none',
+      applicationCount: 0,
+    };
+    render(
+      <QuotationRequestForm
+        busy={false}
+        error=""
+        onSubmit={vi.fn()}
+        initialDraft={draft}
+        authenticatedEmail="cliente@example.test"
+      />,
+    );
+    expect(
+      screen.getByText('Polo · Cuello redondo · Estándar · Manga corta · Zanetti'),
+    ).toBeTruthy();
+    expect(screen.getByRole('spinbutton', { name: 'Cantidad' })).toHaveProperty('value', '20');
+    expect(screen.getByRole('combobox', { name: 'Agregar otra prenda' })).toBeTruthy();
+    const user = userEvent.setup();
+    Element.prototype.scrollTo = vi.fn();
+    await user.click(screen.getByRole('button', { name: /continuar/i }));
+    expect(await screen.findByRole('button', { name: /continuar/i })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /continuar/i }));
+    expect(
+      await screen.findByRole('spinbutton', { name: 'Cantidad para talla adulta M' }),
+    ).toHaveProperty('value', '20');
+    expect(draft.delivery.requiredBy).toBe('');
+    expect(draft.customer.contact).toBe('anterior@example.test');
+  });
+
   it('explica los errores cuando el primer paso está incompleto', async () => {
     const user = userEvent.setup();
     render(<QuotationRequestForm busy={false} error="" onSubmit={vi.fn()} />);
