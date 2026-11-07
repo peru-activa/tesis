@@ -705,7 +705,7 @@ function customerTimeline(
             key: `quotation-${quotation.buyerDecision.decision}`,
             label:
               quotation.buyerDecision.decision === 'accepted'
-                ? 'Cotización aceptada y pedido confirmado'
+                ? 'Cotización aceptada; asignación pendiente de Perú Activa'
                 : 'Cotización rechazada',
             occurredAt: quotation.buyerDecision.respondedAt,
           },
