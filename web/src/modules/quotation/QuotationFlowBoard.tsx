@@ -73,7 +73,7 @@ export function QuotationFlowBoard({
           active={request.status !== 'pending_quote'}
         />
         <TimelineStep number="3" label="Cliente responde" active={accepted || rejected} />
-        <TimelineStep number="4" label="Pedido confirmado" active={accepted} />
+        <TimelineStep number="4" label="Asignación de talleres" active={false} />
       </div>
       <article className="quote-request-card mt-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -219,7 +219,9 @@ export function QuotationFlowBoard({
           <span className="quote-final-icon">{accepted ? '✓' : '×'}</span>
           <div>
             <span className="quote-role">Respuesta registrada</span>
-            <h2>{accepted ? 'Pedido confirmado' : 'Cotización rechazada'}</h2>
+            <h2>
+              {accepted ? 'Cotización aceptada; asignación pendiente' : 'Cotización rechazada'}
+            </h2>
             <p>
               {accepted
                 ? request.production?.message || 'La aceptación quedó registrada.'
@@ -258,7 +260,7 @@ function StatusBadge({ status }: { status: QuotationStatus }) {
   const labels: Record<QuotationStatus, string> = {
     pending_quote: 'Pendiente de cotización',
     quoted: 'Cotización enviada',
-    accepted: 'Pedido confirmado',
+    accepted: 'Cotización aceptada',
     rejected: 'Rechazada',
   };
   return <span className={`quote-status ${status}`}>{labels[status]}</span>;

@@ -3006,3 +3006,8 @@ summary:focus-visible {
 .quote-delivery-summary { display: grid; gap: 6px; padding: 16px; margin: 18px 0; border-radius: 12px; border: 1px solid #d5dfd7; background: #f1f7f1; }
 .quote-delivery-summary.pending { border-color: #e6d3a5; background: #fff8e8; }
 .quote-delivery-summary p { margin: 0; font-size: 13px; }
+
+.customer-garment-assignments { padding: 24px; border: 1px solid #e5e7e7; background: white; border-radius: 16px; margin: 20px 0; }
+.customer-garment-assignments h2 { margin-bottom: 16px; font-size: 20px; font-weight: 700; }
+.customer-garment-assignments article { display: grid; gap: 6px; border-top: 1px solid #e5e7e7; padding: 16px 0; }
+.customer-garment-assignments article small { color: #59635d; }
