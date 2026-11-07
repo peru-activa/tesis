@@ -110,6 +110,9 @@ describe('CustomerOrderPage', () => {
     expect(
       screen.getByRole('heading', { name: 'Perú Activa debe completar la asignación' }),
     ).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Copiar pedido' }).getAttribute('href')).toBe(
+      `/nueva-solicitud?copiar=${item.quotation.id}`,
+    );
   });
 
   it('muestra la confirmación del plazo y bloquea aceptar una fecha no confirmada', async () => {

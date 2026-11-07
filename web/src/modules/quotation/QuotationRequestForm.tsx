@@ -28,6 +28,7 @@ interface QuotationRequestFormProps {
   error: string;
   onSubmit: (draft: QuotationRequestDraft) => Promise<void>;
   authenticatedEmail?: string;
+  initialDraft?: QuotationRequestDraft;
 }
 
 interface FormStep {
@@ -41,15 +42,18 @@ export function QuotationRequestForm({
   error,
   onSubmit,
   authenticatedEmail,
+  initialDraft,
 }: QuotationRequestFormProps) {
   const [restoredSession] = useState(() => loadQuotationSession(window.sessionStorage));
   const form = useForm<QuotationRequestDraft>({
     resolver: zodResolver(quotationRequestDraftSchema),
-    defaultValues: restoredSession?.draft ?? createEmptyDraft(dateAfter(14)),
+    defaultValues: initialDraft ?? restoredSession?.draft ?? createEmptyDraft(dateAfter(14)),
     mode: 'onChange',
   });
-  const [step, setStep] = useState(restoredSession?.step ?? 1);
-  const [hasGarments, setHasGarments] = useState(restoredSession?.hasGarments ?? false);
+  const [step, setStep] = useState(initialDraft ? 1 : (restoredSession?.step ?? 1));
+  const [hasGarments, setHasGarments] = useState(
+    Boolean(initialDraft) || (restoredSession?.hasGarments ?? false),
+  );
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const primaryProduct = useWatch({ control: form.control, name: 'garment.product' });
   const additionalGarments = useWatch({ control: form.control, name: 'additionalGarments' });
@@ -65,10 +69,18 @@ export function QuotationRequestForm({
     : [];
 
   useEffect(() => {
+    if (initialDraft) {
+      form.reset(structuredClone(initialDraft));
+      setHasGarments(true);
+      setStep(1);
+    }
+  }, [initialDraft, form]);
+
+  useEffect(() => {
     if (authenticatedEmail) {
       form.setValue('customer.contact', authenticatedEmail, { shouldValidate: true });
     }
-  }, [authenticatedEmail, form]);
+  }, [authenticatedEmail, initialDraft, form]);
   const detailSteps = garments.reduce<FormStep[]>((result, garment, index) => {
     result.push(...createGarmentSteps(garment.path, garment.product, index + 1, 2 + result.length));
     return result;
