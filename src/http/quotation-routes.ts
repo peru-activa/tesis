@@ -91,6 +91,17 @@ export function createQuotationRouter(
     });
   });
 
+  router.get('/:id/draft', async (request, response) => {
+    await runAuthorizedAction(request, response, resolveIdentity, async (identity) => {
+      requireRole(identity, 'client', 'peru_activa');
+      const quotation = await service.get(request.params.id);
+      ensureIsOwner(quotation, identity);
+      const draft = structuredClone(quotation.request);
+      draft.delivery.requiredBy = '';
+      response.json({ ok: true, draft, sourceQuotationId: quotation.id });
+    });
+  });
+
   router.post('/:id/decision', async (request, response) => {
     await runAuthorizedAction(request, response, resolveIdentity, async (identity) => {
       requireRole(identity, 'client', 'peru_activa');
