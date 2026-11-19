@@ -9,6 +9,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 COPY tsconfig.json tsconfig.build.json vite.config.ts ./
 COPY src ./src
+COPY assets ./assets
 COPY web ./web
 RUN npm run build && npm prune --omit=dev --no-audit --no-fund
 
@@ -24,6 +25,7 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/public/app ./public/app
 COPY --chown=node:node db ./db
+COPY --chown=node:node assets ./assets
 
 USER node
 

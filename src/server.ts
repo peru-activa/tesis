@@ -16,5 +16,17 @@ io = new Server(httpServer, {
 });
 
 httpServer.listen(port, '0.0.0.0', () => {
+  const emailWorker = app.locals.customerEmailWorker;
+  if (emailWorker) {
+    const tick = () => void emailWorker.tick().catch(() => process.stderr.write('customer email queue requires review\n'));
+    setInterval(tick, 5000).unref();
+    tick();
+  }
+  const automation = app.locals.assignmentAutomation;
+  if (automation) {
+    const tick = () => void automation.tick().catch(() => process.stderr.write('assignment automation requires review\n'));
+    setInterval(tick, 5000).unref();
+    tick();
+  }
   process.stdout.write(`tesis service listening on port ${port}\n`);
 });

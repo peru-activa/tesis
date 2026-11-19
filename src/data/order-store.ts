@@ -1,7 +1,17 @@
+import type { AssignmentAutomation } from '../domain/assignment-plans.js';
 import { Pool, type PoolClient } from 'pg';
 import type { OrderAssignment, OrderStatus, PortalOrder } from '../domain/orders.js';
+import type { RecommendationResult, RecommendationRequest, Workshop } from '../domain/contracts.js';
+import { OrderAssignmentConflictError } from '../domain/orders.js';
 import type { WorkshopNotification } from '../domain/workshop-notifications.js';
 import { ensurePostgresSchema } from './postgres-schema.js';
+import { applyWorkshopStatus } from '../domain/orders.js';
+import {
+  customerOrderReadyEmail,
+  type CustomerEmailQuotationRepository,
+} from '../domain/customer-email.js';
+import type { QuotationRequest } from '../domain/quotation-requests.js';
+import { insertCustomerEmail } from '../infrastructure/customer-email-queue.js';
 
 export interface OrderStatusHistoryEntry {
   status: OrderStatus;
@@ -9,16 +19,29 @@ export interface OrderStatusHistoryEntry {
 }
 
 export interface OrderStore {
+  configureCustomerEmails(repository?: CustomerEmailQuotationRepository): void;
   list(): Promise<PortalOrder[]>;
   listBySourceQuotationIds(quotationIds: string[]): Promise<PortalOrder[]>;
   get(id: string): Promise<PortalOrder | undefined>;
   history(id: string): Promise<OrderStatusHistoryEntry[]>;
   create(order: PortalOrder): Promise<PortalOrder>;
   createMany(orders: PortalOrder[]): Promise<PortalOrder[]>;
+  updateRecommendation(
+    id: string,
+    recommendation: RecommendationResult,
+    constraints: RecommendationRequest['order'],
+    updatedAt: string,
+  ): Promise<PortalOrder | undefined>;
+  updateAutomation(
+    id: string,
+    expectedRevision: number,
+    next: AssignmentAutomation,
+  ): Promise<PortalOrder | undefined>;
   assign(
     id: string,
     assignment: OrderAssignment,
     notifications: WorkshopNotification[],
+    validate?: (orders: PortalOrder[], workshops?: Workshop[]) => void,
   ): Promise<PortalOrder | undefined>;
   updateAllocationStatus(
     id: string,
@@ -34,6 +57,11 @@ export interface OrderStore {
 }
 
 export class MemoryOrderStore implements OrderStore {
+  private emailRepository: CustomerEmailQuotationRepository | undefined;
+  private statusUpdates: Promise<void> = Promise.resolve();
+  configureCustomerEmails(repository?: CustomerEmailQuotationRepository) {
+    this.emailRepository = repository;
+  }
   private readonly orders = new Map<string, PortalOrder>();
   private readonly statusHistory = new Map<string, OrderStatusHistoryEntry[]>();
 
@@ -86,13 +114,53 @@ export class MemoryOrderStore implements OrderStore {
     return result;
   }
 
+  async updateRecommendation(
+    id: string,
+    recommendation: RecommendationResult,
+    constraints: RecommendationRequest['order'],
+    updatedAt: string,
+  ): Promise<PortalOrder | undefined> {
+    const current = this.orders.get(id);
+    if (!current || current.assignment || current.automation?.phase === 'running') return undefined;
+    const updated: PortalOrder = {
+      ...current,
+      recommendation,
+      recommendationOrder: constraints,
+      updatedAt,
+      status: recommendation.candidates.length ? 'recommended' : 'registered',
+    };
+    this.orders.set(id, updated);
+    if (current.status !== updated.status) this.recordStatus(id, updated.status, updatedAt);
+    return updated;
+  }
+
+  async updateAutomation(id: string, expectedRevision: number, next: AssignmentAutomation) {
+    const current = this.orders.get(id);
+    if (
+      !current ||
+      (current.automation?.revision ?? 0) !== expectedRevision ||
+      next.revision !== expectedRevision + 1
+    )
+      return undefined;
+    const updated = { ...current, automation: structuredClone(next) };
+    this.orders.set(id, updated);
+    return updated;
+  }
+
   async assign(
     id: string,
     assignment: OrderAssignment,
     notifications: WorkshopNotification[],
+    validate?: (orders: PortalOrder[], workshops?: Workshop[]) => void,
   ): Promise<PortalOrder | undefined> {
     const current = this.orders.get(id);
     if (!current) return undefined;
+    if (current.assignment) {
+      if (current.assignment.candidateId === assignment.candidateId) return current;
+      throw new OrderAssignmentConflictError();
+    }
+    // No await between validation and write: this is atomic within the memory store.
+    validate?.([...this.orders.values()]);
     const updated: PortalOrder = {
       ...current,
       status: 'assigned',
@@ -113,54 +181,60 @@ export class MemoryOrderStore implements OrderStore {
     workshopId: string,
     status: 'in_production' | 'completed',
     occurredAt: string,
-  ): Promise<PortalOrder | undefined> {
-    const current = this.orders.get(id);
-    if (!current?.assignment) return undefined;
-    const currentAllocations = current.assignment.allocations || [
-      {
-        workshopId: current.assignment.workshopId,
-        displayName: current.assignment.displayName,
-        quantity: current.draft.quantity,
-        status:
-          current.status === 'completed'
-            ? ('completed' as const)
-            : current.status === 'in_production'
-              ? ('in_production' as const)
-              : ('assigned' as const),
-      },
-    ];
-    const allocations = currentAllocations.map((allocation) =>
-      allocation.workshopId === workshopId ? { ...allocation, status } : allocation,
+  ) {
+    return this.updateProductionState(id, (current) =>
+      applyWorkshopStatus(current, workshopId, status, occurredAt),
     );
-    const orderStatus = allocations.every((allocation) => allocation.status === 'completed')
-      ? 'completed'
-      : allocations.some((allocation) => allocation.status !== 'assigned')
-        ? 'in_production'
-        : 'assigned';
-    const updated: PortalOrder = {
-      ...current,
-      status: orderStatus,
-      updatedAt: occurredAt,
-      assignment: { ...current.assignment, allocations },
-    };
-    this.orders.set(id, updated);
-    if (updated.status !== current.status) {
-      this.recordStatus(id, updated.status, updated.updatedAt);
-    }
-    return updated;
   }
 
-  async updateStatus(
+  async updateStatus(id: string, status: OrderStatus, occurredAt: string) {
+    return this.updateProductionState(
+      id,
+      (current) => ({ ...current, status, updatedAt: occurredAt }),
+      true,
+    );
+  }
+
+  private updateProductionState(
     id: string,
-    status: OrderStatus,
-    occurredAt: string,
+    mutate: (current: PortalOrder) => PortalOrder | undefined,
+    recordSameStatus = false,
   ): Promise<PortalOrder | undefined> {
-    const current = this.orders.get(id);
-    if (!current) return undefined;
-    const updated = { ...current, status, updatedAt: occurredAt };
-    this.orders.set(id, updated);
-    this.recordStatus(id, status, occurredAt);
-    return updated;
+    const operation = this.statusUpdates.then(async () => {
+      const current = this.orders.get(id);
+      if (!current) return undefined;
+      const updated = mutate(current);
+      if (!updated) return undefined;
+      this.orders.set(id, updated);
+      try {
+        if (
+          updated.status === 'completed' &&
+          current.status !== 'completed' &&
+          updated.source &&
+          this.emailRepository
+        ) {
+          const quotation = await this.emailRepository.get(updated.source.quotationId);
+          if (quotation) {
+            const projected = [...this.orders.values()].map((order) =>
+              order.id === updated.id ? updated : order,
+            );
+            const job = customerOrderReadyEmail(quotation, projected);
+            if (job) await this.emailRepository.enqueueEmail(job);
+          }
+        }
+      } catch (error) {
+        this.orders.set(id, current);
+        throw error;
+      }
+      if (recordSameStatus || updated.status !== current.status)
+        this.recordStatus(id, updated.status, updated.updatedAt);
+      return updated;
+    });
+    this.statusUpdates = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return operation;
   }
 
   private recordStatus(id: string, status: OrderStatus, occurredAt: string): void {
@@ -170,6 +244,10 @@ export class MemoryOrderStore implements OrderStore {
 }
 
 export class PostgresOrderStore implements OrderStore {
+  private customerEmails = false;
+  configureCustomerEmails(repository?: CustomerEmailQuotationRepository) {
+    this.customerEmails = Boolean(repository);
+  }
   private readonly ready: Promise<void>;
 
   constructor(private readonly pool: Pool) {
@@ -284,24 +362,112 @@ export class PostgresOrderStore implements OrderStore {
     return result;
   }
 
+  async updateRecommendation(
+    id: string,
+    recommendation: RecommendationResult,
+    constraints: RecommendationRequest['order'],
+    updatedAt: string,
+  ): Promise<PortalOrder | undefined> {
+    await this.ready;
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const selected = await client.query<{ payload: PortalOrder }>(
+        'SELECT payload FROM orders WHERE id = $1 FOR UPDATE',
+        [id],
+      );
+      const current = selected.rows[0]?.payload;
+      if (!current || current.assignment || current.automation?.phase === 'running') {
+        await client.query('COMMIT');
+        return undefined;
+      }
+      const updated: PortalOrder = {
+        ...current,
+        recommendation,
+        recommendationOrder: constraints,
+        updatedAt,
+        status: recommendation.candidates.length ? 'recommended' : 'registered',
+      };
+      await client.query(
+        'UPDATE orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
+        [id, updatedAt, updated.status, updated],
+      );
+      if (current.status !== updated.status)
+        await client.query(
+          'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
+          [id, updated.status, updatedAt],
+        );
+      await client.query('COMMIT');
+      return updated;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateAutomation(id: string, expectedRevision: number, next: AssignmentAutomation) {
+    if (next.revision !== expectedRevision + 1) return undefined;
+    await this.ready;
+    const result = await this.pool.query<{ payload: PortalOrder }>(
+      `UPDATE orders SET payload=jsonb_set(payload, '{automation}', $3::jsonb)
+       WHERE id=$1 AND COALESCE((payload->'automation'->>'revision')::int,0)=$2 RETURNING payload`,
+      [id, expectedRevision, JSON.stringify(next)],
+    );
+    return result.rows[0]?.payload;
+  }
+
   async assign(
     id: string,
     assignment: OrderAssignment,
     notifications: WorkshopNotification[],
+    validate?: (orders: PortalOrder[], workshops?: Workshop[]) => void,
   ): Promise<PortalOrder | undefined> {
-    const current = await this.get(id);
-    if (!current) return undefined;
-    const updated: PortalOrder = {
-      ...current,
-      status: 'assigned',
-      assignment,
-      notification: notifications[0]!,
-      notifications,
-      updatedAt: assignment.confirmedAt,
-    };
+    await this.ready;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      // Shared across API instances. One transaction validates and reserves all workshops
+      // of a plan, without lock-order deadlocks for plans involving several workshops.
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended(current_schema() || ':order-assignment-capacity', 0))",
+      );
+      const selected = await client.query<{ payload: PortalOrder }>(
+        'SELECT payload FROM orders WHERE id = $1 FOR UPDATE',
+        [id],
+      );
+      const current = selected.rows[0]?.payload;
+      if (!current) {
+        await client.query('COMMIT');
+        return undefined;
+      }
+      if (current.assignment) {
+        if (current.assignment.candidateId !== assignment.candidateId)
+          throw new OrderAssignmentConflictError();
+        await client.query('COMMIT');
+        return current;
+      }
+      const active = await client.query<{ payload: PortalOrder }>(
+        "SELECT payload FROM orders WHERE status <> 'completed'",
+      );
+      const workshopRows = validate
+        ? await client.query<{ payload: Workshop }>(
+            'SELECT payload FROM workshops ORDER BY id FOR SHARE',
+          )
+        : undefined;
+      validate?.(
+        active.rows.map((row) => row.payload),
+        workshopRows?.rows.map((row) => row.payload),
+      );
+      const updated: PortalOrder = {
+        ...current,
+        status: 'assigned',
+        assignment,
+        notification: notifications[0]!,
+        notifications,
+        updatedAt: assignment.confirmedAt,
+      };
       await client.query(
         'UPDATE orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
         [id, updated.updatedAt, updated.status, updated],
@@ -312,13 +478,13 @@ export class PostgresOrderStore implements OrderStore {
         [id, updated.status, updated.updatedAt],
       );
       await client.query('COMMIT');
+      return updated;
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();
     }
-    return updated;
   }
 
   async updateAllocationStatus(
@@ -326,56 +492,56 @@ export class PostgresOrderStore implements OrderStore {
     workshopId: string,
     status: 'in_production' | 'completed',
     occurredAt: string,
-  ): Promise<PortalOrder | undefined> {
-    const current = await this.get(id);
-    if (!current?.assignment) return undefined;
-    const currentAllocations = current.assignment.allocations || [
-      {
-        workshopId: current.assignment.workshopId,
-        displayName: current.assignment.displayName,
-        quantity: current.draft.quantity,
-        status:
-          current.status === 'completed'
-            ? ('completed' as const)
-            : current.status === 'in_production'
-              ? ('in_production' as const)
-              : ('assigned' as const),
-      },
-    ];
-    const allocations = currentAllocations.map((allocation) =>
-      allocation.workshopId === workshopId ? { ...allocation, status } : allocation,
+  ) {
+    return this.updateProductionState(id, (current) =>
+      applyWorkshopStatus(current, workshopId, status, occurredAt),
     );
-    const orderStatus = allocations.every((allocation) => allocation.status === 'completed')
-      ? 'completed'
-      : allocations.some((allocation) => allocation.status !== 'assigned')
-        ? 'in_production'
-        : 'assigned';
-    const updated: PortalOrder = {
-      ...current,
-      status: orderStatus,
-      updatedAt: occurredAt,
-      assignment: { ...current.assignment, allocations },
-    };
-    await this.persistUpdate(updated, current.status);
-    return updated;
   }
 
-  private async persistUpdate(updated: PortalOrder, previousStatus: OrderStatus): Promise<void> {
+  async updateStatus(id: string, status: OrderStatus, occurredAt: string) {
+    return this.updateProductionState(
+      id,
+      (current) => ({ ...current, status, updatedAt: occurredAt }),
+      true,
+    );
+  }
+
+  private async updateProductionState(
+    id: string,
+    mutate: (current: PortalOrder) => PortalOrder | undefined,
+    recordSameStatus = false,
+  ): Promise<PortalOrder | undefined> {
+    await this.ready;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query(
-        'UPDATE orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
-        [updated.id, updated.updatedAt, updated.status, updated],
+      const row = await client.query<{ payload: PortalOrder }>(
+        'SELECT payload FROM orders WHERE id=$1 FOR UPDATE',
+        [id],
       );
+      const current = row.rows[0]?.payload;
+      const updated = current ? mutate(current) : undefined;
+      if (!current || !updated) {
+        await client.query('COMMIT');
+        return undefined;
+      }
+      await client.query('UPDATE orders SET updated_at=$2, status=$3, payload=$4 WHERE id=$1', [
+        id,
+        updated.updatedAt,
+        updated.status,
+        updated,
+      ]);
       await this.replaceAssignment(client, updated);
-      if (updated.status !== previousStatus) {
+      if (recordSameStatus || updated.status !== current.status) {
         await client.query(
-          'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
-          [updated.id, updated.status, updated.updatedAt],
+          'INSERT INTO order_status_history (order_id,status,occurred_at) VALUES ($1,$2,$3)',
+          [id, updated.status, updated.updatedAt],
         );
       }
+      if (updated.status === 'completed' && current.status !== 'completed')
+        await this.recordReadyEmail(client, updated);
       await client.query('COMMIT');
+      return updated;
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -384,34 +550,23 @@ export class PostgresOrderStore implements OrderStore {
     }
   }
 
-  async updateStatus(
-    id: string,
-    status: OrderStatus,
-    occurredAt: string,
-  ): Promise<PortalOrder | undefined> {
-    const current = await this.get(id);
-    if (!current) return undefined;
-    const updated = { ...current, status, updatedAt: occurredAt };
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(
-        'UPDATE orders SET updated_at = $2, status = $3, payload = $4 WHERE id = $1',
-        [id, occurredAt, status, updated],
-      );
-      await this.replaceAssignment(client, updated);
-      await client.query(
-        'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
-        [id, status, occurredAt],
-      );
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-    return updated;
+  private async recordReadyEmail(client: PoolClient, order: PortalOrder): Promise<void> {
+    if (!this.customerEmails || !order.source || order.previewOnly || order.testOnly) return;
+    const row = await client.query<{ payload: QuotationRequest }>(
+      'SELECT payload FROM quotation_requests WHERE id=$1 FOR UPDATE',
+      [order.source.quotationId],
+    );
+    const quotation = row.rows[0]?.payload;
+    if (!quotation) return;
+    const related = await client.query<{ payload: PortalOrder }>(
+      'SELECT payload FROM orders WHERE source_quotation_id=$1 OR id=ANY($2::text[])',
+      [quotation.id, quotation.production?.orderIds ?? []],
+    );
+    const job = customerOrderReadyEmail(
+      quotation,
+      related.rows.map((row) => row.payload),
+    );
+    if (job) await insertCustomerEmail(client, job);
   }
 
   private orderValues(order: PortalOrder): unknown[] {
@@ -441,10 +596,11 @@ export class PostgresOrderStore implements OrderStore {
   private async replaceOrderDetails(client: PoolClient, order: PortalOrder): Promise<void> {
     await client.query('DELETE FROM order_sizes WHERE order_id = $1', [order.id]);
     for (const [size, quantity] of Object.entries(order.draft.sizes)) {
-      await client.query(
-        'INSERT INTO order_sizes (order_id, size, quantity) VALUES ($1, $2, $3)',
-        [order.id, size, quantity],
-      );
+      await client.query('INSERT INTO order_sizes (order_id, size, quantity) VALUES ($1, $2, $3)', [
+        order.id,
+        size,
+        quantity,
+      ]);
     }
 
     await client.query('DELETE FROM order_processes WHERE order_id = $1', [order.id]);

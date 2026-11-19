@@ -6,6 +6,27 @@ CREATE TABLE IF NOT EXISTS quotation_requests (
   payload jsonb NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS customer_profiles (
+  subject text NOT NULL,
+  email text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT current_timestamp,
+  profile jsonb NOT NULL,
+  PRIMARY KEY (subject, email)
+);
+
+CREATE TABLE IF NOT EXISTS customer_email_jobs (
+  id text PRIMARY KEY,
+  quotation_id text NOT NULL REFERENCES quotation_requests(id),
+  state text NOT NULL CHECK (state IN ('pending','processing','accepted','failed','uncertain','superseded')),
+  next_attempt_at timestamptz NOT NULL,
+  claimed_at timestamptz,
+  claim_token text,
+  payload jsonb NOT NULL
+);
+CREATE INDEX IF NOT EXISTS customer_email_jobs_pending
+  ON customer_email_jobs (next_attempt_at, id) WHERE state='pending';
+CREATE INDEX IF NOT EXISTS customer_email_jobs_quotation ON customer_email_jobs (quotation_id);
+
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -278,8 +299,24 @@ CREATE TABLE IF NOT EXISTS workshop_availability (
   production_rate_quantity numeric(14, 3) CHECK (production_rate_quantity > 0),
   production_rate_days numeric(10, 3) CHECK (production_rate_days > 0),
   specialization_profile jsonb,
-  CHECK (maximum_units >= minimum_units)
+  CHECK (maximum_units >= minimum_units OR COALESCE(capacity_planning_mode = 'throughput', false))
 );
+
+-- Throughput capacity is calculated from the rate and deadline, not this legacy
+-- fixed-capacity ceiling. Preserve that ceiling for fixed and legacy profiles.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'workshop_availability'::regclass
+      AND conname = 'workshop_availability_check'
+      AND pg_get_constraintdef(oid) NOT LIKE '%capacity_planning_mode%'
+  ) THEN
+    ALTER TABLE workshop_availability DROP CONSTRAINT workshop_availability_check;
+    ALTER TABLE workshop_availability ADD CONSTRAINT workshop_availability_check
+      CHECK (maximum_units >= minimum_units OR COALESCE(capacity_planning_mode = 'throughput', false));
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS order_assignments (
   order_id text PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,

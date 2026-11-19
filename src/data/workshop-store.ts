@@ -41,7 +41,7 @@ export class PostgresWorkshopStore implements WorkshopStore {
 
   private async initialize(initial: Workshop[]): Promise<void> {
     await ensurePostgresSchema(this.pool);
-    if (initial.length > 0) await this.persistAll(initial, new Date().toISOString());
+    if (initial.length > 0) await this.persistAll(initial, new Date().toISOString(), false);
   }
 
   async list(): Promise<Workshop[]> {
@@ -66,23 +66,31 @@ export class PostgresWorkshopStore implements WorkshopStore {
     await this.persistAll(workshops, updatedAt);
   }
 
-  private async persistAll(workshops: Workshop[], updatedAt: string): Promise<void> {
+  private async persistAll(
+    workshops: Workshop[],
+    updatedAt: string,
+    replaceExisting = true,
+  ): Promise<void> {
     const validated = workshops.map((workshop) => workshopSchema.parse(workshop));
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       for (const workshop of validated) {
-        await client.query(
+        const saved = await client.query(
           `INSERT INTO workshops
             (id, updated_at, display_name, contact_phone, provider_type, evidence_level, payload)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
-           ON CONFLICT (id) DO UPDATE
+           ON CONFLICT (id) ${
+             replaceExisting
+               ? `DO UPDATE
            SET updated_at = EXCLUDED.updated_at,
                display_name = EXCLUDED.display_name,
                contact_phone = EXCLUDED.contact_phone,
                provider_type = EXCLUDED.provider_type,
                evidence_level = EXCLUDED.evidence_level,
-               payload = EXCLUDED.payload`,
+               payload = EXCLUDED.payload`
+               : 'DO NOTHING'
+           }`,
           [
             workshop.id,
             updatedAt,
@@ -93,6 +101,7 @@ export class PostgresWorkshopStore implements WorkshopStore {
             workshop,
           ],
         );
+        if (!replaceExisting && saved.rowCount === 0) continue;
         await client.query('DELETE FROM workshop_capabilities WHERE workshop_id = $1', [
           workshop.id,
         ]);

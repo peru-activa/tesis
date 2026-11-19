@@ -1,4 +1,8 @@
+import type { DeliveryEstimate } from './delivery-estimate.js';
+import type { PreviewScope } from './preview-scope.js';
 import { z } from 'zod';
+import { designTextSchema } from './design-text.js';
+import type { WorkshopScope } from './workshop-scope.js';
 import type { QuotationOwner } from './identity.js';
 import { fabricBuyerSchema, poloTypeSchema } from './contracts.js';
 
@@ -69,19 +73,42 @@ const acceptedDesignMediaTypes = [
   'application/pdf',
 ] as const;
 
-const designAttachmentSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  mediaType: z.enum(acceptedDesignMediaTypes),
-  sizeBytes: z.number().int().positive().max(2_000_000),
-  dataUrl: z
-    .string()
-    .max(2_700_000)
-    .refine(
-      (value) =>
-        acceptedDesignMediaTypes.some((mediaType) => value.startsWith(`data:${mediaType};base64,`)),
-      'El archivo adjunto no tiene un formato permitido.',
-    ),
-});
+const designAttachmentSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    mediaType: z.enum(acceptedDesignMediaTypes),
+    sizeBytes: z.number().int().positive().max(2_000_000),
+    dataUrl: z
+      .string()
+      .max(2_700_000)
+      .refine(
+        (value) =>
+          acceptedDesignMediaTypes.some((mediaType) =>
+            value.startsWith(`data:${mediaType};base64,`),
+          ),
+        'El archivo adjunto no tiene un formato permitido.',
+      ),
+    text: designTextSchema.optional(),
+    preview: z
+      .object({
+        backgroundMode: z.enum(['auto', 'keep', 'remove']),
+        backgroundColor: z
+          .string()
+          .regex(/^#[0-9a-f]{6}$/i)
+          .optional(),
+        inkColor: z
+          .string()
+          .regex(/^#[0-9a-f]{6}$/i)
+          .optional(),
+        tolerance: z.number().int().min(2).max(80).optional(),
+        removeEnclosed: z.boolean().optional(),
+      })
+      .optional(),
+  })
+  .refine(
+    (attachment) => !attachment.text || attachment.mediaType === 'image/png',
+    'El texto debe guardarse como una imagen PNG.',
+  );
 
 const designApplicationSchema = z.object({
   placement: z.string().trim().max(120),
@@ -305,7 +332,7 @@ export interface BuyerDecision {
   respondedAt: string;
 }
 
-export interface QuotationRequest {
+export interface QuotationRequest extends WorkshopScope, PreviewScope {
   id: string;
   createdAt: string;
   updatedAt: string;
@@ -314,8 +341,10 @@ export interface QuotationRequest {
   request: QuotationRequestDraft;
   quotation?: SellerQuotation;
   buyerDecision?: BuyerDecision;
+  deliveryEstimate?: DeliveryEstimate;
   production?: {
-    status: 'recommended' | 'partially_recommended' | 'no_eligible_workshop' | 'requires_scope_decision';
+    status:
+      'recommended' | 'partially_recommended' | 'no_eligible_workshop' | 'requires_scope_decision';
     orderIds: string[];
     message: string;
   };

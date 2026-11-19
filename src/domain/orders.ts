@@ -1,5 +1,13 @@
+import type { PreviewScope } from './preview-scope.js';
+import type { AssignmentAutomation } from './assignment-plans.js';
 import { z } from 'zod';
-import type { FabricBuyer, Process, RecommendationResult } from './contracts.js';
+import type { WorkshopScope } from './workshop-scope.js';
+import type {
+  FabricBuyer,
+  Process,
+  RecommendationResult,
+  RecommendationRequest,
+} from './contracts.js';
 import type { WorkshopNotification } from './workshop-notifications.js';
 
 const sizesSchema = z
@@ -57,8 +65,12 @@ export interface OrderAssignment {
   }>;
 }
 
-export interface PortalOrder {
+export interface PortalOrder extends WorkshopScope, PreviewScope {
+  routeTiming?: RecommendationRequest['routeTiming'];
+  handoffDays?: number;
   id: string;
+  /** Explicit technical fixture, excluded from operational workshop selection. */
+  testOnly?: boolean;
   createdAt: string;
   updatedAt: string;
   status: OrderStatus;
@@ -66,7 +78,12 @@ export interface PortalOrder {
   requiredProcesses: Process[];
   fabricBuyer?: FabricBuyer;
   recommendation: RecommendationResult;
+  /** Original constraints retained to revalidate capacity at confirmation. */
+  recommendationOrder?: RecommendationRequest['order'];
+  /** Fixed planning clock for reproducible replay; live orders use confirmation time. */
+  planningAt?: string;
   assignment?: OrderAssignment;
+  automation?: AssignmentAutomation;
   notification?: WorkshopNotification;
   notifications?: WorkshopNotification[];
   simulation?: {
@@ -78,5 +95,49 @@ export interface PortalOrder {
     type: 'quotation';
     quotationId: string;
     garmentIndex: number;
+  };
+}
+
+export class OrderAssignmentConflictError extends Error {
+  constructor() {
+    super('order_already_assigned');
+  }
+}
+
+export function applyWorkshopStatus(
+  current: PortalOrder,
+  workshopId: string,
+  status: 'in_production' | 'completed',
+  occurredAt: string,
+): PortalOrder | undefined {
+  if (!current.assignment) return undefined;
+  const previous = current.assignment.allocations || [
+    {
+      workshopId: current.assignment.workshopId,
+      displayName: current.assignment.displayName,
+      quantity: current.draft.quantity,
+      status:
+        current.status === 'completed'
+          ? ('completed' as const)
+          : current.status === 'in_production'
+            ? ('in_production' as const)
+            : ('assigned' as const),
+    },
+  ];
+  const allocations = previous.map((allocation) =>
+    allocation.workshopId === workshopId ? { ...allocation, status } : allocation,
+  );
+  const nextStatus: OrderStatus = allocations.every(
+    (allocation) => allocation.status === 'completed',
+  )
+    ? 'completed'
+    : allocations.some((allocation) => allocation.status !== 'assigned')
+      ? 'in_production'
+      : 'assigned';
+  return {
+    ...current,
+    status: nextStatus,
+    updatedAt: occurredAt,
+    assignment: { ...current.assignment, allocations },
   };
 }
