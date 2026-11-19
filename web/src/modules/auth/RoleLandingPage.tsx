@@ -1,16 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { UserRole } from '../../../../src/domain/identity';
+import { portalHomeByRole } from '../../../../src/domain/portal-navigation';
 import { PeruActivaHeader } from '../../components/PeruActivaHeader';
-
-type SessionRole = 'client' | 'peru_activa' | 'workshop';
-
-const destinationByRole: Record<SessionRole, string> = {
-  client: '/mis-pedidos',
-  peru_activa: '/peru-activa',
-  workshop: '/taller',
-};
+import { DelayedLoading } from '../../components/DelayedLoading';
 
 export function RoleLandingPage() {
+  return <PortalRoleGate />;
+}
+
+export function PortalRoleGate({
+  allowedRole,
+  children,
+}: {
+  allowedRole?: UserRole;
+  children?: ReactNode;
+}) {
   const [error, setError] = useState('');
+  const [role, setRole] = useState<UserRole>();
 
   useEffect(() => {
     let active = true;
@@ -18,10 +24,16 @@ export function RoleLandingPage() {
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.message || 'No se pudo reconocer tu cuenta.');
-        return payload.identity.role as SessionRole;
+        const role: unknown = payload.identity?.role;
+        if (role !== 'client' && role !== 'peru_activa' && role !== 'workshop') {
+          throw new Error('No se pudo reconocer el rol de tu cuenta.');
+        }
+        return role;
       })
       .then((role) => {
-        if (active) window.location.replace(destinationByRole[role]);
+        if (!active) return;
+        if (role === allowedRole) setRole(role);
+        else window.location.replace(portalHomeByRole[role]);
       })
       .catch((cause) => {
         if (active) setError(cause instanceof Error ? cause.message : 'No se pudo ingresar.');
@@ -29,16 +41,21 @@ export function RoleLandingPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [allowedRole]);
+
+  if (allowedRole && role === allowedRole) return children;
 
   return (
     <div className="quote-demo role-landing-shell">
       <PeruActivaHeader />
-      <main className="role-landing-card" aria-live="polite">
-        <p className="quote-kicker">PERÚ ACTIVA</p>
-        <h1>Ingresando a tu cuenta</h1>
-        <p>{error || 'Estamos preparando la vista que corresponde a tu usuario…'}</p>
-      </main>
+      {error ? (
+        <main className="role-landing-card" aria-live="polite">
+          <h1>No pudimos ingresar</h1>
+          <p role="alert">{error}</p>
+        </main>
+      ) : (
+        <DelayedLoading label="Cargando tu cuenta…" />
+      )}
     </div>
   );
 }
