@@ -29,3 +29,6 @@ scripts/check-no-ai.mjs
 scripts/entregas/r5-historical-comparison.mjs
 web/public/catalog/buzo-microtec-referencial.png
 web/public/catalog/polo-zanetti-referencial.png
+
+# Local generated previews and checks.
+/output/

@@ -1,3 +1,4 @@
+import { RECOMMENDATION_VERSION } from './contracts.js';
 import type {
   RankedCandidate,
   RecommendationRequest,
@@ -6,7 +7,7 @@ import type {
 } from './contracts.js';
 import { recommendWorkshops } from './recommend.js';
 
-export const GENETIC_ALGORITHM_VERSION = 'ga-0.6.0';
+export const GENETIC_ALGORITHM_VERSION = 'ga-0.8.0';
 
 export interface GeneticParameters {
   populationSize: number;
@@ -194,7 +195,7 @@ export function recommendWorkshopsGenetically(
     evaluations,
     convergence,
     result: {
-      algorithmVersion: '0.6.0',
+      algorithmVersion: RECOMMENDATION_VERSION,
       orderId: request.order.id,
       evaluatedAt: request.evaluatedAt,
       candidates,
