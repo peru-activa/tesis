@@ -1,8 +1,10 @@
+import { confirmRadioChoice } from './ChoiceTransition';
 import { useEffect, useRef } from 'react';
 import type { FabricOption } from './quotationCatalog';
 
 interface FabricPickerProps {
   inputName: string;
+  validationFields?: string;
   options: readonly FabricOption[];
   selected?: FabricOption;
   selectedName?: string;
@@ -20,6 +22,7 @@ interface FabricPickerProps {
 
 export function FabricPicker({
   inputName,
+  validationFields,
   options,
   selected,
   selectedName,
@@ -48,11 +51,17 @@ export function FabricPicker({
   }, [isCustom, selectedName]);
 
   return (
-    <fieldset>
+    <fieldset data-validation-fields={validationFields}>
       <legend className="quote-field-label">Tela / calidad</legend>
       <div className="quote-selected-fabric">
         {selected ? (
-          <img src={selected.image} alt="" />
+          selected.image ? (
+            <img src={selected.image} alt="" />
+          ) : (
+            <span className="quote-fabric-placeholder" aria-label="Muestra no disponible">
+              ?
+            </span>
+          )
         ) : (
           <span className="quote-fabric-placeholder">?</span>
         )}
@@ -82,8 +91,20 @@ export function FabricPicker({
                   value={option.name}
                   checked={selected?.name === option.name}
                   onChange={() => onSelect(option)}
+                  onKeyDown={(event) =>
+                    confirmRadioChoice(event, event.currentTarget.checked, () => onSelect(option))
+                  }
+                  onClick={() => {
+                    if (selected?.name === option.name) onSelect(option);
+                  }}
                 />
-                <img src={option.image} alt="" />
+                {option.image ? (
+                  <img src={option.image} alt="" />
+                ) : (
+                  <span className="quote-fabric-placeholder" aria-label="Muestra no disponible">
+                    ?
+                  </span>
+                )}
                 <span>
                   {option.title}
                   <small>{option.description}</small>
@@ -100,6 +121,12 @@ export function FabricPicker({
                 value="proposal"
                 checked={isProposal}
                 onChange={onSelectProposal}
+                onKeyDown={(event) =>
+                  confirmRadioChoice(event, event.currentTarget.checked, onSelectProposal)
+                }
+                onClick={() => {
+                  if (isProposal) onSelectProposal();
+                }}
               />
               No sé cuál elegir
             </label>
@@ -111,6 +138,13 @@ export function FabricPicker({
                 value="custom"
                 checked={isCustom}
                 onChange={onSelectCustom}
+                onKeyDown={(event) =>
+                  confirmRadioChoice(
+                    event,
+                    event.currentTarget.checked,
+                    isCustom ? () => customInputRef.current?.focus() : onSelectCustom,
+                  )
+                }
               />
               Otra tela
             </label>

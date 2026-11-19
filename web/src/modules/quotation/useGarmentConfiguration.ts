@@ -4,6 +4,7 @@ import type { QuotationRequestDraft } from '../../../../src/domain/quotation-req
 import {
   fabricsByProduct,
   findFabricOption,
+  findPoloPreview,
   poloCollars,
   poloCuts,
   poloSleeves,
@@ -13,7 +14,12 @@ import {
   type PoloSleeve,
   type TextOption,
 } from './quotationCatalog';
-import { garmentField, type Garment, type GarmentPath } from './quotationFormModel';
+import {
+  hasCompleteGarmentOptions,
+  garmentField,
+  type Garment,
+  type GarmentPath,
+} from './quotationFormModel';
 
 type EditorMode = 'collar' | 'cut' | 'sleeve' | 'fabric' | 'custom-fabric' | 'complete';
 
@@ -38,6 +44,7 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
       Boolean(selectedFabric),
     ),
   );
+  const [lastConfirmed, setLastConfirmed] = useState<EditorMode>();
   const [previewedCollar, setPreviewedCollar] = useState<PoloCollarOption>();
   const [previewedCut, setPreviewedCut] = useState<TextOption<PoloCut>>();
   const [previewedSleeve, setPreviewedSleeve] = useState<TextOption<PoloSleeve>>();
@@ -52,12 +59,7 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
   const previewCut = previewedCut ?? selectedCut;
   const previewSleeve = previewedSleeve ?? selectedSleeve;
   const previewFabric = previewedFabric ?? selectedFabric;
-  const hasFabricSelection =
-    garment.fabric.mode === 'proposal' || Boolean(fabricName?.trim().length);
-  const configurationComplete =
-    (garment.product === 'buzo' ||
-      (Boolean(selectedCollar) && Boolean(selectedCut) && Boolean(selectedSleeve))) &&
-    hasFabricSelection;
+  const configurationComplete = hasCompleteGarmentOptions(garment);
   const optionsExpanded = editorMode !== 'complete';
   const productLabel = garment.product === 'polo' ? 'Polo' : 'Buzo';
   const fabricLabel =
@@ -81,19 +83,15 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
     (garment.fabric.mode === 'proposal'
       ? 'Tela por recomendar'
       : (selectedFabric?.title ?? (customFabric ? fabricName : undefined)));
-  const longSleeve = previewSleeve?.value === 'manga_larga';
+  const poloPreview = findPoloPreview({
+    model: previewCollar.value,
+    cut: previewCut?.value,
+    sleeve: previewSleeve?.value,
+  });
   const previewImage =
-    garment.product === 'polo'
-      ? longSleeve
-        ? previewCollar.longSleeveImage
-        : previewCollar.image
-      : (previewFabric?.image ?? '');
+    garment.product === 'polo' ? (poloPreview?.image ?? '') : (previewFabric?.image ?? '');
   const previewAlt =
-    garment.product === 'polo'
-      ? longSleeve
-        ? previewCollar.longSleeveAlt
-        : previewCollar.alt
-      : (previewFabric?.alt ?? '');
+    garment.product === 'polo' ? (poloPreview?.alt ?? '') : (previewFabric?.alt ?? '');
   const previewTitle =
     garment.product === 'polo'
       ? [previewCollar.value, previewCut?.label, previewSleeve?.label].filter(Boolean).join(' · ')
@@ -116,16 +114,32 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
 
       const targetBox = target.getBoundingClientRect();
       const containerBox = container.getBoundingClientRect();
-      container.scrollTo({
-        top: container.scrollTop + targetBox.top - containerBox.top,
-        behavior: 'smooth',
-      });
+      const minimumVisible = Math.min(targetBox.height, 140);
+      const delta =
+        targetBox.top < containerBox.top
+          ? targetBox.top - containerBox.top
+          : Math.max(0, targetBox.top + minimumVisible - containerBox.bottom);
+      if (delta)
+        container.scrollTo({
+          top: container.scrollTop + delta,
+          behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+            ? 'auto'
+            : 'smooth',
+        });
+      if (lastConfirmed && !target.contains(document.activeElement)) {
+        const legend = target.querySelector('legend');
+        if (legend) {
+          legend.tabIndex = -1;
+          legend.focus({ preventScroll: true });
+        }
+      }
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [editorMode]);
+  }, [editorMode, lastConfirmed]);
 
   function selectCollar(option: PoloCollarOption) {
+    setLastConfirmed('collar');
     setPreviewedCollar(option);
     setValue(garmentField(path, 'model'), option.value, {
       shouldDirty: true,
@@ -135,6 +149,7 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
   }
 
   function selectCut(option: TextOption<PoloCut>) {
+    setLastConfirmed('cut');
     setPreviewedCut(undefined);
     setValue(garmentField(path, 'cut'), option.value, {
       shouldDirty: true,
@@ -148,6 +163,7 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
   }
 
   function selectSleeve(option: TextOption<PoloSleeve>) {
+    setLastConfirmed('sleeve');
     setPreviewedSleeve(undefined);
     setValue(garmentField(path, 'sleeve'), option.value, {
       shouldDirty: true,
@@ -157,6 +173,7 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
   }
 
   function selectFabric(option: FabricOption) {
+    setLastConfirmed('fabric');
     setPreviewedFabric(option);
     setValue(
       garmentField(path, 'fabric'),
@@ -167,6 +184,7 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
   }
 
   function selectFabricProposal() {
+    setLastConfirmed('fabric');
     setPreviewedFabric(undefined);
     setValue(
       garmentField(path, 'fabric'),
@@ -215,10 +233,15 @@ export function useGarmentConfiguration(garment: Garment, path: GarmentPath) {
   }
 
   function commitCustomFabric() {
-    if ((fabricName?.trim().length ?? 0) >= 2) setEditorMode('complete');
+    if ((fabricName?.trim().length ?? 0) >= 2) {
+      setLastConfirmed('fabric');
+      setEditorMode('complete');
+    }
   }
 
   return {
+    configurationComplete,
+    lastConfirmed,
     collarOptions: poloCollars,
     commitCustomFabric,
     customFabric,

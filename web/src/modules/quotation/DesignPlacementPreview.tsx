@@ -1,25 +1,23 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { DesignAttachment } from './designAttachment';
-import { RecolorableGarmentImage } from './RecolorableGarmentImage';
 
-type View = 'front' | 'back';
+import { GarmentDesignCanvas } from './GarmentDesignCanvas';
+import { DesignLogo } from './DesignLogo';
+import {
+  clamp,
+  constrainTransform,
+  designApplicationLabel,
+  designLogoStyle,
+  parseTransform,
+  serializeTransform,
+  availableGarmentViews,
+  garmentViews,
+  type View,
+  type LogoTransform,
+  type PreviewApplication,
+} from './designPreviewModel';
+
 type InteractionMode = 'drag' | 'resize';
-
-interface LogoTransform {
-  view: View;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface PreviewApplication {
-  attachment?: DesignAttachment;
-  placement: string;
-  method?: 'printing' | 'embroidery' | 'sublimation' | 'vinyl';
-  widthCm?: number;
-  heightCm?: number;
-}
 
 const methodInitials = {
   embroidery: 'B',
@@ -28,40 +26,6 @@ const methodInitials = {
   vinyl: 'V',
 } as const;
 
-const DEFAULT_TRANSFORM: LogoTransform = {
-  view: 'front',
-  x: 52,
-  y: 40,
-  width: 16,
-  height: 10,
-};
-const TRANSFORM_PATTERN =
-  /^(Frente|Espalda) · posición (\d+(?:\.\d+)?)%, (\d+(?:\.\d+)?)% · tamaño (\d+(?:\.\d+)?)%$/;
-
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.min(maximum, Math.max(minimum, value));
-}
-
-function parseTransform(value: string): LogoTransform {
-  const match = value.match(TRANSFORM_PATTERN);
-  if (match) {
-    return {
-      view: match[1] === 'Espalda' ? 'back' : 'front',
-      x: clamp(Number(match[2]), 5, 95),
-      y: clamp(Number(match[3]), 5, 95),
-      width: clamp(Number(match[4]), 8, 45),
-      height: clamp(Number(match[4]), 5, 45),
-    };
-  }
-  if (value === 'Espalda') return { ...DEFAULT_TRANSFORM, view: 'back', x: 50, y: 42 };
-  return DEFAULT_TRANSFORM;
-}
-
-function serializeTransform(transform: LogoTransform): string {
-  const view = transform.view === 'front' ? 'Frente' : 'Espalda';
-  return `${view} · posición ${Math.round(transform.x)}%, ${Math.round(transform.y)}% · tamaño ${Math.round(transform.width)}%`;
-}
-
 export function DesignPlacementPreview({
   attachment,
   applications,
@@ -69,6 +33,11 @@ export function DesignPlacementPreview({
   color,
   garmentImage,
   garmentAlt,
+  garmentBackImage,
+  garmentBackAlt,
+  sleeve,
+  view,
+  onViewChange,
   placement,
   onSelectApplication,
   onAddApplication,
@@ -83,6 +52,11 @@ export function DesignPlacementPreview({
   color: string;
   garmentImage?: string;
   garmentAlt?: string;
+  garmentBackImage?: string;
+  garmentBackAlt?: string;
+  sleeve?: string;
+  view: View;
+  onViewChange: (view: View) => void;
   placement: string;
   onSelectApplication: (index: number) => void;
   onAddApplication: () => void;
@@ -104,14 +78,16 @@ export function DesignPlacementPreview({
   >(undefined);
   const isImage = attachment?.mediaType.startsWith('image/') ?? false;
 
+  const widthCm = applications[activeApplication]?.widthCm;
+  const heightCm = applications[activeApplication]?.heightCm;
+
   useEffect(() => {
     const next = parseTransform(placement);
-    const application = applications[activeApplication];
-    if (application?.widthCm) next.width = clamp(application.widthCm * 2, 2, 90);
-    if (application?.heightCm) next.height = clamp(application.heightCm * 2, 2, 90);
+    if (widthCm) next.width = widthCm * 2;
+    if (heightCm) next.height = heightCm * 2;
     transformRef.current = next;
     setTransform(next);
-  }, [activeApplication, applications, placement]);
+  }, [activeApplication, widthCm, heightCm, placement]);
 
   useEffect(() => {
     if (attachment && !placement.trim()) {
@@ -120,13 +96,15 @@ export function DesignPlacementPreview({
   }, [activeApplication, attachment, onPlacementChange, placement]);
 
   function updateTransform(next: LogoTransform, commit = false) {
-    transformRef.current = next;
-    setTransform(next);
-    if (commit) onPlacementChange(serializeTransform(next));
+    const constrained = constrainTransform(next);
+    transformRef.current = constrained;
+    setTransform(constrained);
+    if (commit) onPlacementChange(serializeTransform(constrained));
   }
 
-  function selectView(view: View) {
-    updateTransform({ ...transformRef.current, view }, true);
+  function selectApplication(index: number) {
+    onViewChange(parseTransform(applications[index]?.placement ?? '').view);
+    onSelectApplication(index);
   }
 
   function startInteraction(event: PointerEvent<HTMLElement>, mode: InteractionMode) {
@@ -151,8 +129,20 @@ export function DesignPlacementPreview({
     const deltaX = ((event.clientX - active.pointerX) / bounds.width) * 100;
     const deltaY = ((event.clientY - active.pointerY) / bounds.height) * 100;
     if (active.mode === 'resize') {
-      const width = clamp(active.transform.width + deltaX, 2, 90);
-      const height = clamp(active.transform.height + deltaY, 2, 90);
+      const radians = ((active.transform.rotation ?? 0) * Math.PI) / 180;
+      const localX = deltaX * Math.cos(radians) + deltaY * Math.sin(radians);
+      const localY = -deltaX * Math.sin(radians) + deltaY * Math.cos(radians);
+      const change =
+        Math.abs(localX / active.transform.width) >= Math.abs(localY / active.transform.height)
+          ? localX / active.transform.width
+          : localY / active.transform.height;
+      const scale = clamp(
+        1 + change,
+        Math.max(2 / active.transform.width, 2 / active.transform.height),
+        Math.min(90 / active.transform.width, 90 / active.transform.height),
+      );
+      const width = active.transform.width * scale;
+      const height = active.transform.height * scale;
       updateTransform({
         ...active.transform,
         width,
@@ -161,15 +151,10 @@ export function DesignPlacementPreview({
       return;
     }
 
-    const halfWidth = active.transform.width / 2;
     updateTransform({
       ...active.transform,
-      x: clamp(active.transform.x + deltaX, halfWidth, 100 - halfWidth),
-      y: clamp(
-        active.transform.y + deltaY,
-        active.transform.height / 2,
-        100 - active.transform.height / 2,
-      ),
+      x: active.transform.x + deltaX,
+      y: active.transform.y + deltaY,
     });
   }
 
@@ -198,8 +183,8 @@ export function DesignPlacementPreview({
     updateTransform(
       {
         ...current,
-        x: clamp(current.x + delta[0], current.width / 2, 100 - current.width / 2),
-        y: clamp(current.y + delta[1], current.height / 2, 100 - current.height / 2),
+        x: current.x + delta[0],
+        y: current.y + delta[1],
       },
       true,
     );
@@ -209,10 +194,16 @@ export function DesignPlacementPreview({
     if (event.key !== '+' && event.key !== '-' && event.key !== '=') return;
     event.preventDefault();
     const amount = event.key === '-' ? -2 : 2;
+    const current = transformRef.current;
+    const scale = clamp(
+      1 + amount / current.width,
+      Math.max(2 / current.width, 2 / current.height),
+      Math.min(90 / current.width, 90 / current.height),
+    );
     const next = {
-      ...transformRef.current,
-      width: clamp(transformRef.current.width + amount, 2, 90),
-      height: clamp(transformRef.current.height + amount, 2, 90),
+      ...current,
+      width: current.width * scale,
+      height: current.height * scale,
     };
     updateTransform(next, true);
     onSizeChange(next.width / 2, next.height / 2);
@@ -232,12 +223,12 @@ export function DesignPlacementPreview({
                   <button
                     type="button"
                     className={activeApplication === index ? 'selected' : ''}
-                    aria-label={`Editar Logo ${index + 1}`}
+                    aria-label={`Editar ${designApplicationLabel(application.attachment, index)}`}
                     aria-pressed={activeApplication === index}
-                    onClick={() => onSelectApplication(index)}
+                    onClick={() => selectApplication(index)}
                   >
                     {application.attachment.mediaType.startsWith('image/') ? (
-                      <img src={application.attachment.dataUrl} alt="" />
+                      <DesignLogo attachment={application.attachment} alt="" thumbnail />
                     ) : (
                       <span>PDF</span>
                     )}
@@ -245,7 +236,7 @@ export function DesignPlacementPreview({
                   <button
                     className="quote-design-logo-delete"
                     type="button"
-                    aria-label={`Eliminar Logo ${index + 1}`}
+                    aria-label={`Eliminar ${designApplicationLabel(application.attachment, index)}`}
                     onClick={() => onDeleteApplication(index)}
                   >
                     ×
@@ -273,83 +264,67 @@ export function DesignPlacementPreview({
             </button>
           </aside>
           <div className="quote-design-view-switch" aria-label="Vista de la prenda">
-            <button
-              type="button"
-              className={transform.view === 'front' ? 'selected' : ''}
-              onClick={() => selectView('front')}
-            >
-              Frente
-            </button>
-            <button
-              type="button"
-              className={transform.view === 'back' ? 'selected' : ''}
-              onClick={() => selectView('back')}
-            >
-              Espalda
-            </button>
+            {availableGarmentViews(sleeve === 'manga_corta' || sleeve === 'manga_larga').map(
+              (side) => (
+                <button
+                  key={side}
+                  type="button"
+                  className={view === side ? 'selected' : ''}
+                  aria-pressed={view === side}
+                  onClick={() => onViewChange(side)}
+                >
+                  {garmentViews[side].label}
+                </button>
+              ),
+            )}
           </div>
-          <div
-            className="quote-design-shirt"
+          <GarmentDesignCanvas
+            view={view}
+            color={color}
+            garmentImage={garmentImage}
+            garmentAlt={garmentAlt}
+            garmentBackImage={garmentBackImage}
+            garmentBackAlt={garmentBackAlt}
+            sleeve={sleeve}
             data-design-canvas
             data-testid="design-canvas"
-            data-view={transform.view}
+            data-view={view}
             onPointerMove={moveLogo}
             onPointerUp={finishInteraction}
             onPointerCancel={finishInteraction}
           >
-            {transform.view === 'front' && garmentImage ? (
-              <RecolorableGarmentImage
-                className="quote-design-product-photo"
-                src={garmentImage}
-                color={color}
-                alt={garmentAlt ?? 'Prenda seleccionada'}
-              />
-            ) : (
-              <svg
-                viewBox="0 0 320 340"
-                role="img"
-                aria-label={`${transform.view === 'front' ? 'Frente' : 'Espalda'} referencial de la prenda`}
-              >
-                <path
-                  className="quote-design-shirt-shadow"
-                  d="M92 31 39 55 8 124l44 22 22-38v205h172V108l22 38 44-22-31-69-53-24-25-18c-13 16-73 16-86 0L92 31Z"
-                />
-                <path
-                  className="quote-design-shirt-body"
-                  style={{ fill: color || '#17243A' }}
-                  d="M92 25 39 49 8 118l44 22 22-38v205h172V102l22 38 44-22-31-69-53-24-25-18c-13 16-73 16-86 0L92 25Z"
-                />
-                <path className="quote-design-shirt-seam" d="M117 8c12 21 74 21 86 0" />
-              </svg>
-            )}
             {applications.map((application, index) => {
               const item = application.attachment;
               if (!item?.mediaType.startsWith('image/')) return null;
               const itemTransform =
                 index === activeApplication ? transform : parseTransform(application.placement);
-              if (itemTransform.view !== transform.view) return null;
-              const style = {
-                left: `${itemTransform.x}%`,
-                top: `${itemTransform.y}%`,
-                width: `${application.widthCm ? application.widthCm * 2 : itemTransform.width}%`,
-                height: `${application.heightCm ? application.heightCm * 2 : itemTransform.height}%`,
-              };
+              if (itemTransform.view !== view) return null;
+              const style = designLogoStyle(
+                index === activeApplication
+                  ? { ...application, widthCm: undefined, heightCm: undefined }
+                  : application,
+                itemTransform,
+              );
               return index === activeApplication ? (
                 <div
                   className="quote-design-logo-manipulator"
                   role="group"
                   tabIndex={0}
-                  aria-label="Logo movible. Arrástralo o usa las flechas del teclado."
+                  aria-label={`${item.text ? 'Texto' : 'Logo'} movible. Arrástralo o usa las flechas del teclado.`}
                   style={style}
                   onPointerDown={(event) => startInteraction(event, 'drag')}
                   onKeyDown={moveWithKeyboard}
                   key={index}
                 >
-                  <img src={item.dataUrl} alt={`Diseño adjunto: ${item.name}`} />
+                  <DesignLogo
+                    attachment={item}
+                    method={application.method}
+                    alt={`Diseño adjunto: ${item.name}`}
+                  />
                   <button
                     type="button"
                     className="quote-design-resize-handle"
-                    aria-label="Cambiar tamaño del logo"
+                    aria-label={item.text ? 'Cambiar tamaño del texto' : 'Cambiar tamaño del logo'}
                     title="Arrastra para cambiar el tamaño"
                     onPointerDown={(event) => startInteraction(event, 'resize')}
                     onKeyDown={resizeWithKeyboard}
@@ -363,37 +338,75 @@ export function DesignPlacementPreview({
                   type="button"
                   aria-label={`Seleccionar Logo ${index + 1} en la prenda`}
                   style={style}
-                  onClick={() => onSelectApplication(index)}
+                  onClick={() => selectApplication(index)}
                   key={index}
                 >
-                  <img src={item.dataUrl} alt={`Diseño adjunto: ${item.name}`} />
+                  <DesignLogo
+                    attachment={item}
+                    method={application.method}
+                    alt={`Diseño adjunto: ${item.name}`}
+                  />
                 </button>
               );
             })}
-            {!attachment ? (
+            {!attachment ||
+            !applications.some(
+              (application) =>
+                application.attachment && parseTransform(application.placement).view === view,
+            ) ? (
               <button
                 className="quote-design-empty-logo"
                 type="button"
-                onClick={onRequestUpload}
+                onClick={attachment ? onAddApplication : onRequestUpload}
                 aria-label="Agregar logo o diseño"
               >
                 <span className="quote-design-empty-logo-icon" aria-hidden="true">
                   +
                 </span>
                 <span>
-                  <strong>Agrega el logo {activeApplication + 1}</strong>
+                  <strong>Agrega un logo {garmentViews[view].at}</strong>
                   <small>Haz clic aquí para subirlo y ubicarlo sobre la prenda</small>
                 </span>
               </button>
             ) : null}
-          </div>
-          <strong className="quote-design-view-caption">
-            {transform.view === 'front' ? 'Tu prenda seleccionada' : 'Vista posterior referencial'}
-          </strong>
-          {isImage ? (
-            <p className="quote-design-drag-hint">
-              Arrastra el logo para moverlo · Usa la esquina para cambiar su tamaño
-            </p>
+          </GarmentDesignCanvas>
+          <strong className="quote-design-view-caption">{garmentViews[view].caption}</strong>
+          {garmentViews[view].kind === 'sleeve' ? (
+            <small className="quote-configured-preview-note">
+              Izquierda y derecha de quien viste la prenda · Arriba: hombro · Abajo: puño
+            </small>
+          ) : null}
+          {attachment && transform.view !== view ? (
+            <button
+              type="button"
+              className="quote-design-move-surface"
+              onClick={() => updateTransform({ ...transformRef.current, view }, true)}
+            >
+              {`Mover ${designApplicationLabel(attachment, activeApplication)}`}{' '}
+              {garmentViews[view].to}
+            </button>
+          ) : null}
+          {isImage && transform.view === view ? (
+            <>
+              <button
+                type="button"
+                className="quote-design-move-surface"
+                onClick={() =>
+                  updateTransform(
+                    {
+                      ...transformRef.current,
+                      rotation: ((transformRef.current.rotation ?? 0) + 90) % 360,
+                    },
+                    true,
+                  )
+                }
+              >
+                Girar diseño 90°
+              </button>
+              <p className="quote-design-drag-hint">
+                Arrastra el logo para moverlo · Usa la esquina para cambiar su tamaño
+              </p>
+            </>
           ) : null}
         </div>
       </div>

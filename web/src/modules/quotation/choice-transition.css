@@ -1,0 +1,128 @@
+/* Keep selection feedback local to the control that the user confirmed. */
+.quote-choice-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  min-width: 0;
+}
+.quote-choice-panel[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.quote-choice-panel-inner {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.quote-choice-panel[aria-hidden='true'] {
+  pointer-events: none;
+}
+.quote-selection-mark {
+  flex: 0 0 auto;
+  width: 1.35rem;
+  height: 1.35rem;
+  overflow: visible;
+}
+.quote-selection-mark circle {
+  fill: var(--quote-navy, #17243a);
+  stroke: var(--quote-thread, #d89b3d);
+  stroke-width: 1.2;
+}
+.quote-selection-mark path {
+  fill: none;
+  stroke: white;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 16;
+  stroke-dashoffset: 0;
+}
+.quote-choice-summary .quote-selected-text-option {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.quote-choice-summary .quote-selected-collar {
+  grid-template-columns: auto 2.6rem minmax(0, 1fr) auto;
+}
+.quote-garment-row-head > strong {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .quote-choice-panel {
+    transition:
+      grid-template-rows 240ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      opacity 180ms ease;
+  }
+  .quote-choice-summary[data-open='true'][data-confirmed='true'] .quote-selection-mark,
+  .quote-garment-row[data-confirmed='true'] .quote-garment-row-head .quote-selection-mark {
+    animation: quote-choice-seal 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .quote-choice-summary[data-open='true'][data-confirmed='true'] .quote-selection-mark path,
+  .quote-garment-row[data-confirmed='true'] .quote-garment-row-head .quote-selection-mark path {
+    animation: quote-choice-check 260ms 70ms ease both;
+  }
+  .quote-choice-summary[data-open='true'][data-confirmed='true'] .quote-selected-collar,
+  .quote-choice-summary[data-open='true'][data-confirmed='true'] .quote-selected-text-option {
+    animation: quote-choice-confirm 650ms ease;
+  }
+  .quote-config-next[data-entering='true'] {
+    animation: quote-choice-reveal 280ms 50ms ease both;
+  }
+  .quote-garment-row-body {
+    transition: height 280ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .quote-add-native.another {
+    animation: quote-choice-reveal 240ms ease both;
+  }
+}
+@keyframes quote-choice-seal {
+  from {
+    transform: scale(0.82);
+    opacity: 0.3;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes quote-choice-check {
+  from {
+    stroke-dashoffset: 16;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes quote-choice-confirm {
+  0%,
+  25% {
+    border-color: var(--quote-thread, #d89b3d);
+    background: #fffbef;
+  }
+  100% {
+    border-color: #cbd5e1;
+    background: #fff;
+  }
+}
+@keyframes quote-choice-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.quote-garment-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.quote-garment-row-head > button {
+  flex-shrink: 0;
+}

@@ -1,0 +1,95 @@
+.quote-configured-sides {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+.quote-configured-sides > figure {
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  justify-items: center;
+}
+.quote-configured-sides > figure[hidden] {
+  display: none;
+}
+.quote-configured-preview-both .quote-configured-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.quote-configured-sides figcaption {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: #657086;
+}
+.quote-design-inspection-frame {
+  pointer-events: none;
+}
+.quote-design-logo-inspect {
+  pointer-events: auto;
+  position: absolute;
+  min-width: 24px;
+  min-height: 24px;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  border-radius: 2px;
+}
+.quote-design-logo-inspect:hover,
+.quote-design-logo-inspect.is-selected,
+.quote-design-logo-inspect:focus-visible {
+  outline: 2px solid #c5212e;
+  outline-offset: 4px;
+}
+.quote-design-number {
+  position: absolute;
+  left: -0.65rem;
+  top: -0.7rem;
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  background: #17243a;
+  color: white;
+  border: 1px solid white;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  font-weight: 750;
+  line-height: 1;
+}
+.quote-design-logo-inspect:hover .quote-design-number,
+.quote-design-logo-inspect.is-selected .quote-design-number {
+  background: #c5212e;
+}
+.quote-design-tooltip {
+  position: absolute;
+  z-index: 5;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 1.7rem;
+  display: grid;
+  gap: 0.25rem;
+  width: fit-content;
+  max-width: calc(100% - 1rem);
+  margin-inline: auto;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #d9dfe8;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 5px 18px #17243a20;
+  color: #17243a;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.quote-design-tooltip small {
+  color: #657086;
+}
+img[data-artwork-state='error'] {
+  outline: 1px dashed #94a3b8;
+  background: #edf1f5;
+}

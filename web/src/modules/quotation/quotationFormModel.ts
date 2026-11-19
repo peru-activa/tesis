@@ -1,6 +1,9 @@
 import type { FieldPath } from 'react-hook-form';
-import type { QuotationRequestDraft } from '../../../../src/domain/quotation-requests';
-import type { Product } from './quotationCatalog';
+import {
+  quotationRequestDraftSchema,
+  type QuotationRequestDraft,
+} from '../../../../src/domain/quotation-requests';
+import { poloCollars, poloCuts, poloSleeves, type Product } from './quotationCatalog';
 
 export type Garment = QuotationRequestDraft['garment'];
 export type GarmentPath = 'garment' | `additionalGarments.${number}`;
@@ -39,4 +42,19 @@ export function createEmptyDraft(requiredBy: string): QuotationRequestDraft {
 
 export function garmentField(path: GarmentPath, field: string): FieldPath<QuotationRequestDraft> {
   return `${path}.${field}` as FieldPath<QuotationRequestDraft>;
+}
+
+export function hasCompleteGarmentOptions(garment: Garment): boolean {
+  return (
+    (garment.product === 'buzo' ||
+      (poloCollars.some((option) => option.value === garment.model) &&
+        poloCuts.some((option) => option.value === garment.cut) &&
+        poloSleeves.some((option) => option.value === garment.sleeve))) &&
+    (garment.fabric.mode === 'proposal' || garment.fabric.name.trim().length >= 2)
+  );
+}
+
+export function hasValidGarmentQuantity(garment: Garment): boolean {
+  return quotationRequestDraftSchema.shape.garment.shape.quantity.safeParse(garment.quantity)
+    .success;
 }

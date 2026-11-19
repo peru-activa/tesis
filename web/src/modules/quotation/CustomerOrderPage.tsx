@@ -1,3 +1,4 @@
+import { QuotationPdfDownloadButton } from './QuotationPdfDownloadButton';
 import { useCallback, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { PeruActivaHeader } from '../../components/PeruActivaHeader';
@@ -6,6 +7,7 @@ import { QuotationRequestSummary } from './QuotationRequestSummary';
 import { productionStage, trackingLabel, type CustomerTrackingItem } from './customerTracking';
 import { isDeliveryDateConfirmed } from '../../../../src/domain/quotation-requests';
 import { DeliveryConfirmationSummary } from './DeliveryConfirmation';
+import { CustomerEmailStatus } from './CustomerEmailStatus';
 
 export function CustomerOrderPage({ quotationId }: { quotationId: string }) {
   const [item, setItem] = useState<CustomerTrackingItem>();
@@ -100,19 +102,20 @@ export function CustomerOrderPage({ quotationId }: { quotationId: string }) {
             </section>
 
             <NextAction item={item} />
+            <CustomerEmailStatus delivery={item.emailDelivery} />
 
             <a
               className="quote-secondary customer-copy-order"
               href={`/nueva-solicitud?copiar=${encodeURIComponent(quotationId)}`}
             >
-              Copiar pedido
+              Repetir pedido
             </a>
             <p className="customer-copy-hint">
               Reutiliza las características y cambia cantidades, tallas y fecha. Recibirás una nueva
               cotización.
             </p>
 
-            {item.productionOrders.length > 0 && <ProductionProgress item={item} />}
+            {item.quotation.status === 'accepted' && <ProductionProgress item={item} />}
             {item.quotation.status === 'accepted' && <GarmentAssignments item={item} />}
 
             {item.quotation.quotation && (
@@ -125,6 +128,7 @@ export function CustomerOrderPage({ quotationId }: { quotationId: string }) {
                       : 'COTIZACIÓN REGISTRADA'}
                 </p>
                 <QuotationPriceBreakdown request={item.quotation} />
+                <QuotationPdfDownloadButton quotationId={quotationId} />
                 <dl>
                   <div>
                     <dt>Tela ofrecida</dt>
@@ -201,13 +205,10 @@ function statusDescription(item: CustomerTrackingItem) {
     return 'La producción terminó. Este pedido queda guardado en tu historial.';
   }
   if (request.status === 'accepted' && stage === 2) {
-    return 'Los talleres ya están trabajando en las prendas del pedido.';
-  }
-  if (request.status === 'accepted' && stage === 1) {
-    return 'Perú Activa confirmó la asignación de todas las prendas. El inicio de producción se mostrará como un paso distinto.';
+    return 'Tu pedido está en producción. Aquí verás sus avances.';
   }
   if (request.status === 'accepted')
-    return 'Aceptaste la cotización. Perú Activa aún debe completar la asignación de talleres; aceptar no inicia la fabricación.';
+    return 'Tu pedido está confirmado. Estamos preparando el inicio de producción.';
   if (request.status === 'pending_quote') return 'Perú Activa está preparando el precio.';
   if (request.status === 'quoted') return 'Revisa el precio y responde cuando estés listo.';
   if (request.status === 'rejected') return 'Registramos que no aceptaste esta cotización.';
@@ -223,19 +224,15 @@ function NextAction({ item }: { item: CustomerTrackingItem }) {
   if (request.status === 'quoted') {
     title = 'Revisa y responde la cotización';
     description =
-      'Revisa el precio, la fecha confirmada y las condiciones. Aceptar autoriza la coordinación; la asignación y el inicio del trabajo son pasos posteriores.';
+      'Revisa el precio, la fecha confirmada y las condiciones. Al aceptar, confirmas tu pedido.';
   } else if (request.status === 'rejected') {
     title = 'La cotización quedó rechazada';
     description = 'Crea una nueva solicitud si deseas pedir otra propuesta.';
-  } else if (request.status === 'accepted' && stage === 0) {
-    title = 'Perú Activa debe completar la asignación';
-    description =
-      'No necesitas volver a registrar el pedido. Aquí verás el avance de cada prenda y la confirmación de sus talleres.';
   } else if (request.status === 'accepted' && stage === 3) {
     title = 'La producción terminó';
     description = 'Perú Activa coordinará contigo la entrega del pedido.';
   } else if (request.status === 'accepted' && stage === 2) {
-    title = 'El taller está produciendo tu pedido';
+    title = 'Tu pedido está en producción';
     description = `La entrega solicitada es el ${formatDate(request.request.delivery.requiredBy)}.`;
   }
 
@@ -251,8 +248,8 @@ function NextAction({ item }: { item: CustomerTrackingItem }) {
 }
 
 function ProductionProgress({ item }: { item: CustomerTrackingItem }) {
-  const currentIndex = productionStage(item);
-  const stages = ['Cotización aceptada', 'Taller asignado', 'En producción', 'Terminado'];
+  const currentIndex = Math.max(0, productionStage(item) - 1);
+  const stages = ['Pedido confirmado', 'En producción', 'Terminado'];
   return (
     <section className="customer-production-progress" aria-labelledby="production-progress-title">
       <h2 id="production-progress-title">Progreso de producción</h2>
@@ -286,15 +283,15 @@ function ProductionProgress({ item }: { item: CustomerTrackingItem }) {
 function GarmentAssignments({ item }: { item: CustomerTrackingItem }) {
   const garments = [item.quotation.request.garment, ...item.quotation.request.additionalGarments];
   const labels = {
-    registered: 'Perú Activa debe revisar una alternativa de taller',
-    recommended: 'Propuesta calculada; falta confirmación de Perú Activa',
-    assigned: 'Taller asignado; producción aún no iniciada',
+    registered: 'En preparación',
+    recommended: 'En preparación',
+    assigned: 'En preparación',
     in_production: 'En producción',
     completed: 'Terminado',
   };
   return (
-    <section className="customer-garment-assignments" aria-label="Asignación por prenda">
-      <h2>Asignación por prenda</h2>
+    <section className="customer-garment-assignments" aria-label="Avance por prenda">
+      <h2>Avance por prenda</h2>
       {garments.map((garment, index) => {
         const order =
           item.productionOrders.find((entry) => entry.garmentIndex === index) ??
@@ -307,17 +304,7 @@ function GarmentAssignments({ item }: { item: CustomerTrackingItem }) {
               {garment.product === 'polo' ? 'Polos' : 'Buzos'} · {garment.quantity} unidades ·{' '}
               {garment.model}
             </strong>
-            <span>
-              {order
-                ? labels[order.status]
-                : 'Perú Activa debe preparar la asignación de esta prenda'}
-            </span>
-            {order && (
-              <small>
-                {order.id}
-                {order.assignment ? ` · ${order.assignment.displayName}` : ''}
-              </small>
-            )}
+            <span>{order ? labels[order.status] : 'En preparación'}</span>
           </article>
         );
       })}
