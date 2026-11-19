@@ -80,7 +80,7 @@ test('R6 entrega el PNG al taller de sublimación y solo tela y tallas a confecc
   };
   const notification = (processes: string[]) => ({ content: { ...base, requiredProcesses: processes } }) as unknown as WorkshopNotification;
   const quotation = {
-    request: { garment: { designAttachment: { name: 'logo.png', mediaType: 'image/png', dataUrl: 'data:image/png;base64,iVBORw0KGgo=' } } },
+    request: { garment: { designAttachment: { name: 'logo.png', mediaType: 'image/png', dataUrl: 'data:image/png;base64,iVBORw0KGgo=' }, designApplications: [{ placement: 'Espalda', method: 'printing', widthCm: 45, heightCm: 43.1 }] } },
   } as QuotationRequest;
   await client.assign(order, notification(['sewing', 'finishing']), quotation);
   await client.assign(order, notification(['sublimation', 'cutting']), quotation);
@@ -88,4 +88,28 @@ test('R6 entrega el PNG al taller de sublimación y solo tela y tallas a confecc
   assert.equal((sent[1]!.attachments as unknown[]).length, 1);
   assert.equal(sent[0]!.fabricBuyer, 'Perú Activa');
   assert.deepEqual(sent[0]!.sizes, { M: 10 });
+  assert.equal(sent[0]!.designInstructions, '');
+  assert.match(String(sent[1]!.designInstructions), /Medidas del estampado por confirmar en prenda real/);
+  assert.doesNotMatch(String(sent[1]!.designInstructions), /45 × 43.1 cm/);
+});
+
+
+test('R8 conserva el diseño de la prenda correspondiente al coordinar pedidos de varias prendas', async () => {
+  const sent: Array<Record<string, unknown>> = [];
+  const client = new ProductionWhatsAppClient(
+    'http://127.0.0.1:8022',
+    'test-coordination-secret-more-than-32-bytes',
+    async (_input, init) => {
+      sent.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return new Response(JSON.stringify({ orderId: 'PED-SECOND', workshopId: 'sim', state: 'capacity_pending', effects: [], lastError: null }), { status: 200 });
+    },
+  );
+  const order = { id: 'PED-SECOND', fabricBuyer: 'workshop', source: { type: 'quotation', quotationId: 'COT-AAAAAAAA', garmentIndex: 1 } } as PortalOrder;
+  const quotation = { request: {
+    garment: { designAttachment: { name: 'first.png', mediaType: 'image/png', dataUrl: 'data:image/png;base64,AA==' } },
+    additionalGarments: [{ designAttachment: { name: 'second.png', mediaType: 'image/png', dataUrl: 'data:image/png;base64,AQ==' } }],
+  } } as QuotationRequest;
+  const notification = { content: { workshopId: 'sim', requiredProcesses: ['printing'], sizes: { M: 10 } } } as unknown as WorkshopNotification;
+  await client.assign(order, notification, quotation);
+  assert.deepEqual((sent[0]!.attachments as Array<{filename: string}>).map(item => item.filename), ['second.png']);
 });

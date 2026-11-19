@@ -1,5 +1,8 @@
+import { deliveryPlanningInputSchema } from '../domain/delivery-estimate.js';
 import { Router, type Request, type Response } from 'express';
 import { ZodError } from 'zod';
+import { renderQuotationDocument } from '../infrastructure/quotation-document.js';
+import type { CustomerRegistration } from '../application/customer-registration.js';
 import { QuotationFlowError, QuotationService } from '../application/quotation-service.js';
 import {
   AccessAuthorizationError,
@@ -18,6 +21,7 @@ type IdentityResolver = (request: Request) => Promise<AuthenticatedIdentity>;
 export function createQuotationRouter(
   service: QuotationService,
   resolveIdentity: IdentityResolver,
+  customerRegistration: CustomerRegistration,
 ): Router {
   const router = Router();
 
@@ -38,6 +42,14 @@ export function createQuotationRouter(
     });
   });
 
+  router.post('/delivery-estimate', async (request, response) => {
+    await runAuthorizedAction(request, response, resolveIdentity, async (identity) => {
+      requireRole(identity, 'client', 'peru_activa');
+      response.set('Cache-Control', 'private, no-store');
+      response.json({ ok: true, estimate: await service.estimateDelivery(deliveryPlanningInputSchema.parse(request.body)) });
+    });
+  });
+
   router.post('/', async (request, response) => {
     await runAuthorizedAction(request, response, resolveIdentity, async (identity) => {
       requireRole(identity, 'client', 'peru_activa');
@@ -46,6 +58,14 @@ export function createQuotationRouter(
           'unauthenticated',
           'La identidad del cliente no contiene correo.',
         );
+      }
+      if ((await customerRegistration.status(identity)).required) {
+        response.status(409).json({
+          ok: false,
+          error: 'customer_registration_required',
+          message: 'Completa el registro de tu cuenta antes de enviar una solicitud.',
+        });
+        return;
       }
       const parsed = quotationRequestDraftSchema.safeParse(request.body);
       if (!parsed.success) {
@@ -69,7 +89,27 @@ export function createQuotationRouter(
     await runAuthorizedAction(request, response, resolveIdentity, async (identity) => {
       const quotation = await service.get(request.params.id);
       ensureCanRead(quotation, identity);
-      response.json({ ok: true, request: quotation, simulated: true });
+      response.json({ ok: true, request: quotation, emailDelivery: await service.emailStatus(quotation.id), simulated: true });
+    });
+  });
+
+  router.get('/:id/email-status', async (request, response) => {
+    await runAuthorizedAction(request, response, resolveIdentity, async (identity) => {
+      const quotation = await service.get(request.params.id);
+      ensureCanRead(quotation, identity);
+      response.json({ ok: true, ...(await service.emailStatus(quotation.id)) });
+    });
+  });
+
+  router.get('/:id/quotation.pdf', async (request, response) => {
+    await runAuthorizedAction(request, response, resolveIdentity, async (identity) => {
+      const quotation = await service.get(request.params.id);
+      ensureCanRead(quotation, identity);
+      if (!quotation.quotation) throw new QuotationFlowError('invalid_state', 'La solicitud aún no tiene cotización.');
+      const pdf = await renderQuotationDocument(quotation);
+      response.set('Cache-Control', 'private, no-store');
+      response.set('Content-Disposition', `attachment; filename="Peru-Activa_Cotizacion_${quotation.id.replace(/[^a-zA-Z0-9-]/g, '')}.pdf"`);
+      response.type('application/pdf').send(pdf);
     });
   });
 
@@ -86,6 +126,7 @@ export function createQuotationRouter(
       response.json({
         ok: true,
         request: await service.quote(request.params.id, parsed.data),
+        emailDelivery: await service.emailStatus(request.params.id),
         simulated: true,
       });
     });
@@ -161,7 +202,7 @@ async function runAuthorizedAction(
     if (error instanceof QuotationFlowError) {
       response
         .status(error.code === 'not_found' ? 404 : 409)
-        .json({ ok: false, error: error.code, message: error.message });
+        .json({ ok: false, error: error.code, message: error.message, ...(error.estimate ? { estimate: error.estimate } : {}) });
       return;
     }
     if (error instanceof ZodError) {
