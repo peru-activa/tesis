@@ -5,6 +5,7 @@ import { fabricSupplyForPoloMaterial, poloFabricFor } from '../src/data/polo-fab
 describe('catálogo de telas para polos', () => {
   it('reconoce las calidades principales y complementos registrados', () => {
     for (const material of [
+      'Umbrela',
       'Jersey 20/1 – Peinado Reactivo Polycotton',
       'Jersey 24/1 – Peinado Reactivo Polycotton',
       'Jersey 30/1 – Peinado Reactivo Polycotton',
