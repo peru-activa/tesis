@@ -1,3 +1,4 @@
+import { RECOMMENDATION_VERSION } from '../../../../src/domain/contracts';
 import { useState } from 'react';
 
 type FabricBuyer = 'peru_activa' | 'workshop';
@@ -268,7 +269,7 @@ export function R5ComparisonView({
               <div className="r5-method-grid">
                 <MethodCard
                   label="Línea base"
-                  version="determinística 0.6.0"
+                  version={`determinística ${RECOMMENDATION_VERSION}`}
                   runtime={comparison.comparison.baseline.averageMilliseconds}
                   repetitions={comparison.comparison.baseline.repetitions}
                   result={comparison.comparison.baseline.value}

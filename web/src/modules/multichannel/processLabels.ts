@@ -1,0 +1,17 @@
+export const processLabels: Record<string, string> = {
+  fabric_sourcing: 'Abastecimiento de tela',
+  design: 'Diseño',
+  transfer_printing: 'Impresión en papel',
+  patternmaking: 'Patronaje',
+  cutting: 'Corte',
+  sewing: 'Costura',
+  printing: 'Estampado',
+  vinyl: 'Vinil',
+  embroidery: 'Bordado',
+  sublimation: 'Sublimación',
+  notions: 'Avíos',
+  ironing: 'Planchado',
+  finishing: 'Acabado',
+  quality_control: 'Control de calidad',
+  delivery: 'Entrega',
+};

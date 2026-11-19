@@ -3,9 +3,15 @@ import { PeruActivaHeader } from '../../components/PeruActivaHeader';
 import type { QuotationRequestDraft } from '../../../../src/domain/quotation-requests';
 import { QuotationRequestForm } from './QuotationRequestForm';
 
-export function QuotationDemo() {
-  const [email, setEmail] = useState('');
+export function QuotationDemo({
+  email,
+  customer,
+}: {
+  email: string;
+  customer: Pick<QuotationRequestDraft['customer'], 'contactName' | 'businessName'> | undefined;
+}) {
   const [busy, setBusy] = useState(false);
+  const [deliveryRevision, setDeliveryRevision] = useState(0);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
   const [initialDraft, setInitialDraft] = useState<QuotationRequestDraft>();
@@ -13,28 +19,15 @@ export function QuotationDemo() {
   const [loading, setLoading] = useState(Boolean(copyFrom));
 
   useEffect(() => {
+    if (!copyFrom) return;
     let active = true;
+    const url = `/v1/quotation-requests/${encodeURIComponent(copyFrom)}/draft`;
     async function load() {
-      const [session, copy] = await Promise.all([
-        fetch('/v1/session').then(async (response) => {
-          const payload = await response.json();
-          if (!response.ok) throw new Error(payload.message || 'No se pudo validar la sesión.');
-          return payload;
-        }),
-        copyFrom
-          ? fetch(`/v1/quotation-requests/${encodeURIComponent(copyFrom)}/draft`).then(
-              async (response) => {
-                const payload = await response.json();
-                if (!response.ok)
-                  throw new Error(payload.message || 'No se pudo copiar el pedido.');
-                return payload;
-              },
-            )
-          : undefined,
-      ]);
-      if (!active) return;
-      setEmail(session.identity?.email || '');
-      if (copy) setInitialDraft(copy.draft);
+      const response = await fetch(url);
+      const payload = await response.json();
+      if (!response.ok)
+        throw new Error(payload.message || 'No se pudo preparar el pedido para repetirlo.');
+      if (active) setInitialDraft(payload.draft);
     }
     void load()
       .catch((cause) => {
@@ -59,13 +52,17 @@ export function QuotationDemo() {
         body: JSON.stringify(draft),
       });
       const payload = await response.json();
-      if (!response.ok)
+      if (!response.ok) {
+        if (payload.error === 'delivery_unavailable') setDeliveryRevision((value) => value + 1);
         throw new Error(
           payload.message ?? payload.issues?.[0]?.message ?? 'Revisa los datos ingresados.',
         );
+      }
       window.location.assign(`/mis-pedidos/${payload.request.id}`);
+      return true;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No se pudo completar la acción.');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -89,15 +86,17 @@ export function QuotationDemo() {
         )}
         {initialDraft && (
           <p className="customer-copy-notice">
-            Pedido copiado. Ajusta cantidades, tallas y la nueva fecha de entrega. El precio y la
+            Repetir pedido: ajusta cantidades, tallas y la nueva fecha de entrega. El precio y la
             asignación se evaluarán de nuevo.
           </p>
         )}
         {!loading && !loadError && (
           <QuotationRequestForm
             busy={busy}
+            deliveryRevision={deliveryRevision}
             error={error}
             authenticatedEmail={email}
+            customerProfile={customer}
             initialDraft={initialDraft}
             onSubmit={createRequest}
           />

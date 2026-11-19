@@ -1,12 +1,14 @@
+import { WorkshopAccessPage } from './modules/multichannel/WorkshopAccessPage';
 import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import { fetchAsPeruActiva } from './lib/actor-api';
-import { RoleLandingPage } from './modules/auth/RoleLandingPage';
+import { CustomerRegistrationGate } from './modules/auth/CustomerRegistrationGate';
+import { PortalRoleGate, RoleLandingPage } from './modules/auth/RoleLandingPage';
 import { QuotationDemo } from './modules/quotation/QuotationDemo';
 import { CustomerOrderPage } from './modules/quotation/CustomerOrderPage';
 import { CustomerOrdersPage } from './modules/quotation/CustomerOrdersPage';
-import { MultichannelDemo, WorkshopAccessPage } from './modules/multichannel/MultichannelDemo';
-import { PeruActivaQuotationPage } from './modules/multichannel/PeruActivaQuotationPage';
+import { MultichannelDemo } from './modules/multichannel/MultichannelDemo';
+import { PeruActivaOrderPage } from './modules/multichannel/PeruActivaOrderPage';
 import { Week02Demo } from './modules/week-02/Week02Demo';
 
 type Material = 'algodón' | 'dry-fit' | 'poliéster';
@@ -112,16 +114,38 @@ export default function App() {
     /^\/mis-pedidos\/(COT-[A-F0-9]{8})$/,
   );
   if (customerQuotationPath?.[1])
-    return <CustomerOrderPage quotationId={customerQuotationPath[1]} />;
-  if (window.location.pathname === '/mis-pedidos') return <CustomerOrdersPage />;
+    return (
+      <PortalRoleGate allowedRole="client">
+        <CustomerOrderPage quotationId={customerQuotationPath[1]} />
+      </PortalRoleGate>
+    );
+  if (window.location.pathname === '/mis-pedidos') {
+    return (
+      <PortalRoleGate allowedRole="client">
+        <CustomerRegistrationGate>{() => <CustomerOrdersPage />}</CustomerRegistrationGate>
+      </PortalRoleGate>
+    );
+  }
   const quotationPath = window.location.pathname.match(
-    /^\/peru-activa\/pedidos\/(COT-[A-F0-9]{8})$/,
+    /^\/peru-activa\/pedidos\/((?:COT-[A-F0-9]{8})|(?:PED-[A-Z0-9-]+))$/,
   );
-  if (quotationPath?.[1]) return <PeruActivaQuotationPage quotationId={quotationPath[1]} />;
-  if (window.location.pathname === '/peru-activa') return <MultichannelDemo view="peru-activa" />;
+  if (quotationPath?.[1]) return <PortalRoleGate allowedRole="peru_activa"><PeruActivaOrderPage reference={quotationPath[1]} /></PortalRoleGate>;
+  if (window.location.pathname === '/peru-activa') {
+    const linkedOrder = new URLSearchParams(window.location.search).get('pedido');
+    if (linkedOrder && /^PED-[A-Z0-9-]+$/.test(linkedOrder)) return <RouteRedirect to={`/peru-activa/pedidos/${linkedOrder}`} />;
+    return <PortalRoleGate allowedRole="peru_activa"><MultichannelDemo view="peru-activa" /></PortalRoleGate>;
+  }
   if (window.location.pathname === '/taller') return <WorkshopAccessPage />;
   if (window.location.pathname === '/evidencia-r5') return <MultichannelDemo view="evidencia" />;
-  if (window.location.pathname === '/nueva-solicitud') return <QuotationDemo />;
+  if (window.location.pathname === '/nueva-solicitud') {
+    return (
+      <PortalRoleGate allowedRole="client">
+        <CustomerRegistrationGate>
+          {({ email, customer }) => <QuotationDemo email={email} customer={customer} />}
+        </CustomerRegistrationGate>
+      </PortalRoleGate>
+    );
+  }
   if (['/', '/demo'].includes(window.location.pathname)) return <RoleLandingPage />;
 
   const legacyCustomerQuotationPath = window.location.pathname.match(

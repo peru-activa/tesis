@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AssignedWorkSummary } from './AssignedWorkSummary';
+import { processLabels } from './processLabels';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import { PeruActivaHeader } from '../../components/PeruActivaHeader';
-import { fetchAsPeruActiva, fetchAsWorkshop } from '../../lib/actor-api';
+import { fetchAsPeruActiva, fetchAsWorkshop, readApiResponse } from '../../lib/actor-api';
 import { R5ComparisonView } from './R5ComparisonView';
 import './multichannel.css';
+import './order-detail.css';
 
 export type MultichannelView = 'peru-activa' | 'taller' | 'evidencia';
 type Candidate = {
@@ -71,22 +74,13 @@ type CoordinationStatus = {
   effects: Array<{ phase: string; state: string; provider_receipt_id: string | null }>;
   lastError: string | null;
 };
-const coordinationLabels: Record<string, string> = {
-  capacity_pending: 'Consultando capacidad',
-  capacity_yes: 'Capacidad confirmada; enviando especificaciones',
-  capacity_no: 'Sin capacidad',
-  order_pending: 'Especificaciones enviadas; esperando aceptación',
-  accepted: 'Pedido aceptado por WhatsApp',
-  declined: 'Pedido rechazado por WhatsApp',
-  progress_pending: 'Consultando avance',
-  in_progress: 'En proceso',
-  finished: 'Terminado',
-  blocked: 'Taller reportó un bloqueo',
-};
 export type Order = {
+  previewOnly?: boolean;
   id: string;
+  testOnly?: boolean;
+  createdAt?: string;
   status: 'registered' | 'recommended' | 'assigned' | 'in_production' | 'completed';
-  draft: Scenario['draft'] & { color: string; sizes: Record<string, number> };
+  draft: Scenario['draft'] & { color: string; sizes: Record<string, number>; deliveryDistrict?: string };
   recommendation: { candidates: Candidate[]; rejected: Rejected[] };
   assignment?: {
     candidateId: string;
@@ -96,6 +90,7 @@ export type Order = {
       workshopId: string;
       displayName: string;
       quantity: number;
+      assignedProcesses?: string[];
       status: 'assigned' | 'in_production' | 'completed';
     }>;
   };
@@ -104,7 +99,9 @@ export type Order = {
   source?: { type: 'quotation'; quotationId: string; garmentIndex: number };
 };
 type IncomingQuotation = {
+  previewOnly?: boolean;
   id: string;
+  testOnly?: boolean;
   createdAt: string;
   status: 'pending_quote' | 'quoted' | 'accepted' | 'rejected';
   request: {
@@ -119,23 +116,6 @@ type IncomingQuotation = {
   };
 };
 
-const processLabels: Record<string, string> = {
-  fabric_sourcing: 'Abastecimiento de tela',
-  design: 'Diseño',
-  transfer_printing: 'Impresión en papel',
-  patternmaking: 'Patronaje',
-  cutting: 'Corte',
-  sewing: 'Costura',
-  printing: 'Estampado',
-  vinyl: 'Vinil',
-  embroidery: 'Bordado',
-  sublimation: 'Sublimación',
-  notions: 'Avíos',
-  ironing: 'Planchado',
-  finishing: 'Acabado',
-  quality_control: 'Control de calidad',
-  delivery: 'Entrega',
-};
 const dimensionLabels = {
   delivery: 'Entrega',
   cost: 'Costo',
@@ -169,18 +149,17 @@ export function MultichannelDemo({
   const [orders, setOrders] = useState<Order[]>([]);
   const [quotations, setQuotations] = useState<IncomingQuotation[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [coordination, setCoordination] = useState<CoordinationStatus[]>([]);
   const [dataset, setDataset] = useState('');
   const [seed, setSeed] = useState<number>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [openOrderRequest, setOpenOrderRequest] = useState(0);
-  const assignmentPanelRef = useRef<HTMLElement>(null);
+  const [loadError, setLoadError] = useState('');
+  const [reload, setReload] = useState(0);
 
   const actorFetch = useCallback(
     (input: RequestInfo | URL, init?: RequestInit) =>
-      view === 'taller' && workshopPhone
-        ? fetchAsWorkshop(workshopPhone, input, init)
+      view === 'taller'
+        ? workshopPhone ? fetchAsWorkshop(workshopPhone, input, init) : fetch(input, init)
         : fetchAsPeruActiva(input, init),
     [view, workshopPhone],
   );
@@ -194,155 +173,81 @@ export function MultichannelDemo({
 
   useEffect(() => {
     let active = true;
-    void Promise.all([
-      fetch('/v1/demos/week-03/assignment-scenarios').then((response) => response.json()),
-      actorFetch('/v1/workshop-notifications').then((response) => response.json()),
-      view === 'peru-activa'
-        ? actorFetch('/v1/quotation-requests').then((response) => response.json())
-        : Promise.resolve({ requests: [] }),
-      actorFetch('/v1/orders').then((response) => response.json()),
-    ]).then(([catalog, inbox, quotationQueue, orderList]) => {
-      if (!active) return;
-      setScenarios(catalog.scenarios);
-      setWorkshops(catalog.workshops);
-      setDataset(catalog.datasetVersion);
-      setSeed(catalog.seed);
-      setNotifications(inbox.notifications);
-      setQuotations(quotationQueue.requests);
-      setOrders(orderList.orders);
-      const currentOrder =
-        view === 'evidencia'
-          ? orderList.orders[0]
-          : orderList.orders.find((item: Order) => item.source?.type === 'quotation');
-      setOrder(currentOrder);
-      if (view === 'evidencia' && currentOrder?.simulation?.scenarioId) {
-        setSelectedScenario(currentOrder.simulation.scenarioId);
+    async function load() {
+      try {
+        const [catalog, inbox, quotationQueue, orderList] = await Promise.all([
+          fetch('/v1/demos/week-03/assignment-scenarios').then(readApiResponse<{scenarios: Scenario[]; workshops: Workshop[]; datasetVersion: string; seed: number}>),
+          actorFetch('/v1/workshop-notifications').then(readApiResponse<{notifications: Notification[]}>),
+          view === 'peru-activa'
+            ? actorFetch('/v1/quotation-requests').then(readApiResponse<{requests: IncomingQuotation[]}>)
+            : Promise.resolve({ requests: [] }),
+          actorFetch('/v1/orders').then(readApiResponse<{orders: Order[]}>),
+        ]);
+        if (!active) return;
+        if (![catalog.scenarios, catalog.workshops, inbox.notifications, quotationQueue.requests, orderList.orders].every(Array.isArray)) {
+          throw new Error('No pudimos cargar la bandeja. Inténtalo de nuevo.');
+        }
+        setScenarios(catalog.scenarios);
+        setWorkshops(catalog.workshops);
+        setDataset(catalog.datasetVersion);
+        setSeed(catalog.seed);
+        setNotifications(inbox.notifications);
+        setQuotations(quotationQueue.requests);
+        setOrders(orderList.orders);
+        setOrder((current) => {
+          const previous = current && orderList.orders.find((item) => item.id === current.id);
+          return previous ?? (view === 'evidencia'
+            ? orderList.orders[0]
+            : undefined);
+        });
+        const firstOrder = orderList.orders[0];
+        if (view === 'evidencia' && firstOrder?.simulation?.scenarioId) {
+          setSelectedScenario(firstOrder.simulation.scenarioId);
+        }
+        setLoadError('');
+      } catch (cause) {
+        if (active) setLoadError(cause instanceof Error ? cause.message : 'No pudimos cargar la bandeja.');
       }
-    });
-
+    }
+    void load();
     const apiOrigin =
       import.meta.env.VITE_API_ORIGIN ||
       (import.meta.env.DEV ? 'http://localhost:3100' : undefined);
     const socket = io(apiOrigin);
-    socket.on('orders.changed', () => {
-      void Promise.all([
-        actorFetch('/v1/orders').then((response) => response.json()),
-        actorFetch('/v1/workshop-notifications').then((response) => response.json()),
-      ]).then(([orderList, inbox]) => {
-        setOrders(orderList.orders || []);
-        setNotifications(inbox.notifications || []);
-        const currentOrder =
-          view === 'evidencia'
-            ? (orderList.orders || [])[0]
-            : (orderList.orders || []).find((item: Order) => item.source?.type === 'quotation');
-        setOrder(currentOrder);
-        if (view === 'evidencia' && currentOrder?.simulation?.scenarioId) {
-          setSelectedScenario(currentOrder.simulation.scenarioId);
-        }
-      });
-    });
+    socket.on('orders.changed', () => void load());
     socket.on('quotations.changed', () => {
-      if (view !== 'peru-activa') return;
-      void actorFetch('/v1/quotation-requests')
-        .then((response) => response.json())
-        .then((payload) => setQuotations(payload.requests || []));
+      if (view === 'peru-activa') void load();
     });
     return () => {
       active = false;
       socket.disconnect();
     };
-  }, [actorFetch, view]);
+  }, [actorFetch, view, reload]);
 
   const selected = scenarios.find((scenario) => scenario.id === selectedScenario);
   const activeNotification = order?.notification ?? notifications[0];
-
-  function openOrder(selectedOrder: Order) {
-    setOrder(selectedOrder);
-    setCoordination([]);
-    setError('');
-    setOpenOrderRequest((current) => current + 1);
-  }
-
-  useEffect(() => {
-    if (openOrderRequest === 0) return;
-    const panel = assignmentPanelRef.current;
-    if (!panel) return;
-    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    panel.focus({ preventScroll: true });
-  }, [openOrderRequest]);
-
-  async function refreshCoordination(orderId: string) {
-    const response = await actorFetch(`/v1/orders/${orderId}/production-coordination`);
-    if (!response.ok) return;
-    const payload = await response.json();
-    setCoordination((payload.coordination || []).filter(Boolean));
-  }
-
-  useEffect(() => {
-    if (view === 'peru-activa' && order?.assignment) void refreshCoordination(order.id);
-  }, [order?.id, order?.assignment, view]);
-
-  async function requestProgress(workshopId: string) {
-    if (!order) return;
-    setBusy(true);
-    const response = await actorFetch(
-      `/v1/orders/${order.id}/production-coordination/${workshopId}/progress`,
-      { method: 'POST' },
-    );
-    if (!response.ok) setError('No se pudo enviar la consulta de avance.');
-    else await refreshCoordination(order.id);
-    setBusy(false);
-  }
-
-  async function confirm(candidateId: string) {
-    if (!order) return;
-    setBusy(true);
-    setError('');
-    const response = await actorFetch(`/v1/orders/${order.id}/confirm`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ candidateId }),
-    });
-    const payload = await response.json();
-    setBusy(false);
-    if (!response.ok) {
-      if (payload.order) setOrder(payload.order);
-      setError(payload.message || 'No se pudo confirmar la asignación.');
-      return;
-    }
-    setOrder(payload.order);
-    setCoordination(payload.coordination || []);
-    setOrders((current) => [
-      payload.order,
-      ...current.filter((item) => item.id !== payload.order.id),
-    ]);
-    await refreshNotifications();
-  }
 
   async function updateWorkshopStatus(orderId: string, status: 'in_production' | 'completed') {
     if (!workshopPhone) return;
     setBusy(true);
     setError('');
-    const response = await actorFetch(`/v1/orders/${orderId}/status`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-    const payload = await response.json();
-    setBusy(false);
-    if (!response.ok) {
-      setError('No se pudo actualizar el estado del pedido.');
-      return;
+    try {
+      const payload = await readApiResponse<{order: Order}>(await actorFetch(`/v1/orders/${orderId}/status`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status }),
+      }));
+      if (!payload.order) throw new Error('No pudimos comprobar el nuevo estado del pedido.');
+      setOrders((current) => current.map((currentOrder) => currentOrder.id === payload.order.id ? payload.order : currentOrder));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'No se pudo actualizar el estado del pedido.');
+    } finally {
+      setBusy(false);
     }
-    setOrders((current) =>
-      current.map((currentOrder) =>
-        currentOrder.id === payload.order.id ? payload.order : currentOrder,
-      ),
-    );
   }
 
   return (
-    <div className="quote-demo mc-shell">
+    <div className={`quote-demo mc-shell ${view === 'peru-activa' ? 'pa-operations' : ''}`}>
       <PeruActivaHeader
         homeHref="/demo"
         right={
@@ -350,12 +255,18 @@ export function MultichannelDemo({
             <i />{' '}
             {view === 'taller' && workshopPhone
               ? `Taller · ${workshopPhone}`
-              : 'Perú Activa · acceso local'}
+              : 'Perú Activa'}
           </span>
         }
       />
 
       <main className="mc-main">
+        {loadError && (
+          <div role="alert" className="workshop-status-error">
+            <p>{loadError}</p>
+            <button type="button" className="mc-secondary" onClick={() => setReload((value) => value + 1)}>Reintentar</button>
+          </div>
+        )}
         <div className="mc-backbar">
           <a href={view === 'peru-activa' ? '/nueva-solicitud' : '/peru-activa'}>
             {view === 'peru-activa' ? '← Crear una solicitud' : '← Volver a pedidos'}
@@ -405,62 +316,13 @@ export function MultichannelDemo({
 
         {view === 'peru-activa' && (
           <>
-            <IncomingQueue quotations={quotations} orders={orders} onOpenOrder={openOrder} />
+            <IncomingQueue quotations={quotations} orders={orders} />
 
-            {order?.source?.type === 'quotation' && (
-              <section
-                id="assignment-review"
-                ref={assignmentPanelRef}
-                className="mc-panel mc-result-panel mc-live-assignment"
-                aria-live="polite"
-                tabIndex={-1}
-              >
-                <div className="mc-panel-heading">
-                  <span>✓</span>
-                  <div>
-                    <h2>Revisión de asignación</h2>
-                    <p>Pedido {order.id}</p>
-                  </div>
-                </div>
-                <CandidateList order={order} busy={busy} error={error} onConfirm={confirm} />
-                {order.assignment && (
-                  <div className="mc-published" aria-live="polite">
-                    <h3>Coordinación por WhatsApp</h3>
-                    {coordination.length === 0 && (
-                      <p>Consulta el estado del envío a los talleres asignados.</p>
-                    )}
-                    {coordination.map((item) => (
-                      <div key={item.workshopId}>
-                        <p>
-                          <b>{item.workshopId}</b>: {coordinationLabels[item.state] || item.state}
-                        </p>
-                        <p>
-                          Recibos de Meta:{' '}
-                          {item.effects.filter((effect) => effect.provider_receipt_id).length}
-                        </p>
-                        {item.lastError && <p role="alert">{item.lastError}</p>}
-                        {['accepted', 'in_progress', 'blocked'].includes(item.state) && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void requestProgress(item.workshopId)}
-                          >
-                            Preguntar cómo va
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    <button type="button" onClick={() => void refreshCoordination(order.id)}>
-                      Actualizar estado
-                    </button>
-                  </div>
-                )}
-              </section>
-            )}
+
           </>
         )}
 
-        {view === 'taller' && (
+        {!loadError && view === 'taller' && (
           <WorkshopView
             notifications={notifications}
             orders={orders}
@@ -482,186 +344,96 @@ export function MultichannelDemo({
           </>
         )}
       </main>
-      <footer className="mc-footer">
-        Prototipo académico · datos completamente simulados · el canal WhatsApp no realiza envíos
-      </footer>
     </div>
   );
 }
 
-export function WorkshopAccessPage() {
-  const [phone, setPhone] = useState(() => {
-    const demoPhone = new URLSearchParams(window.location.search).get('telefono') || '';
-    return /^9\d{8}$/.test(demoPhone)
-      ? demoPhone
-      : sessionStorage.getItem('pa-workshop-phone') || '';
-  });
-  const [draft, setDraft] = useState('');
-  const [workshops, setWorkshops] = useState<Workshop[]>([]);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    void fetch('/v1/demos/week-03/assignment-scenarios')
-      .then((response) => response.json())
-      .then((payload) => setWorkshops(payload.workshops || []));
-  }, []);
-
-  if (phone) {
-    return <MultichannelDemo view="taller" workshopPhone={phone} />;
-  }
-
-  async function enter() {
-    if (!/^9\d{8}$/.test(draft)) {
-      setError('Ingresa un número peruano de nueve dígitos que comience con 9.');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    const response = await fetchAsWorkshop(draft, '/v1/session');
-    const payload = await response.json();
-    setBusy(false);
-    if (!response.ok) {
-      setError(payload.message || 'No encontramos este taller simulado.');
-      return;
-    }
-    sessionStorage.setItem('pa-workshop-phone', draft);
-    setPhone(draft);
-  }
-
-  return (
-    <div className="quote-demo workshop-access-shell">
-      <PeruActivaHeader homeHref="/demo" />
-      <main className="workshop-access-main">
-        <section className="workshop-access-card">
-          <p className="quote-kicker">ACCESO DEL TALLER</p>
-          <h1>Revisa tus trabajos</h1>
-          <p>Ingresa el número registrado del taller.</p>
-          <label htmlFor="workshop-phone">Número de celular</label>
-          <div className="workshop-phone-field">
-            <span>+51</span>
-            <input
-              id="workshop-phone"
-              inputMode="numeric"
-              autoComplete="tel"
-              maxLength={9}
-              placeholder="900 000 001"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value.replace(/\D/g, '').slice(0, 9))}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') void enter();
-              }}
-            />
-          </div>
-          {error && <p className="workshop-access-error">{error}</p>}
-          <button className="quote-primary" disabled={busy} onClick={() => void enter()}>
-            {busy ? 'Ingresando…' : 'Ver mis pedidos'} <span>→</span>
-          </button>
-          <details className="workshop-demo-credentials">
-            <summary>Números simulados para probar</summary>
-            <ul>
-              {workshops
-                .filter((workshop) => workshop.contactPhone)
-                .map((workshop) => (
-                  <li key={workshop.id}>
-                    <button onClick={() => setDraft(workshop.contactPhone || '')}>
-                      {workshop.displayName} · {workshop.contactPhone}
-                    </button>
-                  </li>
-                ))}
-            </ul>
-          </details>
-          <small>
-            Demostración local: el número identifica al taller, pero todavía no se verifica por
-            WhatsApp o SMS.
-          </small>
-        </section>
-      </main>
-    </div>
-  );
-}
+const receivedDate = new Intl.DateTimeFormat('es-PE', {
+  dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Lima',
+});
 
 export function IncomingQueue({
   quotations,
   orders,
-  onOpenOrder,
 }: {
   quotations: IncomingQuotation[];
   orders: Order[];
-  onOpenOrder: (order: Order) => void;
 }) {
   const pending = quotations.filter((item) => item.status === 'pending_quote').length;
+  type QueueRow = {
+    id: string; createdAt?: string; garments: Array<{ product: string; quantity: number }>;
+    requiredBy: string; location?: string; quotation?: IncomingQuotation; orders: Order[];
+  };
+  const covered = new Set<string>();
+  const rows: QueueRow[] = quotations.map((quotation) => {
+    const linked = orders.filter((order) => quotation.production?.orderIds.includes(order.id)
+      || order.source?.quotationId === quotation.id);
+    linked.forEach((order) => covered.add(order.id));
+    return { id: quotation.id, createdAt: quotation.createdAt,
+      garments: [quotation.request.garment, ...quotation.request.additionalGarments],
+      requiredBy: quotation.request.delivery.requiredBy, location: quotation.request.delivery.location,
+      quotation, orders: linked };
+  });
+  for (const order of orders) {
+    if (covered.has(order.id)) continue;
+    rows.push({ id: order.id, createdAt: order.createdAt, garments: [order.draft],
+      requiredBy: order.draft.requiredBy, location: order.draft.deliveryDistrict, orders: [order] });
+  }
+  const timestamp = (row: QueueRow) => Date.parse(row.createdAt ?? '');
+  rows.sort((a, b) => (timestamp(b) || 0) - (timestamp(a) || 0));
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const groups: Array<{ label: string; rows: QueueRow[] }> = [
+    { label: 'Últimos 7 días', rows: [] },
+    { label: 'Más de una semana', rows: [] },
+    { label: 'Sin fecha de registro', rows: [] },
+  ];
+  for (const row of rows) {
+    const date = timestamp(row);
+    groups[!Number.isFinite(date) ? 2 : date < weekAgo ? 1 : 0]!.rows.push(row);
+  }
+  const states: Record<Order['status'], string> = {
+    registered: 'Sin taller factible', recommended: 'Orden evaluada', assigned: 'Taller asignado',
+    in_production: 'En producción', completed: 'Terminado',
+  };
   return (
     <section className="mc-incoming">
       <header>
         <div>
           <span className="mc-live-dot" />
-          <div>
-            <p className="mc-kicker">RECIBIDOS DESDE EL FORMULARIO</p>
-            <h2>Pedidos nuevos</h2>
-          </div>
+          <div><p className="mc-kicker">SOLICITUDES Y ÓRDENES</p><h2>Pedidos</h2></div>
         </div>
-        <strong>
-          {pending} pendiente{pending === 1 ? '' : 's'}
-        </strong>
+        <strong>{pending} pendiente{pending === 1 ? '' : 's'}</strong>
       </header>
-      {quotations.length === 0 ? (
-        <p className="mc-incoming-empty">
-          Cuando un cliente envíe el formulario, la solicitud aparecerá aquí automáticamente.
-        </p>
+      {rows.length === 0 ? (
+        <p className="mc-incoming-empty">Cuando un cliente envíe el formulario, la solicitud aparecerá aquí automáticamente.</p>
       ) : (
         <div className="mc-incoming-list">
-          {quotations.slice(0, 6).map((quotation) => {
-            const garments = [quotation.request.garment, ...quotation.request.additionalGarments];
-            const units = garments.reduce((sum, garment) => sum + garment.quantity, 0);
-            const linkedOrders = orders.filter((item) =>
-              quotation.production?.orderIds.includes(item.id),
-            );
-            return (
-              <article key={quotation.id}>
-                <div className="mc-incoming-code">
-                  <b>{quotation.id}</b>
-                  <small>
-                    {new Date(quotation.createdAt).toLocaleTimeString('es-PE', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </small>
-                </div>
-                <div>
-                  <strong>
-                    {units} prendas · {garments.map((item) => item.product).join(' + ')}
-                  </strong>
-                  <small>
-                    Entrega {shortDate(quotation.request.delivery.requiredBy)} ·{' '}
-                    {quotation.request.delivery.location}
-                  </small>
-                </div>
-                <QuotationState quotation={quotation} />
-                {quotation.status === 'pending_quote' || quotation.status === 'quoted' ? (
-                  <a className="mc-open-quotation" href={`/peru-activa/pedidos/${quotation.id}`}>
-                    {quotation.status === 'pending_quote' ? 'Abrir y cotizar' : 'Ver cotización'}
-                  </a>
-                ) : linkedOrders.length > 0 ? (
-                  <div className="mc-open-orders">
-                    {linkedOrders.map((linkedOrder) => (
-                      <button
-                        key={linkedOrder.id}
-                        aria-controls="assignment-review"
-                        onClick={() => onOpenOrder(linkedOrder)}
-                      >
-                        Abrir {linkedOrder.id}
-                      </button>
-                    ))}
+          {groups.filter((group) => group.rows.length > 0).map((group) => (
+            <Fragment key={group.label}>
+              <h3 className="mc-incoming-divider">{group.label} <span>{group.rows.length}</span></h3>
+              {group.rows.map((row) => (
+                <article key={row.id}>
+                  <div className="mc-incoming-code">
+                    <b>{row.id}</b>
+                    {(row.quotation?.previewOnly || row.orders.some((order) => order.previewOnly)) && <small>DEMOSTRACIÓN · NO FABRICAR</small>}
+                    <small>{Number.isFinite(timestamp(row))
+                      ? <time dateTime={row.createdAt}>Recibido {receivedDate.format(timestamp(row))}</time>
+                      : 'Fecha de ingreso no registrada'}</small>
+                    {(row.quotation?.testOnly || row.orders.some((order) => order.testOnly)) && <small>Prueba</small>}
                   </div>
-                ) : (
-                  <span className="mc-queue-placeholder">
-                    {quotation.status === 'accepted' ? 'Aceptada' : '—'}
-                  </span>
-                )}
-              </article>
-            );
-          })}
+                  <div>
+                    <strong>{row.garments.reduce((sum, garment) => sum + garment.quantity, 0)} prendas · {row.garments.map((item) => item.product).join(' + ')}</strong>
+                    <small>Entrega {shortDate(row.requiredBy)}{row.location ? ` · ${row.location}` : ''}</small>
+                  </div>
+                  {row.quotation ? <QuotationState quotation={row.quotation} /> : <span className={`mc-quotation-state ${row.orders[0]!.status}`}>{states[row.orders[0]!.status]}</span>}
+                  <a className="mc-open-quotation" href={`/peru-activa/pedidos/${row.quotation?.id || row.orders[0]!.source?.quotationId || row.id}`} target="_self">
+                    {row.quotation?.status === 'pending_quote' ? 'Abrir y cotizar' : 'Abrir pedido'}
+                  </a>
+                </article>
+              ))}
+            </Fragment>
+          ))}
         </div>
       )}
     </section>
@@ -707,6 +479,7 @@ export function CandidateList({
         <span aria-hidden="true">!</span>
         <p className="mc-kicker">ASIGNACIÓN DETENIDA</p>
         <h3>No hay un plan factible</h3>
+        {error && <p role="alert">{error}</p>}
         <p>
           Ningún taller registrado cumple a la vez la capacidad, la fecha, la tela y los procesos
           requeridos. Este pedido no puede asignarse hasta revisar esas condiciones.
@@ -728,29 +501,8 @@ export function CandidateList({
     );
   }
   if (order.status !== 'recommended')
-    return (
-      <div className="mc-published">
-        <span className="mc-seal">✓</span>
-        <p className="mc-kicker">
-          {order.status === 'completed'
-            ? 'PEDIDO TERMINADO'
-            : order.status === 'in_production'
-              ? 'PEDIDO EN PRODUCCIÓN'
-              : 'ASIGNACIÓN CONFIRMADA'}
-        </p>
-        <h3>{order.assignment?.displayName}</h3>
-        <p>
-          El cliente y los talleres asignados ya pueden ver el nuevo estado de la orden{' '}
-          <b>{order.id}</b>.
-        </p>
-        {error && (
-          <p className="mc-assignment-error" role="alert">
-            {error}
-          </p>
-        )}
-        <p className="mc-handoff">Abre “Vista del taller” para comprobar el resultado.</p>
-      </div>
-    );
+    return <><AssignedWorkSummary order={order} />{error && <p className="mc-assignment-error" role="alert">{error}</p>}</>;
+
   return (
     <div className="mc-candidates">
       <div className="mc-result-note">

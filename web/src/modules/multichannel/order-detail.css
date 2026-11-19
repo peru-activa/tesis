@@ -1,0 +1,725 @@
+.pa-order-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  vertical-align: middle;
+}
+.pa-operations .mc-main {
+  max-width: 1100px;
+}
+.pa-operations .mc-intro-simple {
+  padding: 1.1rem 1.35rem;
+  box-shadow: none;
+  border-top-width: 2px;
+}
+.pa-operations .mc-intro-simple h1 {
+  font-family: inherit;
+  font-size: 1.5rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+.pa-operations .mc-intro-simple .mc-kicker,
+.pa-operations .mc-incoming .mc-kicker {
+  display: none;
+}
+.pa-operations .mc-intro-simple > div > p:last-child {
+  font-size: 0.9rem;
+}
+.pa-operations .mc-backbar {
+  padding: 0.55rem 1rem;
+  box-shadow: none;
+}
+.pa-operations .mc-incoming {
+  margin-top: 1rem;
+  border-top-width: 2px;
+  box-shadow: none;
+}
+.pa-operations .mc-incoming > header {
+  padding: 1rem 1.25rem;
+}
+.pa-operations .mc-incoming h2 {
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 750;
+}
+.pa-operations .mc-incoming-list article {
+  padding: 1rem 1.25rem;
+}
+.pa-operations .mc-open-quotation {
+  white-space: nowrap;
+}
+.pa-order-detail {
+  width: min(1160px, 100%);
+  margin: 0 auto;
+  padding: 1.1rem 1.25rem 3rem;
+}
+.pa-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #657086;
+  font-size: 0.9rem;
+  text-decoration: none;
+  margin-bottom: 1.25rem;
+}
+.pa-order-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.15rem;
+}
+.pa-order-heading h1 {
+  font-family: inherit;
+  font-size: clamp(1.3rem, 2.6vw, 1.75rem);
+  line-height: 1.2;
+  margin: 0;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+.pa-order-heading p {
+  margin: 0.35rem 0 0;
+  color: #657086;
+  font-size: 0.8rem;
+}
+.pa-order-heading .quote-status {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+}
+.pa-order-progress {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  margin: 0 0 1.1rem;
+  border-bottom: 1px solid #d9dfe8;
+}
+.pa-order-progress li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  color: #657086;
+  border-bottom: 2px solid transparent;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+.pa-order-progress li.is-current {
+  color: #c5212e;
+  border-bottom-color: #c5212e;
+}
+.pa-order-progress li.is-done {
+  color: #236044;
+}
+.pa-order-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 1rem 0 1.1rem;
+  margin: 0 0 1.2rem;
+  border-bottom: 1px solid #d9dfe8;
+}
+.pa-order-facts dt {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+  color: #657086;
+}
+.pa-order-facts dd {
+  margin: 0.35rem 0 0;
+  font-size: 1.1rem;
+  font-weight: 750;
+}
+.pa-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+.pa-detail-specifications h2,
+.pa-assignment-title h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 750;
+  font-family: inherit;
+}
+.pa-detail-specifications > h2 {
+  margin-bottom: 1rem;
+}
+.pa-item-previews {
+  display: grid;
+  gap: 1rem;
+}
+.pa-item-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0 0 1rem;
+  border-bottom: 1px solid #e9edf2;
+  align-items: start;
+  min-width: 0;
+}
+.pa-item-image {
+  min-width: 0;
+}
+.pa-item-image .quote-configured-preview {
+  padding: 0;
+  border: 0;
+  gap: 0.3rem;
+  background: transparent;
+}
+.pa-item-image .quote-preview-heading {
+  display: none;
+}
+.pa-item-image .quote-design-shirt {
+  width: 100%;
+  margin: 0;
+}
+.pa-item-image .quote-configured-preview-note,
+.pa-item-image > small {
+  display: block;
+  margin: 0.4rem 0 0;
+  color: #657086;
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+.pa-item-information {
+  min-width: 0;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+.pa-item-information h3 {
+  font: inherit;
+  font-weight: 750;
+  font-size: 1.15rem;
+  margin: 0;
+}
+.pa-item-information p {
+  margin: 0.2rem 0;
+  line-height: 1.45;
+}
+.pa-item-material {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  color: #657086;
+}
+.pa-item-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pa-color-swatch {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  border: 1px solid #94a3b8;
+  border-radius: 50%;
+}
+.pa-size-chips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  font-size: 0.75rem;
+}
+.pa-size-chips li {
+  background: #edf1f5;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+}
+.pa-size-chips b {
+  font-weight: 650;
+}
+.pa-item-logos {
+  list-style: none;
+  padding: 0;
+  margin: 0.2rem 0 0;
+  display: grid;
+  gap: 0;
+}
+.pa-item-logos > li {
+  min-width: 0;
+  border-top: 1px solid #d9dfe8;
+}
+.pa-design-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 56px;
+  border: 0;
+  padding: 0.45rem 0.4rem;
+  background: transparent;
+  text-align: left;
+  color: #17243a;
+}
+.pa-design-summary:hover,
+.pa-item-logos > li.is-selected .pa-design-summary {
+  background: #edf1f5;
+}
+.pa-design-summary:focus-visible {
+  outline: 2px solid #c5212e;
+  outline-offset: 2px;
+}
+.pa-design-thumbnail {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 40px;
+  position: relative;
+}
+.pa-design-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.pa-design-thumbnail > b {
+  position: absolute;
+  top: -2px;
+  left: -4px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #17243a;
+  color: white;
+  font-size: 0.65rem;
+}
+.pa-design-thumbnail > span {
+  font-size: 0.65rem;
+  color: #657086;
+}
+.pa-design-summary-label {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+  font-size: 0.78rem;
+}
+.pa-design-summary-label > span {
+  color: #657086;
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+.pa-design-summary-toggle {
+  color: #657086;
+  font-size: 1.15rem;
+}
+.pa-design-details {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.1rem 0.4rem 0.7rem 3.9rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.pa-design-details[hidden] {
+  display: none;
+}
+.pa-design-details small {
+  color: #657086;
+}
+.pa-design-details > strong {
+  display: none;
+}
+.pa-order-disclosure {
+  border-top: 1px solid #d9dfe8;
+  margin: 0.85rem 0;
+  padding: 0.85rem 0 0;
+  font-size: 0.85rem;
+}
+.pa-order-disclosure > summary,
+.pa-quote-editor > summary {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 650;
+  color: #475569;
+}
+.pa-order-disclosure[open] > summary {
+  margin-bottom: 1rem;
+}
+.pa-order-disclosure > summary::after,
+.pa-quote-editor > summary::after {
+  content: '+';
+  margin-left: auto;
+  font-size: 1.1rem;
+}
+.pa-order-disclosure[open] > summary::after,
+.pa-quote-editor[open] > summary::after {
+  content: '−';
+}
+.pa-detail-action {
+  min-width: 0;
+}
+.pa-quote-editor {
+  border: 1px solid #d9dfe8;
+  padding: 1rem;
+  border-radius: 8px;
+  background: white;
+}
+.pa-quote-editor .pa-quotation-panel {
+  padding: 1rem 0 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.pa-quote-editor .quote-step-title {
+  display: none;
+}
+.pa-quote-editor .pa-line-item {
+  padding: 0 0 0.75rem;
+  margin: 0;
+  border: 0;
+}
+.pa-quote-editor .quote-field {
+  margin-bottom: 0.75rem;
+}
+.pa-quote-editor .quote-field > span {
+  font-size: 0.8rem;
+}
+.pa-quote-editor .quote-field input,
+.pa-quote-editor .quote-field select,
+.pa-quote-editor .quote-field textarea {
+  font-size: 0.9rem;
+  padding: 0.65rem 0.75rem;
+}
+.pa-quote-editor textarea {
+  min-height: 70px;
+}
+.pa-quote-editor .pa-quote-total {
+  margin: 0.5rem 0 1rem;
+  padding: 0.75rem;
+}
+.pa-quote-editor .pa-quote-total strong {
+  font-size: 1.15rem;
+}
+.pa-quote-editor .quote-delivery-confirmation {
+  font-size: 0.8rem;
+  padding: 0.75rem;
+}
+.pa-quote-editor .quote-delivery-confirmation small {
+  font-size: 0.75rem;
+}
+.pa-quote-editor .pa-send-quotation {
+  min-height: 44px;
+  font-size: 0.85rem;
+  padding: 0.75rem;
+}
+.pa-assignment {
+  border: 1px solid #d9dfe8;
+  padding: 1rem;
+  border-radius: 8px;
+  background: white;
+}
+.pa-assignment-title,
+.pa-assignment-title > span {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.pa-assignment-title {
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+}
+.pa-assignment-title > small {
+  font-size: 0.75rem;
+  color: #657086;
+}
+.pa-assignment .mc-availability {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.pa-assignment .mc-workshops-heading {
+  display: none;
+}
+.pa-assignment .mc-availability ul {
+  margin: 0.75rem 0;
+}
+.pa-assignment .mc-availability li {
+  gap: 0.45rem;
+  padding: 0.6rem 0;
+}
+.pa-assignment .mc-workshop-contact {
+  flex-basis: 9rem;
+  font-size: 0.85rem;
+}
+.pa-assignment .mc-workshop-status {
+  font-size: 0.75rem;
+}
+.pa-assignment .mc-workshops-help,
+.pa-muted {
+  color: #657086;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.pa-assignment .mc-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: auto;
+  max-width: 100%;
+  min-height: 42px;
+  padding: 0.65rem 0.85rem;
+  box-shadow: none;
+  border-radius: 5px;
+  font-size: 0.8rem;
+  letter-spacing: 0;
+}
+.pa-assignment .mc-primary:hover {
+  transform: none;
+}
+.pa-assignment-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+.pa-text-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0;
+  background: transparent;
+  border: 0;
+  color: #657086;
+  font-size: 0.8rem;
+  text-decoration: underline;
+}
+.pa-text-action .pa-order-icon {
+  width: 16px;
+  height: 16px;
+  flex-basis: 16px;
+}
+.pa-order-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  color: #657086;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0 0 1rem;
+}
+.pa-order-notice p {
+  margin: 0.35rem 0;
+}
+.pa-order-error {
+  color: #972e31;
+  font-size: 0.85rem;
+}
+.pa-assigned-list {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+}
+.pa-assigned-list > li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #e9edf2;
+}
+.pa-assigned-list > li > div {
+  display: grid;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 8rem;
+  font-size: 0.85rem;
+}
+.pa-assigned-list small {
+  color: #657086;
+  font-size: 0.75rem;
+}
+.pa-order-selector {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  margin-bottom: 0.8rem;
+}
+.pa-order-selector select,
+.pa-order-disclosure select {
+  display: block;
+  width: 100%;
+  margin: 0.4rem 0;
+  padding: 0.6rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font: inherit;
+  background: white;
+}
+@media (max-width: 700px) {
+  .pa-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.1rem;
+  }
+  .pa-order-detail {
+    padding: 1rem 0.85rem 2rem;
+  }
+  .pa-order-heading {
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .pa-order-heading .quote-status {
+    max-width: 8rem;
+    white-space: normal;
+    text-align: center;
+  }
+  .pa-order-progress li {
+    flex: 1;
+    justify-content: center;
+    padding: 0.65rem 0.35rem;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+  }
+  .pa-order-progress .pa-order-icon {
+    width: 17px;
+    height: 17px;
+    flex-basis: 17px;
+  }
+  .pa-order-facts {
+    gap: 0.6rem;
+  }
+  .pa-order-facts dt {
+    font-size: 0.68rem;
+    gap: 0.2rem;
+  }
+  .pa-order-facts .pa-order-icon {
+    width: 16px;
+    height: 16px;
+    flex-basis: 16px;
+  }
+  .pa-order-facts dd {
+    font-size: 0.95rem;
+  }
+}
+
+.pa-quote-editor form {
+  gap: 0.75rem;
+}
+.pa-quote-editor .pa-quotation-panel {
+  margin: 0;
+}
+.pa-quote-editor .pa-line-items {
+  margin: 0;
+}
+.pa-quote-editor .pa-line-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.65rem;
+  background: transparent;
+}
+.pa-quote-editor .pa-line-item-description,
+.pa-quote-editor .pa-line-subtotal {
+  grid-column: 1 / -1;
+}
+.pa-quote-editor .pa-line-item-description[hidden] {
+  display: none;
+}
+.pa-quote-editor .quote-field {
+  margin: 0;
+  gap: 0.3rem;
+}
+.pa-quote-editor .quote-field-label {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 650;
+  font-size: 0.78rem;
+}
+.pa-quote-editor .quote-control input,
+.pa-quote-editor .quote-control select {
+  min-height: 40px;
+  padding: 0.55rem 0.65rem;
+}
+.pa-quote-editor .quote-control textarea {
+  min-height: 72px;
+  height: 72px;
+  padding: 0.55rem 0.65rem;
+}
+.pa-quote-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+}
+.pa-quote-editor .pa-send-quotation {
+  box-shadow: none;
+  border-radius: 5px;
+  transform: none;
+  letter-spacing: 0;
+}
+
+.pa-order-heading p {
+  overflow-wrap: anywhere;
+}
+
+.pa-plan-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin: 0.5rem 0;
+}
+.pa-plan-workshops {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.7rem;
+}
+.pa-plan-workshops li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e9edf2;
+}
+.pa-plan-workshops li > div {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  font-size: 0.85rem;
+}
+.pa-plan-workshops small {
+  color: #657086;
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+.pa-plan-workshops .mc-workshop-status {
+  flex-shrink: 0;
+}
+.pa-alternative-plans {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  padding-left: 1rem;
+}
+.pa-alternative-plans li {
+  margin: 0.65rem 0;
+}
+
+.pa-workshop-identity {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.6rem;
+}
+.pa-workshop-number {
+  color: #657086;
+  font-size: 0.75rem;
+  font-weight: 450;
+  white-space: nowrap;
+}
