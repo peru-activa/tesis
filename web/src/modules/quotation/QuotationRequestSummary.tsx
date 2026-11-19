@@ -3,8 +3,10 @@ import {
   type GarmentSizeCategory,
   type QuotationRequestDraft,
 } from '../../../../src/domain/quotation-requests';
-import { GarmentPreview } from './GarmentPreview';
-import { findFabricOption, poloCollars, poloCuts, poloSleeves } from './quotationCatalog';
+import { ConfiguredGarmentPreview } from './ConfiguredGarmentPreview';
+import { poloCuts, poloSleeves } from './quotationCatalog';
+import { garmentDesignApplications } from './designPreviewModel';
+import { garmentPreviewDetails } from './garmentPreviewDetails';
 
 const customizationLabels: Record<QuotationRequestDraft['garment']['customization'], string> = {
   none: 'Sin personalización',
@@ -29,22 +31,6 @@ export function QuotationRequestSummary({
         {garments.map((garment, index) => {
           const cutLabel = poloCuts.find((option) => option.value === garment.cut)?.label;
           const sleeveLabel = poloSleeves.find((option) => option.value === garment.sleeve)?.label;
-          const collar = poloCollars.find((option) => option.value === garment.model);
-          const longSleeve = garment.sleeve === 'manga_larga';
-          const fabricName = garment.fabric.mode === 'specified' ? garment.fabric.name : undefined;
-          const fabric = findFabricOption(garment.product, fabricName);
-          const garmentImage =
-            garment.product === 'polo'
-              ? longSleeve
-                ? collar?.longSleeveImage
-                : collar?.image
-              : fabric?.image;
-          const garmentAlt =
-            garment.product === 'polo'
-              ? longSleeve
-                ? collar?.longSleeveAlt
-                : collar?.alt
-              : fabric?.alt;
           const sizesByCategory = garment.sizes.reduce<
             Record<GarmentSizeCategory, typeof garment.sizes>
           >(
@@ -57,24 +43,7 @@ export function QuotationRequestSummary({
 
           return (
             <div className="quote-review-item" key={`${garment.product}-${index}`}>
-              {garmentImage && garmentAlt && (
-                <GarmentPreview
-                  garmentImage={garmentImage}
-                  garmentAlt={garmentAlt}
-                  title={
-                    garment.product === 'polo'
-                      ? [garment.model, sleeveLabel].filter(Boolean).join(' · ')
-                      : garment.model
-                  }
-                  fabric={fabric}
-                  fabricTitle={
-                    garment.fabric.mode === 'proposal'
-                      ? 'Tela por recomendar'
-                      : (fabric?.title ?? garment.fabric.name)
-                  }
-                  fabricMode={false}
-                />
-              )}
+              <ConfiguredGarmentPreview garment={garment} {...garmentPreviewDetails(garment)} />
               <section className="quote-review-garment">
                 <h3>
                   {garment.product === 'polo' ? 'Polos' : 'Buzos'} · {garment.quantity}
@@ -111,6 +80,22 @@ export function QuotationRequestSummary({
                       .map((size) => size.size + ' × ' + size.quantity)
                       .join(', ')}
                   </p>
+                )}
+                {garmentDesignApplications(garment).map((application, index) =>
+                  application.attachment?.text ? (
+                    <p key={`text-${index}`}>
+                      Texto {index + 1}: «{application.attachment.text.value}» ·{' '}
+                      {application.attachment.text.fontFamily}
+                    </p>
+                  ) : null,
+                )}
+                {garmentDesignApplications(garment).map((application, index) =>
+                  application.attachment?.preview?.inkColor ? (
+                    <p key={`ink-${index}`}>
+                      Color del {application.attachment.text ? 'Texto' : 'Logo'} {index + 1}:{' '}
+                      {application.attachment.preview.inkColor.toUpperCase()}
+                    </p>
+                  ) : null,
                 )}
                 {(garment.designApplications ?? [])
                   .map((application) => application.attachment?.name)

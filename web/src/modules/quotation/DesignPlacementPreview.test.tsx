@@ -1,7 +1,9 @@
+import { useState, type ComponentProps } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DesignPlacementPreview } from './DesignPlacementPreview';
+import type { View } from './designPreviewModel';
 
 afterEach(cleanup);
 
@@ -12,12 +14,19 @@ const imageAttachment = {
   dataUrl: 'data:image/png;base64,AA==',
 };
 
+function Preview(
+  props: Omit<ComponentProps<typeof DesignPlacementPreview>, 'view' | 'onViewChange'>,
+) {
+  const [view, setView] = useState<View>('front');
+  return <DesignPlacementPreview {...props} view={view} onViewChange={setView} />;
+}
+
 describe('DesignPlacementPreview', () => {
-  it('permite cambiar la superficie del diseño a la espalda', async () => {
+  it('consulta la espalda sin trasladar el logo y permite moverlo explícitamente', async () => {
     const user = userEvent.setup();
     const onPlacementChange = vi.fn();
     render(
-      <DesignPlacementPreview
+      <Preview
         attachment={imageAttachment}
         applications={[
           { attachment: imageAttachment, placement: 'Frente · posición 52%, 40% · tamaño 16%' },
@@ -37,6 +46,9 @@ describe('DesignPlacementPreview', () => {
     expect(screen.getByRole('img', { name: 'Diseño adjunto: logo.png' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Espalda' }));
 
+    expect(onPlacementChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole('img', { name: 'Diseño adjunto: logo.png' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Mover Logo 1 a la espalda' }));
     expect(onPlacementChange).toHaveBeenCalledWith('Espalda · posición 52%, 40% · tamaño 16%');
     expect(screen.getByText('Vista posterior referencial')).toBeTruthy();
   });
@@ -44,7 +56,7 @@ describe('DesignPlacementPreview', () => {
   it('arrastra el logo y guarda sus coordenadas', () => {
     const onPlacementChange = vi.fn();
     render(
-      <DesignPlacementPreview
+      <Preview
         attachment={imageAttachment}
         applications={[
           { attachment: imageAttachment, placement: 'Frente · posición 52%, 40% · tamaño 16%' },
@@ -80,7 +92,7 @@ describe('DesignPlacementPreview', () => {
 
   it('confirma un PDF sin inventar una representación visual', () => {
     render(
-      <DesignPlacementPreview
+      <Preview
         attachment={{ ...imageAttachment, name: 'logo.pdf', mediaType: 'application/pdf' }}
         applications={[
           {
@@ -108,7 +120,7 @@ describe('DesignPlacementPreview', () => {
     const onRequestUpload = vi.fn();
     const onAddApplication = vi.fn();
     render(
-      <DesignPlacementPreview
+      <Preview
         attachment={undefined}
         applications={[
           {
@@ -137,7 +149,7 @@ describe('DesignPlacementPreview', () => {
     expect(onRequestUpload).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: /Agregar otro logo/i }));
     expect(onAddApplication).toHaveBeenCalledOnce();
-    expect(screen.getByText('Agrega el logo 3')).toBeTruthy();
+    expect(screen.getByText('Agrega un logo en el frente')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Editar Logo 1' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Editar Logo 2' })).toBeTruthy();
     expect(screen.getAllByRole('img', { name: /Diseño adjunto/ })).toHaveLength(2);

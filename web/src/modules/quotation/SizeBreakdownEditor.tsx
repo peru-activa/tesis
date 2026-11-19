@@ -167,7 +167,10 @@ export function SizeBreakdownEditor({ path, quantity }: SizeBreakdownEditorProps
 
   return (
     <fieldset className="mt-7">
-      <legend className="flex w-full items-end justify-between gap-3">
+      <legend
+        className="flex w-full items-end justify-between gap-3"
+        data-validation-fields={`${path}.sizes`}
+      >
         <span className="quote-field-label">Cantidad por talla</span>
         <span className={total === quantity ? 'quote-total-ok' : 'quote-total-error'}>
           {total} de {quantity}

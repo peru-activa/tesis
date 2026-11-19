@@ -1,12 +1,15 @@
+import { ChoiceTransition, SelectionMark, confirmRadioChoice } from './ChoiceTransition';
 import type { TextOption } from './quotationCatalog';
 
 interface TextOptionPickerProps<T extends string> {
   inputName: string;
+  validationFields?: string;
   legend: string;
   summaryLabel: string;
   options: readonly TextOption<T>[];
   selected?: TextOption<T>;
   expanded: boolean;
+  confirmed?: boolean;
   onEdit: () => void;
   onPreview: (option: TextOption<T>) => void;
   onPreviewEnd: () => void;
@@ -15,30 +18,39 @@ interface TextOptionPickerProps<T extends string> {
 
 export function TextOptionPicker<T extends string>({
   inputName,
+  validationFields,
   legend,
   summaryLabel,
   options,
   selected,
   expanded,
+  confirmed,
   onEdit,
   onPreview,
   onPreviewEnd,
   onSelect,
 }: TextOptionPickerProps<T>) {
   return (
-    <fieldset>
+    <fieldset data-validation-fields={validationFields}>
       <legend className="quote-field-label">{legend}</legend>
-      {!expanded && selected ? (
-        <div className="quote-selected-text-option">
-          <span>
-            <strong>{selected.label}</strong>
-            <small>{summaryLabel}</small>
-          </span>
-          <button type="button" onClick={onEdit}>
-            Cambiar
-          </button>
-        </div>
-      ) : (
+      <ChoiceTransition
+        expanded={expanded}
+        confirmed={confirmed}
+        summary={
+          selected ? (
+            <div className="quote-selected-text-option">
+              <SelectionMark />
+              <span>
+                <strong>{selected.label}</strong>
+                <small>{summaryLabel}</small>
+              </span>
+              <button type="button" onClick={onEdit}>
+                Cambiar
+              </button>
+            </div>
+          ) : null
+        }
+      >
         <div className="quote-text-option-grid" onMouseLeave={onPreviewEnd}>
           {options.map((option) => (
             <label
@@ -55,12 +67,18 @@ export function TextOptionPicker<T extends string>({
                 value={option.value}
                 checked={selected?.value === option.value}
                 onChange={() => onSelect(option)}
+                onKeyDown={(event) =>
+                  confirmRadioChoice(event, event.currentTarget.checked, () => onSelect(option))
+                }
+                onClick={() => {
+                  if (selected?.value === option.value) onSelect(option);
+                }}
               />
               <span>{option.label}</span>
             </label>
           ))}
         </div>
-      )}
+      </ChoiceTransition>
     </fieldset>
   );
 }

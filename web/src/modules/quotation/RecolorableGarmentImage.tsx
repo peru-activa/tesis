@@ -71,7 +71,7 @@ function hslToRgb(hue: number, saturation: number, lightness: number): [number, 
   ];
 }
 
-function prepareGarment(source: string): Promise<PreparedGarment> {
+export function prepareGarment(source: string): Promise<PreparedGarment> {
   const cached = preparedGarments.get(source);
   if (cached) return cached;
 

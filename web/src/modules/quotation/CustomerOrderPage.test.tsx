@@ -89,7 +89,7 @@ const item: CustomerTrackingItem = {
     },
     {
       key: 'assigned',
-      label: 'Taller asignado',
+      label: 'Pedido confirmado',
       occurredAt: '2026-09-05T10:06:00-05:00',
       status: 'current',
     },
@@ -97,7 +97,19 @@ const item: CustomerTrackingItem = {
 };
 
 describe('CustomerOrderPage', () => {
-  it('separa aceptar la cotización de asignar e iniciar el trabajo', async () => {
+  it.each([
+    ['registered', 'Pedido confirmado'],
+    ['recommended', 'Pedido confirmado'],
+    ['assigned', 'Pedido confirmado'],
+    ['in_production', 'En producción'],
+    ['completed', 'Pedido terminado'],
+  ] as const)('presenta %s con el estado de cliente %s', (status, label) => {
+    const tracked = structuredClone(item);
+    tracked.productionOrders[0]!.status = status;
+    expect(trackingLabel(tracked)).toBe(label);
+  });
+
+  it('confirma el pedido sin mostrar tareas internas ni adelantar su producción', async () => {
     const pending = structuredClone(item);
     pending.productionOrders[0]!.status = 'recommended';
     delete pending.productionOrders[0]!.assignment;
@@ -106,11 +118,9 @@ describe('CustomerOrderPage', () => {
       vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, item: pending }) }),
     );
     render(<CustomerOrderPage quotationId={item.quotation.id} />);
-    expect(await screen.findByText(/aceptar no inicia la fabricación/)).toBeTruthy();
-    expect(
-      screen.getByRole('heading', { name: 'Perú Activa debe completar la asignación' }),
-    ).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Copiar pedido' }).getAttribute('href')).toBe(
+    expect(await screen.findByText(/Estamos preparando el inicio de producción/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'No necesitas hacer nada por ahora' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Repetir pedido' }).getAttribute('href')).toBe(
       `/nueva-solicitud?copiar=${item.quotation.id}`,
     );
   });
@@ -163,15 +173,15 @@ describe('CustomerOrderPage', () => {
       assignment: undefined,
     });
     expect(productionStage(multiple)).toBe(0);
-    expect(trackingLabel(multiple)).toBe('Asignación parcial');
+    expect(trackingLabel(multiple)).toBe('Pedido confirmado');
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, item: multiple }) }),
     );
     render(<CustomerOrderPage quotationId={item.quotation.id} />);
-    expect(await screen.findByRole('region', { name: 'Asignación por prenda' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Avance por prenda' })).toBeTruthy();
     expect(screen.getByText(/Buzos · 20 unidades/)).toBeTruthy();
-    expect(screen.getByText(/Propuesta calculada; falta confirmación/)).toBeTruthy();
+    expect(screen.getByText('En preparación')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Pedido terminado' })).toBeNull();
     multiple.productionOrders[1]!.status = 'completed';
     expect(productionStage(multiple)).toBe(3);
@@ -191,12 +201,16 @@ describe('CustomerOrderPage', () => {
     expect(screen.getByText('No necesitas hacer nada por ahora')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Progreso de producción' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Cambios registrados' })).toBeTruthy();
-    expect(screen.getAllByText('Taller asignado').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Pedido confirmado').length).toBeGreaterThan(0);
+    expect(
+      screen.queryByText(/Taller asignado|Asignación pendiente|Asignación parcial/),
+    ).toBeNull();
+    expect(screen.queryByText('Taller simulado')).toBeNull();
     expect(screen.getByText(/cuando se firme el contrato/i).textContent).toContain(
       'Siguiente paso: cuando se firme el contrato, enviaremos la muestra física sin costo para confirmar el color final.',
     );
     expect(container.querySelector('[aria-current="step"]')?.textContent).toContain(
-      'Taller asignado',
+      'Pedido confirmado',
     );
     expect(container.querySelector('main')?.getAttribute('data-r2-updated-at')).toBe(
       item.lastUpdatedAt,
