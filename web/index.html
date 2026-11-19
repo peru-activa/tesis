@@ -8,9 +8,9 @@
   </head>
   <body>
     <div id="root">
-      <main class="portal-recovery" role="status">
+      <main class="portal-recovery portal-boot-recovery" role="status" style="visibility: hidden">
         <img src="/logos/peru-activa-logo.webp" alt="Perú Activa" />
-        <h1>Estamos abriendo el portal</h1>
+        <h1>El portal está tardando en cargar</h1>
         <p>
           Si esta pantalla no cambia, abre el enlace directamente en Safari o Chrome y vuelve a
           intentarlo.
@@ -18,7 +18,24 @@
         <a href="">Reintentar</a>
       </main>
     </div>
+    <noscript>
+      <style>
+        .portal-boot-recovery { visibility: visible !important; animation: none !important; }
+      </style>
+      <p class="portal-noscript">Activa JavaScript en tu navegador para usar el portal.</p>
+    </noscript>
     <style>
+      .portal-boot-recovery {
+        visibility: hidden;
+        animation: portal-boot-timeout 0s 8s forwards;
+      }
+      @keyframes portal-boot-timeout {
+        to { visibility: visible; }
+      }
+      .portal-noscript {
+        text-align: center;
+        font-family: Arial, sans-serif;
+      }
       .portal-recovery {
         box-sizing: border-box;
         width: min(34rem, calc(100% - 2rem));
