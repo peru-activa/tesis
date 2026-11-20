@@ -5,6 +5,7 @@ import {
   type CommittedWork,
   type FabricBuyer,
   type RankedCandidate,
+  type Workshop,
 } from '../domain/contracts.js';
 import {
   addDateDays,
@@ -22,6 +23,25 @@ import { workshopsForScope } from '../domain/workshop-scope.js';
 import { committedWorkFromOrders } from './committed-work.js';
 import { fabricCategory, productionOrderForGarment } from './quotation-order-adapter.js';
 
+interface DeliveryPlanningContext {
+  quotation?: QuotationRequest;
+  requiredBy?: string;
+}
+
+interface ApprovalOptions {
+  approving?: boolean;
+  approvalDate?: string;
+}
+
+interface DeliveryPlanningSnapshot {
+  evaluatedAt: string;
+  garments: DeliveryPlanningInput['garment'][];
+  workshops: Workshop[];
+  committed: CommittedWork[];
+  quoted: QuotationRequest['quotation'];
+  requiredBy: string | undefined;
+}
+
 export class DeliveryPlanningService {
   readonly policy: DeliveryPolicy;
   constructor(
@@ -35,15 +55,34 @@ export class DeliveryPlanningService {
 
   async estimate(
     input: DeliveryPlanningInput,
-    options: {
-      quotation?: QuotationRequest;
-      approving?: boolean;
-      approvalDate?: string;
-      requiredBy?: string;
-    } = {},
+    options: DeliveryPlanningContext & ApprovalOptions = {},
   ): Promise<DeliveryEstimate> {
+    const evaluate = await this.prepareEstimate(input, options);
+    return evaluate(options);
+  }
+
+  async prepareEstimate(
+    input: DeliveryPlanningInput,
+    { quotation, requiredBy }: DeliveryPlanningContext = {},
+  ): Promise<(options?: ApprovalOptions) => DeliveryEstimate> {
     const parsed = deliveryPlanningInputSchema.parse(input);
     const evaluatedAt = this.now().toISOString();
+    const [allWorkshops, orders] = await Promise.all([this.workshops.list(), this.orders.list()]);
+    const snapshot: DeliveryPlanningSnapshot = {
+      evaluatedAt,
+      garments: [parsed.garment, ...parsed.additionalGarments],
+      workshops: workshopsForScope(allWorkshops, quotation ?? {}),
+      committed: committedWorkFromOrders(orders),
+      quoted: quotation?.quotation,
+      requiredBy,
+    };
+    return (options = {}) => this.estimateFromSnapshot(snapshot, options);
+  }
+
+  private estimateFromSnapshot(
+    { evaluatedAt, garments, workshops, committed, quoted, requiredBy }: DeliveryPlanningSnapshot,
+    options: ApprovalOptions,
+  ): DeliveryEstimate {
     const today = limaDate(evaluatedAt);
     const approvalDays = options.approving ? 0 : options.approvalDate
       ? Math.max(0, calendarDaysBetween(today, options.approvalDate)) : this.policy.approvalDays;
@@ -53,13 +92,8 @@ export class DeliveryPlanningService {
       ? `${approvalBy}T23:59:59.999-05:00` : new Date(
       Date.parse(evaluatedAt) + approvalDays * 86_400_000,
     ).toISOString();
-    const [allWorkshops, orders] = await Promise.all([this.workshops.list(), this.orders.list()]);
-    const workshops = workshopsForScope(allWorkshops, options.quotation ?? {});
-    const committed = committedWorkFromOrders(orders);
-    const garments = [parsed.garment, ...parsed.additionalGarments];
     const materialPending =
-      garments.some((garment) => garment.fabric.mode === 'proposal') &&
-      !options.quotation?.quotation;
+      garments.some((garment) => garment.fabric.mode === 'proposal') && !quoted;
     const result: DeliveryEstimate = {
       status: 'unavailable',
       evaluatedAt,
@@ -82,7 +116,6 @@ export class DeliveryPlanningService {
         }
         const garment = garments[index];
         if (!garment) return true;
-        const quoted = options.quotation?.quotation;
         const selectedFabric =
           quoted?.lineItems?.find((line) => line.garmentIndex === index)?.selectedFabric ??
           quoted?.selectedFabric;
@@ -136,7 +169,7 @@ export class DeliveryPlanningService {
     };
 
     // Validate the requested date and find the minimum against the same snapshot.
-    const selectedIsFeasible = options.requiredBy ? feasible(options.requiredBy) : true;
+    const selectedIsFeasible = requiredBy ? feasible(requiredBy) : true;
     if (searchLimited) return { ...result, reason: 'search_limit' };
     // Scan rather than assume monotonicity of discrete allocations and route fallbacks.
     for (

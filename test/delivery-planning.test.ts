@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, it, mock } from 'node:test';
 import { DeliveryPlanningService } from '../src/application/delivery-planning.js';
 import { QuotationService, QuotationFlowError } from '../src/application/quotation-service.js';
 import { MemoryOrderStore } from '../src/data/order-store.js';
@@ -10,6 +10,7 @@ import { quotationRequestDraftSchema } from '../src/domain/quotation-requests.js
 import { planLeadTimeDays } from '../src/domain/recommend.js';
 import { recommendationRequestSchema } from '../src/domain/contracts.js';
 import { capacityOrder, capacityWorkshop } from './fixtures/capacity.js';
+import { emailDraft, emailQuote } from './fixtures/customer-email.js';
 import { AssignmentDemoService } from '../src/application/assignment-demo-service.js';
 
 const garment: DeliveryPlanningInput['garment'] = {
@@ -125,6 +126,34 @@ describe('delivery feasibility before requesting a quotation', () => {
     now = start;
     await service.respond(created.id, { decision: 'accepted' });
     assert.equal(accepted, 1);
+  });
+
+  it('reads capacity once per quotation preview and rechecks it on the next request', async () => {
+    const { planning, orders, workshops } = setup();
+    const store = new MemoryQuotationStore();
+    const service = new QuotationService(store, () => start, { deliveryPlanning: planning });
+    const draft = emailDraft();
+    draft.garment.fabric = { mode: 'specified', name: 'Algodón' };
+    draft.delivery.requiredBy = '2099-11-30';
+    const request = await service.create(draft);
+    const quotation = { ...emailQuote(), validUntil: '2099-11-15' };
+    const readOrders = mock.method(orders, 'list');
+    const readWorkshops = mock.method(workshops, 'list');
+
+    const preview = await service.previewQuotation(request.id, quotation);
+    assert.equal(preview.deliveryEstimate?.approvalBy, quotation.validUntil);
+    assert.ok(preview.quotation.deliveryTerms?.calendarDays);
+    assert.equal(readOrders.mock.callCount(), 1);
+    assert.equal(readWorkshops.mock.callCount(), 1);
+    assert.equal((await store.get(request.id))?.status, 'pending_quote');
+
+    await workshops.upsertAll([workshopWith({ products: ['buzo'] })]);
+    await assert.rejects(
+      service.previewQuotation(request.id, quotation),
+      (error: unknown) => error instanceof QuotationFlowError && error.code === 'delivery_unavailable',
+    );
+    assert.equal(readOrders.mock.callCount(), 2);
+    assert.equal(readWorkshops.mock.callCount(), 2);
   });
 
   it('can use independent workshops in parallel and does not spend a shared restricted resource twice', async () => {

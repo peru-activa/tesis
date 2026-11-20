@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { setImmediate } from 'node:timers/promises';
 import type { DeliveryPlanningService } from './delivery-planning.js';
 import type { DeliveryEstimate, DeliveryPlanningInput } from '../domain/delivery-estimate.js';
 import { addDateDays, calendarDaysBetween, limaDate, quotationExpired } from '../domain/delivery-estimate.js';
@@ -142,15 +143,21 @@ export class QuotationService {
     }
     if (quotation.taxMode) quotation.taxRate = IGV_RATE;
     quotation.totalPricePEN = quotationPricing(quotation.priceAmountPEN, quotation.taxMode).totalPricePEN;
-    const deliveryEstimate = await this.ensureDelivery(current.request, { ...current, quotation });
-    if (deliveryEstimate?.earliestDate) {
+    const evaluate = await this.lifecycle.deliveryPlanning?.prepareEstimate(current.request, {
+      quotation: { ...current, quotation },
+      requiredBy: current.request.delivery.requiredBy,
+    });
+    if (!evaluate) return { quotation, deliveryEstimate: undefined };
+
+    const deliveryEstimate = this.requireAvailableDelivery(evaluate({ approvalDate: quotation.validUntil }));
+    if (deliveryEstimate.earliestDate) {
       let calendarDays = Math.max(1, calendarDaysBetween(deliveryEstimate.approvalBy, deliveryEstimate.earliestDate));
       // A single advertised duration must cover every acceptance day, including
       // calendar gaps or workshops occupied early in the validity window.
-      for (let day = limaDate(this.now().toISOString()); day < quotation.validUntil; day = addDateDays(day, 1)) {
-        const estimate = await this.ensureDelivery(current.request, { ...current,
-          quotation: { ...quotation, validUntil: day } });
-        calendarDays = Math.max(calendarDays, calendarDaysBetween(day, estimate!.earliestDate!));
+      for (let day = limaDate(deliveryEstimate.evaluatedAt); day < quotation.validUntil; day = addDateDays(day, 1)) {
+        await setImmediate();
+        const estimate = this.requireAvailableDelivery(evaluate({ approvalDate: day }));
+        calendarDays = Math.max(calendarDays, calendarDaysBetween(day, estimate.earliestDate!));
       }
       if (addDateDays(quotation.validUntil, calendarDays) > current.request.delivery.requiredBy) {
         throw new QuotationFlowError('delivery_unavailable',
@@ -223,6 +230,10 @@ export class QuotationService {
       ...(quotation?.quotation ? { approvalDate: quotation.quotation.validUntil } : {}), approving,
     };
     const estimate = await this.lifecycle.deliveryPlanning.estimate(input, { ...options, requiredBy: input.delivery.requiredBy });
+    return this.requireAvailableDelivery(estimate);
+  }
+
+  private requireAvailableDelivery(estimate: DeliveryEstimate): DeliveryEstimate {
     if (estimate.status === 'available') return estimate;
     throw new QuotationFlowError('delivery_unavailable', estimate.reason === 'search_limit'
       ? 'No se pudo completar el cálculo de entrega. Consulta con Perú Activa antes de continuar.' : estimate.earliestDate
