@@ -2,6 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CustomerOrderPage } from './CustomerOrderPage';
 import type { CustomerTrackingItem } from './customerTracking';
+import { productionStage, trackingLabel } from './customerTracking';
 
 vi.mock('socket.io-client', () => ({
   io: () => ({ on: vi.fn(), disconnect: vi.fn() }),
@@ -96,6 +97,21 @@ const item: CustomerTrackingItem = {
 };
 
 describe('CustomerOrderPage', () => {
+  it('separa aceptar la cotización de asignar e iniciar el trabajo', async () => {
+    const pending = structuredClone(item);
+    pending.productionOrders[0]!.status = 'recommended';
+    delete pending.productionOrders[0]!.assignment;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, item: pending }) }),
+    );
+    render(<CustomerOrderPage quotationId={item.quotation.id} />);
+    expect(await screen.findByText(/aceptar no inicia la fabricación/)).toBeTruthy();
+    expect(
+      screen.getByRole('heading', { name: 'Perú Activa debe completar la asignación' }),
+    ).toBeTruthy();
+  });
+
   it('muestra la confirmación del plazo y bloquea aceptar una fecha no confirmada', async () => {
     const quoted = structuredClone(item);
     quoted.quotation.status = 'quoted';
@@ -123,6 +139,42 @@ describe('CustomerOrderPage', () => {
     );
   });
 
+  it('evalúa todas las prendas y no muestra terminado cuando queda una por asignar', async () => {
+    const multiple = structuredClone(item);
+    multiple.quotation.request.additionalGarments = [
+      {
+        ...multiple.quotation.request.garment,
+        product: 'buzo',
+        model: 'Casaca y pantalón',
+        sleeve: 'no_aplica',
+        cut: 'no_aplica',
+      },
+    ];
+    multiple.productionOrders[0]!.garmentIndex = 0;
+    multiple.productionOrders[0]!.status = 'completed';
+    multiple.productionOrders.push({
+      ...multiple.productionOrders[0]!,
+      id: 'PED-R2-002',
+      garmentIndex: 1,
+      status: 'recommended',
+      assignment: undefined,
+    });
+    expect(productionStage(multiple)).toBe(0);
+    expect(trackingLabel(multiple)).toBe('Asignación parcial');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, item: multiple }) }),
+    );
+    render(<CustomerOrderPage quotationId={item.quotation.id} />);
+    expect(await screen.findByRole('region', { name: 'Asignación por prenda' })).toBeTruthy();
+    expect(screen.getByText(/Buzos · 20 unidades/)).toBeTruthy();
+    expect(screen.getByText(/Propuesta calculada; falta confirmación/)).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Pedido terminado' })).toBeNull();
+    multiple.productionOrders[1]!.status = 'completed';
+    expect(productionStage(multiple)).toBe(3);
+    multiple.productionOrders.pop();
+    expect(productionStage(multiple)).toBe(0);
+  });
   it('conserva la cotización y explica el estado del pedido confirmado', async () => {
     vi.stubGlobal(
       'fetch',
