@@ -1,3 +1,5 @@
+import { MemoryWorkshopStore } from '../src/data/workshop-store.js';
+import { capacityWorkshop } from './fixtures/capacity.js';
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -30,10 +32,10 @@ const draft = {
     cut: 'estandar',
     quantity: 32,
     sizes: [
-      { size: 'S', category: 'adult', quantity: 4 },
-      { size: 'M', category: 'adult', quantity: 14 },
-      { size: 'L', category: 'adult', quantity: 8 },
-      { size: 'XL', category: 'adult', quantity: 6 },
+      { size: 'S', quantity: 4 },
+      { size: 'M', quantity: 14 },
+      { size: 'L', quantity: 8 },
+      { size: 'XL', quantity: 6 },
     ],
     color: 'Azul marino',
     fabric: { mode: 'proposal' },
@@ -44,7 +46,7 @@ const draft = {
   },
   additionalGarments: [],
   delivery: {
-    requiredBy: new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10),
+    requiredBy: new Date(Date.now() + 45 * 86_400_000).toISOString().slice(0, 10),
     location: 'Lima Metropolitana',
   },
   notes: '',
@@ -53,6 +55,11 @@ const draft = {
 before(async () => {
   server = createServer(
     createApp({
+      workshopStore: new MemoryWorkshopStore([...week03DeclaredWorkshops, capacityWorkshop({
+        id: 'buzo-test-producer', products: ['buzo'], materials: ['Microtec poliéster'],
+        processes: ['design', 'cutting', 'sewing', 'embroidery', 'finishing'],
+        technicalCapabilities: ['garment_sewing', 'finishing'],
+      })]),
       orderStore: new MemoryOrderStore(),
       quotationStore: new MemoryQuotationStore(),
       onQuotationUpdated: (quotation) => quotationEvents.push(quotation),
@@ -106,11 +113,11 @@ describe('quotation request flow', () => {
         body: JSON.stringify({
           totalPricePEN: 1_920,
           lineItems: [{ garmentIndex: 0, unitPricePEN: 60 }],
-          deliveryConfirmation: { requiredBy: draft.delivery.requiredBy, confirmed: true },
           selectedFabric: 'Zanetti 100 % poliéster',
           fabricBuyer: 'workshop',
-          validUntil: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
+          validUntil: '2026-09-05',
           conditions: 'Incluye confección y un bordado por prenda.',
+          deliveryConfirmation: { requiredBy: draft.delivery.requiredBy, confirmed: true },
         }),
       },
     );
@@ -218,10 +225,12 @@ describe('quotation request flow', () => {
     );
     assert.ok(
       completedTracking.item.timeline.some(
-        (entry: { label: string }) => entry.label === 'Cotización aceptada; asignación pendiente de Perú Activa',
+        (entry: { label: string }) =>
+          entry.label === 'Pedido confirmado',
       ),
     );
     assert.equal(completedTracking.item.timeline.at(-1).label, 'Producción terminada');
+    assert.ok(completedTracking.item.timeline.every((event: {label:string}) => !/taller|asignaci|propuesta/i.test(event.label)));
 
     const repeatedCompletionResponse = await fetch(
       `${baseUrl}/v1/orders/${productionOrder.id}/status`,
@@ -338,14 +347,14 @@ describe('quotation request flow', () => {
         body: JSON.stringify({
           totalPricePEN: 1,
           lineItems: [
-            { garmentIndex: 0, unitPricePEN: 60 },
-            { garmentIndex: 1, unitPricePEN: 80 },
+            { garmentIndex: 0, unitPricePEN: 60, selectedFabric: 'Zanetti' },
+            { garmentIndex: 1, unitPricePEN: 80, selectedFabric: 'Microtec poliéster' },
           ],
-          deliveryConfirmation: { requiredBy: draft.delivery.requiredBy, confirmed: true },
           selectedFabric: 'Microtec poliéster',
           fabricBuyer: 'peru_activa',
           validUntil: '2026-09-05',
           conditions: 'Cotización simulada para dos prendas.',
+          deliveryConfirmation: { requiredBy: draft.delivery.requiredBy, confirmed: true },
         }),
       },
     );
@@ -353,8 +362,8 @@ describe('quotation request flow', () => {
     const quote = await quoteResponse.json();
     assert.equal(quote.request.quotation.totalPricePEN, 4_480);
     assert.deepEqual(quote.request.quotation.lineItems, [
-      { garmentIndex: 0, unitPricePEN: 60 },
-      { garmentIndex: 1, unitPricePEN: 80 },
+      { garmentIndex: 0, unitPricePEN: 60, selectedFabric: 'Zanetti' },
+      { garmentIndex: 1, unitPricePEN: 80, selectedFabric: 'Microtec poliéster' },
     ]);
     const decisionResponse = await fetch(
       `${baseUrl}/v1/quotation-requests/${payload.request.id}/decision`,

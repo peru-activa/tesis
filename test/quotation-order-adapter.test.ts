@@ -68,10 +68,7 @@ describe('adaptador de cotización aceptada', () => {
         sleeve: 'manga_corta',
         cut: 'estandar',
         quantity: 200,
-        sizes: [
-          { size: 'M', category: 'adult', quantity: 150 },
-          { size: '10', category: 'child', quantity: 50 },
-        ],
+        sizes: [{ size: 'M', quantity: 200 }],
         color: 'Azul y blanco',
         fabric: { mode: 'specified', name: 'Dry Fit' },
         customization: 'sublimation',
@@ -80,10 +77,23 @@ describe('adaptador de cotización aceptada', () => {
         applicationCount: 1,
         customizationDetails: 'Un bordado al pecho y sublimado integral',
         designReference: 'Diseño deportivo simulado',
+        designApplications: [
+          {
+            placement: 'Espalda',
+            method: 'sublimation',
+            attachment: {
+              name: 'logo.png',
+              mediaType: 'image/png',
+              sizeBytes: 4,
+              dataUrl: 'data:image/png;base64,AAAA',
+              preview: { backgroundMode: 'auto', inkColor: '#ffffff' },
+            },
+          },
+        ],
       },
       additionalGarments: [],
       delivery: {
-        requiredBy: new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10),
+        requiredBy: new Date(Date.now() + 45 * 86_400_000).toISOString().slice(0, 10),
         location: 'Lima Metropolitana',
       },
       notes: '',
@@ -116,8 +126,7 @@ describe('adaptador de cotización aceptada', () => {
       'finishing',
     ]);
     assert.equal(adapted.draft.poloType, 'sports');
+    assert.match(adapted.draft.notes, /Color del Logo 1: #FFFFFF/);
     assert.equal(adapted.draft.embroideryApplicationsPerGarment, 1);
-    assert.equal(adapted.draft.sizes.M, 150);
-    assert.equal(adapted.draft.sizes['Niño 10'], 50);
   });
 });

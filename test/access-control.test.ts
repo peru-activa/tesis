@@ -35,7 +35,7 @@ const draft = {
   },
   additionalGarments: [],
   delivery: {
-    requiredBy: new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10),
+    requiredBy: new Date(Date.now() + 45 * 86_400_000).toISOString().slice(0, 10),
     location: 'Lima Metropolitana',
   },
   notes: '',
@@ -68,6 +68,20 @@ after(async () => {
 });
 
 describe('aislamiento de datos por identidad', () => {
+  it('las rutas de cliente envían las cuentas internas a su bandeja de trabajo', async () => {
+    for (const path of ['/mis-pedidos', '/mis-pedidos/COT-1234ABCD', '/nueva-solicitud']) {
+      for (const [headers, destination] of [
+        [peruActivaHeaders, '/peru-activa'],
+        [{ 'x-demo-workshop-phone': '900000001' }, '/taller'],
+      ] as const) {
+        const response = await fetch(`${baseUrl}${path}`, { headers, redirect: 'manual' });
+        assert.equal(response.status, 302, path);
+        assert.equal(response.headers.get('location'), destination, path);
+        assert.equal(response.headers.get('cache-control'), 'private, no-store');
+      }
+    }
+  });
+
   it('redirige la entrada simple según el rol resuelto por el backend', async () => {
     const clientResponse = await fetch(`${baseUrl}/demo`, {
       headers: clientHeaders('cliente-ruta@example.test'),
@@ -164,11 +178,11 @@ describe('aislamiento de datos por identidad', () => {
     const payload = {
       totalPricePEN: 1_000,
       lineItems: [{ garmentIndex: 0, unitPricePEN: 50 }],
-      deliveryConfirmation: { requiredBy: draft.delivery.requiredBy, confirmed: true },
       selectedFabric: 'Algodón pima 20/1',
       fabricBuyer: 'workshop',
       validUntil: '2026-09-05',
       conditions: 'Cotización simulada.',
+      deliveryConfirmation: { requiredBy: draft.delivery.requiredBy, confirmed: true },
     };
     const clientAttempt = await fetch(
       `${baseUrl}/v1/quotation-requests/${quotation.id}/quotation`,

@@ -83,7 +83,7 @@ describe('Copiar una solicitud propia', () => {
     const app = createApp({
       orderStore: f.orders,
       quotationStore: f.quotations,
-      workshopStore: new MemoryWorkshopStore([]),
+      workshopStore: new MemoryWorkshopStore(week03DeclaredWorkshops),
     });
     const server = createServer(app);
     server.listen(0, '127.0.0.1');

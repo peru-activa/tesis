@@ -34,6 +34,9 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
+    "@pdfme/common": "6.1.10",
+    "@pdfme/generator": "6.1.10",
+    "@pdfme/schemas": "6.1.10",
     "compression": "^1.8.1",
     "express": "5.1.0",
     "jose": "^6.2.10",
@@ -47,6 +50,7 @@
     "zod": "4.1.11"
   },
   "devDependencies": {
+    "@pdfme/pdf-lib": "6.2.8",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.6",

@@ -1,3 +1,9 @@
+import { DeliveryPlanningService } from './application/delivery-planning.js';
+import type { DeliveryPolicy } from './domain/delivery-estimate.js';
+import { RECOMMENDATION_VERSION } from './domain/contracts.js';
+import { AssignmentAutomationService } from './application/assignment-automation.js';
+import { recommendationFromOrderDraft } from './application/order-draft-adapter.js';
+import { previewMutationGuard } from './http/preview-guard.js';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import compression from 'compression';
@@ -9,7 +15,10 @@ import {
   AssignmentDemoService,
   AssignmentFlowError,
 } from './application/assignment-demo-service.js';
+import { workshopAvailability } from './application/workshop-availability.js';
+import { workshopAvailabilityReference } from './infrastructure/production-whatsapp.js';
 import { QuotationService } from './application/quotation-service.js';
+import { CustomerRegistration } from './application/customer-registration.js';
 import { createOrderStore, type OrderStore } from './data/order-store.js';
 import { week02Demo } from './data/week-02-demo.js';
 import { week03DeclaredWorkshops } from './data/week-03-assignment-scenarios.js';
@@ -21,12 +30,20 @@ import {
   type AuthenticatedIdentity,
 } from './domain/identity.js';
 import { fabricBuyerSchema, recommendationRequestSchema } from './domain/contracts.js';
+import { portalHomeByRole } from './domain/portal-navigation.js';
+import { customerRegistrationSchema } from './domain/customer-registration.js';
+import { researchConsentDocument } from './domain/research-consent.js';
+import { renderConsentDocument, renderLegacyConsent } from './http/consent-document.js';
 import { orderDraftSchema, workshopOrderStatusSchema, type PortalOrder } from './domain/orders.js';
 import type { QuotationRequest } from './domain/quotation-requests.js';
-import { recommendWorkshops } from './domain/recommend.js';
 import { createQuotationRouter } from './http/quotation-routes.js';
 import { resolveIdentity } from './infrastructure/access-identity.js';
+import { createCustomerProfileStore } from './infrastructure/customer-profile-store.js';
 import { createQuotationStore, type QuotationStore } from './infrastructure/quotation-store.js';
+import { CustomerEmailWorker } from './application/customer-email.js';
+import { customerEmailConfiguration, CloudflareEmailTransport } from './infrastructure/cloudflare-email.js';
+import { customerMessageBuilder } from './infrastructure/customer-email-message.js';
+import type { CustomerEmailTransport } from './domain/customer-email.js';
 
 const webDirectory = fileURLToPath(new URL('../public/app/', import.meta.url));
 const confirmationSchema = z
@@ -46,7 +63,7 @@ const openApiDocument = {
   openapi: '3.0.3',
   info: {
     title: 'Portal de pedidos de Perú Activa',
-    version: '0.6.0',
+    version: '0.8.0',
     description: 'API del MVP académico para registro, recomendación y seguimiento de pedidos.',
   },
   components: {
@@ -60,12 +77,21 @@ const openApiDocument = {
     },
   },
   paths: {
+    '/v1/quotation-requests/delivery-estimate': {
+      post: {
+        summary: 'Calcular la primera fecha de entrega factible sin reservar capacidad',
+        security: [{ cloudflareAccess: [] }],
+        responses: { 200: { description: 'Estimación disponible o sin ruta dentro del horizonte' },
+          400: { description: 'Especificaciones inválidas' }, 403: { description: 'Rol no autorizado' } },
+      },
+    },
     '/health': {
       get: {
         summary: 'Verificar el servicio',
         responses: { 200: { description: 'Servicio disponible' } },
       },
     },
+    '/v1/orders/{id}': { get: { summary: 'Consultar una orden desde su detalle de Perú Activa', responses: { 200: { description: 'Orden y nombres vigentes de sus talleres' }, 404: { description: 'Orden no encontrada' } } } },
     '/v1/orders': {
       get: {
         summary: 'Listar pedidos de la sesión piloto',
@@ -86,6 +112,19 @@ const openApiDocument = {
         responses: {
           200: { description: 'Asignación confirmada' },
           404: { description: 'Pedido no encontrado' },
+          409: { description: 'Capacidad modificada o pedido ya asignado a otro plan' },
+        },
+      },
+    },
+    '/v1/orders/{id}/recommendation': {
+      post: {
+        summary: 'Actualizar la propuesta usando la carga pendiente de los talleres',
+        security: [{ cloudflareAccess: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'Propuesta actualizada' },
+          404: { description: 'Pedido no encontrado' },
+          409: { description: 'Pedido ya asignado' },
         },
       },
     },
@@ -105,6 +144,36 @@ const openApiDocument = {
         summary: 'Obtener la identidad y el rol de la sesión',
         security: [{ cloudflareAccess: [] }],
         responses: { 200: { description: 'Identidad autenticada' } },
+      },
+    },
+    '/v1/customer-registration': {
+      get: {
+        summary: 'Consultar si la cuenta necesita registro de cliente',
+        security: [{ cloudflareAccess: [] }],
+        responses: { 200: { description: 'Estado del registro y aviso aplicable' } },
+      },
+      post: {
+        summary: 'Registrar el perfil de la cuenta y su decisión sobre el uso académico',
+        security: [{ cloudflareAccess: [] }],
+        responses: {
+          201: { description: 'Perfil registrado' },
+          400: { description: 'Datos de registro inválidos' },
+          403: { description: 'Cuenta sin acceso al registro' },
+          409: { description: 'Cuenta ya registrada' },
+        },
+      },
+    },
+    '/v1/consent-documents/{version}': {
+      get: {
+        summary: 'Leer o descargar el consentimiento completo antes de participar',
+        responses: { 200: { description: 'Documento paginado en HTML' }, 404: { description: 'Versión inexistente' } },
+      },
+    },
+    '/v1/customer-registration/consent': {
+      get: {
+        summary: 'Obtener una copia del consentimiento y aceptación de la propia cuenta',
+        security: [{ cloudflareAccess: [] }],
+        responses: { 200: { description: 'Copia personal en HTML' }, 404: { description: 'Sin aceptación registrada' } },
       },
     },
     '/v1/my-orders': {
@@ -218,6 +287,14 @@ const openApiDocument = {
         responses: { 200: { description: 'Notificaciones publicadas' } },
       },
     },
+    '/v1/orders/{id}/workshop-availability': {
+      get: { summary: 'Consultar respuestas de disponibilidad por taller', responses: { 200: { description: 'Disponibilidad de talleres compatibles' } } },
+      post: { summary: 'Enviar consultas de disponibilidad a los talleres compatibles', responses: { 200: { description: 'Resultado independiente por taller' } } },
+    },
+    '/v1/orders/{id}/assignment-automation': {
+      get: { summary: 'Leer el plan principal y su ejecución, sin enviar mensajes', responses: { 200: { description: 'Plan y estado persistente' } } },
+      post: { summary: 'Autorizar el plan y alternativas solo ante rechazo explícito', responses: { 200: { description: 'Autorización guardada' }, 409: { description: 'Requiere revisión' } } },
+    },
     '/v1/orders/{id}/production-coordination': {
       get: {
         summary: 'Consultar recibos de Meta y aceptación explícita por taller',
@@ -234,6 +311,8 @@ const openApiDocument = {
 } as const;
 
 export interface AppOptions {
+  deliveryPolicy?: Partial<DeliveryPolicy>;
+  customerEmail?: { transport: CustomerEmailTransport; portalUrl: string };
   orderStore?: OrderStore;
   quotationStore?: QuotationStore;
   workshopStore?: WorkshopStore;
@@ -246,10 +325,44 @@ export function createApp(options: AppOptions = {}): express.Express {
   const app = express();
   const orderStore = options.orderStore ?? createOrderStore();
   const quotationStore = options.quotationStore ?? createQuotationStore();
+  const emailConfig = options.customerEmail ? undefined : customerEmailConfiguration();
+  const emailOptions = options.customerEmail ?? (emailConfig ? {
+    transport: new CloudflareEmailTransport(emailConfig), portalUrl: emailConfig.portalUrl,
+  } : undefined);
+  orderStore.configureCustomerEmails(emailOptions ? quotationStore : undefined);
+  app.locals.customerEmailWorker = emailOptions ? new CustomerEmailWorker(
+    quotationStore, quotationStore, emailOptions.transport, customerMessageBuilder(emailOptions.portalUrl),
+    undefined, id => {
+      void quotationStore.get(id).then(quotation => {
+        if (quotation) options.onQuotationUpdated?.(quotation);
+      }).catch(() => undefined);
+    },
+    orderStore,
+  ) : undefined;
+  const customerRegistration = new CustomerRegistration(
+    createCustomerProfileStore(),
+    quotationStore,
+    !['production', 'demo'].includes(process.env.NODE_ENV ?? '') &&
+      process.env.LOCAL_CUSTOMER_REGISTRATION === 'true',
+  );
   const workshopStore = options.workshopStore ?? createWorkshopStore(week03DeclaredWorkshops);
   const productionWhatsApp = options.productionWhatsApp ?? productionWhatsAppFromEnvironment();
-  const assignmentService = new AssignmentDemoService(orderStore, workshopStore);
+  const deliveryPlanning = new DeliveryPlanningService(orderStore, workshopStore, options.deliveryPolicy ?? {
+    approvalDays: Number(process.env.DELIVERY_APPROVAL_DAYS ?? 2),
+    deliveryDays: Number(process.env.DELIVERY_TRANSIT_DAYS ?? 1),
+    handoffDays: Number(process.env.DELIVERY_HANDOFF_DAYS ?? 1),
+    horizonDays: Number(process.env.DELIVERY_HORIZON_DAYS ?? 180),
+    maximumPlanEvaluations: Number(process.env.DELIVERY_MAXIMUM_PLAN_EVALUATIONS ?? 10_000),
+  });
+  const assignmentService = new AssignmentDemoService(orderStore, workshopStore, undefined, undefined, deliveryPlanning.policy.deliveryDays, deliveryPlanning.policy.handoffDays);
+  const automationService = productionWhatsApp?.consult
+    ? new AssignmentAutomationService(orderStore, workshopStore, quotationStore, productionWhatsApp, assignmentService, options.onOrderUpdated)
+    : undefined;
+  app.locals.assignmentAutomation = automationService;
+
   const quotationService = new QuotationService(quotationStore, undefined, {
+    deliveryPlanning,
+    customerEmails: Boolean(emailOptions),
     ...(options.onQuotationUpdated ? { onUpdated: options.onQuotationUpdated } : {}),
     onAccepted: async (quotation) => {
       const outcome = await assignmentService.createFromAcceptedQuotation(quotation);
@@ -265,9 +378,72 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.disable('x-powered-by');
   app.use(compression());
   app.use(express.json({ limit: '16mb' }));
+  app.use('/v1/orders/:id', previewMutationGuard((id) => orderStore.get(id)));
+  app.use('/v1/quotation-requests/:id', previewMutationGuard((id) => quotationStore.get(id)));
   app.get('/v1/session', async (request, response) => {
     await runIdentityAction(request, response, async (identity) => {
       response.json({ ok: true, identity, simulated: identity.authentication === 'local_demo' });
+    });
+  });
+  app.get('/v1/customer-registration', async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    await runIdentityAction(request, response, async (identity) => {
+      response.json({
+        email: identity.email ?? '',
+        ...(await customerRegistration.status(identity)),
+      });
+    });
+  });
+  app.get('/v1/consent-documents/:version', (request, response) => {
+    if (request.params.version !== researchConsentDocument.version) {
+      response.status(404).json({ message: 'Documento de consentimiento no encontrado.' });
+      return;
+    }
+    const url = '/v1/consent-documents/' + researchConsentDocument.version + '?download=1';
+    response.set('Cache-Control', 'private, no-store, no-transform');
+    response.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'");
+    if (request.query.download === '1')
+      response.attachment('consentimiento-piloto-v' + researchConsentDocument.version + '.html');
+    response.type('html').send(renderConsentDocument(researchConsentDocument, url));
+  });
+  app.get('/v1/customer-registration/consent', async (request, response) => {
+    response.set('Cache-Control', 'private, no-store, no-transform');
+    response.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'");
+    await runIdentityAction(request, response, async (identity) => {
+      const profile = await customerRegistration.consent(identity);
+      if (!profile?.thesisConsent) {
+        response.status(404).json({ message: 'Tu cuenta no tiene una aceptación registrada.' });
+        return;
+      }
+      if (request.query.download === '1')
+        response.attachment('mi-consentimiento-v' + profile.thesisConsent.notice.version.replace(/[^a-zA-Z0-9_-]/g, '') + '.html');
+      const url = '/v1/customer-registration/consent?download=1';
+      const document = profile.thesisConsent.document;
+      response.type('html').send(document
+        ? renderConsentDocument(document, url, profile)
+        : renderLegacyConsent(profile, url));
+    });
+  });
+  app.post('/v1/customer-registration', async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    await runIdentityAction(request, response, async (identity) => {
+      if (!customerRegistration.isEnabled(identity)) {
+        throw new AccessAuthorizationError('forbidden', 'Esta cuenta no puede usar el registro.');
+      }
+      const parsed = customerRegistrationSchema.safeParse(request.body);
+      if (!parsed.success) {
+        response.status(400).json({
+          message: parsed.error.issues[0]?.message ?? 'Revisa los datos del registro.',
+        });
+        return;
+      }
+      if (!(await customerRegistration.register(identity, parsed.data))) {
+        response.status(409).json({
+          message: 'Tu cuenta ya está registrada. Recarga la página para continuar.',
+        });
+        return;
+      }
+      response.status(201).json({ ok: true });
     });
   });
   app.get('/v1/my-orders', async (request, response) => {
@@ -306,36 +482,38 @@ export function createApp(options: AppOptions = {}): express.Express {
       );
       response.json({
         ok: true,
-        item: customerTrackingItem(quotation, orders, histories),
+        item: { ...customerTrackingItem(quotation, orders, histories), emailDelivery: await quotationService.emailStatus(quotation.id) },
         simulated: identity.authentication === 'local_demo',
       });
     });
   });
-  app.use('/v1/quotation-requests', createQuotationRouter(quotationService, resolveIdentity));
+  app.use(
+    '/v1/quotation-requests',
+    createQuotationRouter(quotationService, resolveIdentity, customerRegistration),
+  );
   app.use(express.static(webDirectory));
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
   app.get(['/', '/demo'], async (request, response) => {
     await runIdentityAction(request, response, async (identity) => {
-      const destination = {
-        client: '/mis-pedidos',
-        peru_activa: '/peru-activa',
-        workshop: '/taller',
-      }[identity.role];
-      response.redirect(destination);
+      response.redirect(portalHomeByRole[identity.role]);
     });
   });
   app.get('/demo/semana-2', (_request, response) =>
     response.sendFile('index.html', { root: webDirectory }),
   );
-  app.get('/nueva-solicitud', (_request, response) =>
-    response.sendFile('index.html', { root: webDirectory }),
-  );
-  app.get('/mis-pedidos', (_request, response) =>
-    response.sendFile('index.html', { root: webDirectory }),
-  );
-  app.get('/mis-pedidos/:quotationId', (_request, response) =>
-    response.sendFile('index.html', { root: webDirectory }),
+  app.get(
+    ['/nueva-solicitud', '/mis-pedidos', '/mis-pedidos/:quotationId'],
+    async (request, response) => {
+      await runIdentityAction(request, response, async (identity) => {
+        response.set('Cache-Control', 'private, no-store');
+        if (identity.role !== 'client') {
+          response.redirect(portalHomeByRole[identity.role]);
+          return;
+        }
+        response.sendFile('index.html', { root: webDirectory });
+      });
+    },
   );
   app.get('/peru-activa', (_request, response) =>
     response.sendFile('index.html', { root: webDirectory }),
@@ -367,10 +545,10 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.get('/openapi.json', (_request, response) => response.json(openApiDocument));
 
   app.get('/health', (_request, response) => {
-    response.json({ ok: true, service: 'tesis', algorithmVersion: '0.6.0' });
+    response.json({ ok: true, service: 'tesis', algorithmVersion: RECOMMENDATION_VERSION });
   });
 
-  app.post('/v1/recommendations', (request, response) => {
+  app.post('/v1/recommendations', async (request, response) => {
     const parsed = recommendationRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       response
@@ -378,24 +556,31 @@ export function createApp(options: AppOptions = {}): express.Express {
         .json({ ok: false, error: 'invalid_request', issues: parsed.error.issues });
       return;
     }
-    response.json({ ok: true, result: recommendWorkshops(parsed.data) });
+    response.json({ ok: true, result: await assignmentService.recommend(parsed.data) });
   });
 
   app.get('/v1/demos/week-02', (_request, response) => {
     response.json({ ok: true, simulated: true, ...week02Demo });
   });
 
-  app.post('/v1/demos/week-02/run', (_request, response) => {
+  app.post('/v1/demos/week-02/run', async (_request, response) => {
     response.json({
       ok: true,
       simulated: true,
       delivery: week02Demo.delivery,
-      result: recommendWorkshops(week02Demo.request),
+      result: await assignmentService.recommend(week02Demo.request),
     });
   });
 
-  app.get('/v1/demos/week-03/assignment-scenarios', async (_request, response) => {
-    response.json({ ok: true, ...(await assignmentService.catalog()) });
+  app.get('/v1/demos/week-03/assignment-scenarios', async (request, response) => {
+    const catalog = await assignmentService.catalog();
+    let contactsVisible = !['production', 'demo'].includes(process.env.NODE_ENV ?? '');
+    if (!contactsVisible) {
+      try { contactsVisible = (await resolveIdentity(request)).role === 'peru_activa'; } catch { /* Public catalogue omits private contacts. */ }
+    }
+    response.json({ ok: true, ...catalog, workshops: catalog.workshops
+      .filter((workshop) => contactsVisible || !workshop.testOnly)
+      .map((workshop) => contactsVisible ? workshop : { ...workshop, contactPhone: undefined }) });
   });
 
   app.post('/v1/demos/week-03/assignment-scenarios/:scenarioId/run', async (request, response) => {
@@ -425,24 +610,27 @@ export function createApp(options: AppOptions = {}): express.Express {
     }
   });
 
-  app.post('/v1/demos/week-03/assignment-scenarios/:scenarioId/compare', async (request, response) => {
-    try {
-      const optionsInput = assignmentScenarioOptionsSchema.parse(request.body || {});
-      response.json({
-        ok: true,
-        ...(await assignmentService.compareScenario(
-          request.params.scenarioId,
-          optionsInput.fabricBuyer,
-        )),
-      });
-    } catch (error) {
-      if (error instanceof AssignmentFlowError && error.code === 'scenario_not_found') {
-        response.status(404).json({ ok: false, error: error.code });
-        return;
+  app.post(
+    '/v1/demos/week-03/assignment-scenarios/:scenarioId/compare',
+    async (request, response) => {
+      try {
+        const optionsInput = assignmentScenarioOptionsSchema.parse(request.body || {});
+        response.json({
+          ok: true,
+          ...(await assignmentService.compareScenario(
+            request.params.scenarioId,
+            optionsInput.fabricBuyer,
+          )),
+        });
+      } catch (error) {
+        if (error instanceof AssignmentFlowError && error.code === 'scenario_not_found') {
+          response.status(404).json({ ok: false, error: error.code });
+          return;
+        }
+        throw error;
       }
-      throw error;
-    }
-  });
+    },
+  );
 
   app.get('/v1/workshop-notifications', async (request, response) => {
     await runIdentityAction(request, response, async (identity) => {
@@ -473,7 +661,7 @@ export function createApp(options: AppOptions = {}): express.Express {
         orders:
           identity.role === 'peru_activa'
             ? orders
-            : orders.filter(
+            : orders.filter((order) => !order.previewOnly).filter(
                 (order) =>
                   order.assignment?.allocations?.some(
                     (allocation) => allocation.workshopId === identity.workshopId,
@@ -481,6 +669,21 @@ export function createApp(options: AppOptions = {}): express.Express {
               ),
         simulated: true,
       });
+    });
+  });
+
+  app.get('/v1/orders/:id', async (request, response) => {
+    await runIdentityAction(request, response, async (identity) => {
+      requireRole(identity, 'peru_activa');
+      const order = await orderStore.get(request.params.id);
+      if (!order) { response.status(404).json({ ok: false, error: 'order_not_found', message: 'No se encontró la orden.' }); return; }
+      const related = new Set([
+        ...order.recommendation.candidates.flatMap((candidate) => candidate.allocations.map((allocation) => allocation.workshopId)),
+        ...(order.assignment?.allocations.map((allocation) => allocation.workshopId) ?? []),
+      ]);
+      const workshopNames = Object.fromEntries((await workshopStore.list()).filter((workshop) => related.has(workshop.id)).map((workshop) => [workshop.id, workshop.displayName]));
+      response.set('Cache-Control', 'private, no-store');
+      response.json({ ok: true, order, workshopNames });
     });
   });
 
@@ -497,31 +700,8 @@ export function createApp(options: AppOptions = {}): express.Express {
 
       const id = `PED-${randomUUID().slice(0, 8).toUpperCase()}`;
       const evaluatedAt = new Date().toISOString();
-      const recommendationRequest = recommendationRequestSchema.parse({
-        evaluatedAt,
-        order: {
-          id,
-          product: parsed.data.product,
-          poloType: parsed.data.poloType,
-          material: parsed.data.material,
-          quantity: parsed.data.quantity,
-          fabricBuyer: 'peru_activa',
-          requiresNewPattern: parsed.data.requiresNewPattern ?? false,
-          embroideryApplicationsPerGarment: parsed.data.embroideryApplicationsPerGarment ?? 1,
-          requiredProcesses: [
-            'design',
-            ...(parsed.data.requiresNewPattern ? (['patternmaking'] as const) : []),
-            'cutting',
-            'sewing',
-            ...(parsed.data.customization === 'none' ? [] : [parsed.data.customization]),
-            ...(parsed.data.additionalCustomizations ?? []),
-            'finishing',
-          ],
-          requiredBy: `${parsed.data.requiredBy}T18:00:00-05:00`,
-        },
-        workshops: await workshopStore.list(),
-      });
-      const recommendation = recommendWorkshops(recommendationRequest);
+      const recommendationRequest = recommendationFromOrderDraft({id, draft: parsed.data, evaluatedAt, workshops: await workshopStore.list()});
+      const recommendation = await assignmentService.recommend(recommendationRequest);
       if (recommendation.candidates.length === 0) {
         response.status(422).json({
           ok: false,
@@ -541,10 +721,30 @@ export function createApp(options: AppOptions = {}): express.Express {
         requiredProcesses: recommendationRequest.order.requiredProcesses,
         fabricBuyer: 'peru_activa',
         recommendation,
+        recommendationOrder: recommendationRequest.order,
       };
       await orderStore.create(order);
       options.onOrderUpdated?.(order);
       response.status(201).json({ ok: true, order, simulated: true });
+    });
+  });
+
+  app.post('/v1/orders/:id/recommendation', async (request, response) => {
+    await runIdentityAction(request, response, async (identity) => {
+      requireRole(identity, 'peru_activa');
+      try {
+        const order = await assignmentService.refreshRecommendation(request.params.id);
+        options.onOrderUpdated?.(order);
+        response.json({ ok: true, order });
+      } catch (error) {
+        if (error instanceof AssignmentFlowError) {
+          response
+            .status(error.code === 'order_not_found' ? 404 : 409)
+            .json({ ok: false, error: error.code });
+          return;
+        }
+        throw error;
+      }
     });
   });
 
@@ -559,6 +759,32 @@ export function createApp(options: AppOptions = {}): express.Express {
         return;
       }
       try {
+        const original = await orderStore.get(request.params.id);
+        const contacts = await workshopStore.list();
+        const candidate = original?.recommendation.candidates.find((item) =>
+          item.candidateId === parsed.data.candidateId || item.workshopId === parsed.data.workshopId);
+        if (candidate?.allocations.some((allocation) => original?.automation?.expiredWorkshopIds?.includes(allocation.workshopId))) {
+          response.status(409).json({ ok: false, error: 'consultation_expired', message: 'La consulta a ese taller ya venció. Revisa el plan vigente.' }); return;
+        }
+        if (original?.automation?.phase === 'running' && candidate?.candidateId !== original.automation.candidateId) {
+          response.status(409).json({ ok: false, error: 'automation_in_progress', message: 'La asignación está consultando el plan autorizado.' }); return;
+        }
+        const availability = new Map<string, string>();
+        if (productionWhatsApp && original && candidate) {
+          for (const allocation of candidate.allocations) {
+            const workshop = contacts.find((item) => item.id === allocation.workshopId);
+            if (!workshop?.contactPhone || Boolean(workshop.testOnly) !== Boolean(original.testOnly)) {
+              response.status(409).json({ ok: false, error: 'workshop_contact_missing', message: 'Revisa el teléfono del taller antes de confirmar.' }); return;
+            }
+            if (productionWhatsApp.consult) {
+              const status = await productionWhatsApp.status(workshopAvailabilityReference(original, workshop.id), workshop.id);
+              if (status && status.state !== 'capacity_yes') {
+                response.status(409).json({ ok: false, error: 'availability_not_confirmed', message: 'Espera la confirmación de disponibilidad de los talleres del plan.' }); return;
+              }
+              if (status) availability.set(workshop.id, workshopAvailabilityReference(original, workshop.id));
+            }
+          }
+        }
         const updated = await assignmentService.confirm(
           request.params.id,
           parsed.data.candidateId || parsed.data.workshopId || '',
@@ -571,7 +797,7 @@ export function createApp(options: AppOptions = {}): express.Express {
         const quotation = updated.source ? await quotationStore.get(updated.source.quotationId) : undefined;
         const coordination = [];
         for (const notification of updated.notifications ?? []) {
-          coordination.push(await productionWhatsApp.assign(updated, notification, quotation));
+          coordination.push(await productionWhatsApp.assign(updated, notification, quotation, `51${contacts.find((item) => item.id === notification.content.workshopId)!.contactPhone}`, availability.get(notification.content.workshopId)));
         }
         response.json({ ok: true, order: updated, coordination });
       } catch (error) {
@@ -579,8 +805,23 @@ export function createApp(options: AppOptions = {}): express.Express {
           response.status(404).json({ ok: false, error: error.code });
           return;
         }
-        if (error instanceof AssignmentFlowError && error.code === 'workshop_not_recommended') {
-          response.status(409).json({ ok: false, error: error.code });
+        if (
+          error instanceof AssignmentFlowError &&
+          ['workshop_not_recommended', 'capacity_changed', 'invalid_order_transition'].includes(
+            error.code,
+          )
+        ) {
+          response.status(409).json({
+            ok: false,
+            error: error.code,
+            ...(error.code === 'capacity_changed'
+              ? {
+                  message:
+                    'La capacidad disponible cambió. Actualice la propuesta antes de confirmar.',
+                  details: error.details,
+                }
+              : {}),
+          });
           return;
         }
         if (error instanceof AssignmentFlowError && error.code === 'invalid_order_transition') {
@@ -600,6 +841,43 @@ export function createApp(options: AppOptions = {}): express.Express {
       }
     });
   });
+
+  const automationRead: express.RequestHandler = async (request, response) => {
+    await runIdentityAction(request, response, async (identity) => {
+      requireRole(identity, 'peru_activa');
+      if (!automationService) { response.status(503).json({ ok: false, error: 'coordination_unconfigured' }); return; }
+      if (!await orderStore.get(String(request.params.id))) { response.status(404).json({ ok: false, error: 'order_not_found' }); return; }
+      response.json({ ok: true, ...await automationService.view(String(request.params.id)) });
+    });
+  };
+  app.get('/v1/orders/:id/assignment-automation', automationRead);
+  app.get('/v1/orders/:id/workshop-availability', automationRead);
+  const automationStart: express.RequestHandler = async (request, response) => {
+    await runIdentityAction(request, response, async (identity) => {
+      requireRole(identity, 'peru_activa');
+      if (!automationService) { response.status(503).json({ ok: false, error: 'coordination_unconfigured' }); return; }
+      try {
+        const origin = request.get('origin');
+        if (request.get('sec-fetch-site') === 'cross-site' || (origin && new URL(origin).host !== request.get('host'))) {
+          response.status(403).json({ ok: false, error: 'cross_origin_write_forbidden' }); return;
+        }
+        const modern = request.path.endsWith('/assignment-automation');
+        if (modern && typeof request.body?.candidateId !== 'string') {
+          response.status(400).json({ ok: false, message: 'Revisa el plan antes de iniciar la asignación.' }); return;
+        }
+        await automationService.start(String(request.params.id), identity.subject, modern ? request.body.candidateId : undefined);
+        // The intent is durable before the worker can send its first consultation.
+        // The old endpoint waits for that first tick for legacy clients.
+        if (request.path.endsWith('/workshop-availability')) await automationService.tick();
+        else void automationService.tick().catch(() => undefined);
+        response.json({ ok: true, ...await automationService.view(String(request.params.id)) });
+      } catch (error) {
+        response.status(409).json({ ok: false, error: 'automation_not_started', message: error instanceof Error ? error.message : 'No se pudo iniciar la asignación.' });
+      }
+    });
+  };
+  app.post('/v1/orders/:id/assignment-automation', automationStart);
+  app.post('/v1/orders/:id/workshop-availability', automationStart);
 
   app.get('/v1/orders/:id/production-coordination', async (request, response) => {
     await runIdentityAction(request, response, async (identity) => {
@@ -716,22 +994,16 @@ function customerTimeline(
             key: `quotation-${quotation.buyerDecision.decision}`,
             label:
               quotation.buyerDecision.decision === 'accepted'
-                ? 'Cotización aceptada; asignación pendiente de Perú Activa'
+                ? 'Pedido confirmado'
                 : 'Cotización rechazada',
             occurredAt: quotation.buyerDecision.respondedAt,
           },
         ]
       : []),
     ...orders.flatMap((order) =>
-      order.history.map((entry, index) => ({
+      order.history.filter((entry) => ['in_production', 'completed'].includes(entry.status)).map((entry, index) => ({
         key: `${order.id}-${entry.status}-${index}`,
-        label: {
-          registered: 'Pedido registrado',
-          recommended: 'Propuesta de taller calculada',
-          assigned: 'Taller asignado',
-          in_production: 'Producción iniciada',
-          completed: 'Producción terminada',
-        }[entry.status],
+        label: entry.status === 'completed' ? 'Producción terminada' : 'Producción iniciada',
         occurredAt: entry.occurredAt,
       })),
     ),
