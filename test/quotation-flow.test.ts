@@ -218,7 +218,7 @@ describe('quotation request flow', () => {
     );
     assert.ok(
       completedTracking.item.timeline.some(
-        (entry: { label: string }) => entry.label === 'Cotización aceptada y pedido confirmado',
+        (entry: { label: string }) => entry.label === 'Cotización aceptada; asignación pendiente de Perú Activa',
       ),
     );
     assert.equal(completedTracking.item.timeline.at(-1).label, 'Producción terminada');
