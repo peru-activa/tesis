@@ -40,12 +40,23 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"product\": \"polo\",\n  \"quantity\": 100,\n  \"material\": \"algodón\",\n  \"color\": \"Azul marino\",\n  \"sizes\": { \"S\": 20, \"M\": 35, \"L\": 30, \"XL\": 15 },\n  \"customization\": \"printing\",\n  \"designReference\": \"Dato simulado R4 {{$guid}}\",\n  \"requiredBy\": \"2026-09-30\",\n  \"deliveryDistrict\": \"La Victoria\",\n  \"notes\": \"Evidencia reproducible con datos simulados\"\n}"
+          "raw": "{\n  \"product\": \"polo\",\n  \"quantity\": 100,\n  \"material\": \"algodón\",\n  \"color\": \"Azul marino\",\n  \"sizes\": { \"S\": 20, \"M\": 35, \"L\": 30, \"XL\": 15 },\n  \"customization\": \"printing\",\n  \"designReference\": \"Dato simulado R4 {{$guid}}\",\n  \"requiredBy\": \"{{requiredBy}}\",\n  \"deliveryDistrict\": \"La Victoria\",\n  \"notes\": \"Evidencia reproducible con datos simulados\"\n}"
         },
         "url": "{{baseUrl}}/v1/orders",
         "description": "Registra un pedido simulado. Newman ejecuta la coleccion 100 veces."
       },
       "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const due = new Date();",
+              "due.setUTCDate(due.getUTCDate() + 30);",
+              "pm.variables.set('requiredBy', due.toISOString().slice(0, 10));"
+            ],
+            "type": "text/javascript"
+          }
+        },
         {
           "listen": "test",
           "script": {
