@@ -7,7 +7,7 @@ el envío por WhatsApp. El denominador de esta prueba es tres. La aceptación
 operativa y el avance se registran por separado del IOV.
 
 Los tres pedidos y talleres son ficticios. El único destinatario real es el
-teléfono de prueba autorizado, `[número omitido]`. El remitente es el WhatsApp
+teléfono de prueba autorizado. El remitente es el WhatsApp
 público de Perú Activa, `+51 904 658 133`. No se usa Larico ni IA. No se
 contacta a proveedores reales.
 

@@ -58,7 +58,7 @@ envío a talleres reales se habilita por defecto.
 - El servicio público de Perú Activa sigue atendiendo clientes ordinarios. Un
   botón correlacionado con una consulta de taller se deriva al flujo de R6;
   los demás mensajes siguen su ruta actual. Larico no participa.
-- El modo de prueba fija el destinatario en `[número omitido]` mediante un
+- El modo de prueba fija el teléfono de prueba autorizado como destinatario mediante un
   secreto de despliegue fuera del repositorio. Se valida el Phone Number ID
   público `881564971710283` antes de enviar. El modo real requiere, además,
   un teléfono verificado y consentimiento documentado por taller.
