@@ -124,7 +124,12 @@ export function CustomerOrdersPage() {
                         .join(' + ')}
                     </strong>
                     <span>
-                      Entrega solicitada: {formatDate(request.request.delivery.requiredBy)}
+                      {request.buyerDecision?.deliveryDate
+                        ? 'Entrega confirmada: '
+                        : 'Entrega solicitada: '}
+                      {formatDate(
+                        request.buyerDecision?.deliveryDate ?? request.request.delivery.requiredBy,
+                      )}
                     </span>
                     <span>Última actualización: {formatDateTime(item.lastUpdatedAt)}</span>
                     <span className="customer-order-price">

@@ -1,6 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
+import { quotationExpired, limaDate } from '../../../../src/domain/delivery-estimate';
+import { QuotationAmounts } from './QuotationAmounts';
 import {
   sellerQuotationDraftSchema,
   type QuotationStatus,
@@ -41,15 +43,19 @@ export function QuotationFlowBoard({
     resolver: zodResolver(sellerQuotationDraftSchema),
     defaultValues: {
       totalPricePEN: 0,
+      taxMode: 'not_included',
       selectedFabric: requestedFabrics,
       fabricBuyer: 'workshop',
-      validUntil: dateAfter(7),
+      validUntil: request.deliveryEstimate?.approvalBy ?? dateAfter(2),
       conditions: 'Incluye confección y personalización. Pago y entrega según coordinación.',
       deliveryConfirmation: { requiredBy: request.request.delivery.requiredBy, confirmed: false },
     },
     mode: 'onChange',
   });
   const accepted = request.status === 'accepted';
+  const amount = useWatch({ control: quoteForm.control, name: 'totalPricePEN' }) || 0;
+  const taxMode = useWatch({ control: quoteForm.control, name: 'taxMode' });
+  const expired = request.quotation ? quotationExpired(request.quotation.validUntil) : false;
   const rejected = request.status === 'rejected';
 
   return (
@@ -112,13 +118,19 @@ export function QuotationFlowBoard({
             description="Este precio lo ingresa Perú Activa; el sistema no lo calcula."
           />
           <div className="mt-6 grid gap-5 sm:grid-cols-2">
-            <InputField label="Precio total (S/)">
+            <InputField label="Importe ingresado (S/)">
               <input
                 type="number"
                 min="0.01"
                 step="0.01"
                 {...quoteForm.register('totalPricePEN', { valueAsNumber: true })}
               />
+            </InputField>
+            <InputField label="IGV en el importe ingresado">
+              <select {...quoteForm.register('taxMode')}>
+                <option value="not_included">Añadir IGV (18 %)</option>
+                <option value="included">Ya incluye IGV (18 %)</option>
+              </select>
             </InputField>
             <InputField label="Tela cotizada">
               <input
@@ -133,8 +145,15 @@ export function QuotationFlowBoard({
               </select>
             </InputField>
             <InputField label="Válida hasta">
-              <input type="date" min={dateAfter(1)} {...quoteForm.register('validUntil')} />
+              <input
+                type="date"
+                min={limaDate(new Date().toISOString())}
+                {...quoteForm.register('validUntil')}
+              />
             </InputField>
+          </div>
+          <div className="quote-price-breakdown">
+            <QuotationAmounts amount={amount} taxMode={taxMode} />
           </div>
           <InputField label="Condiciones">
             <textarea rows={3} {...quoteForm.register('conditions')} />
@@ -142,6 +161,8 @@ export function QuotationFlowBoard({
           <DeliveryConfirmationField
             requiredBy={request.request.delivery.requiredBy}
             register={quoteForm.register}
+            quotationId={request.id}
+            control={quoteForm.control}
           />
           {error && <ErrorMessage>{error}</ErrorMessage>}
           <div className="mt-7 flex justify-end">
@@ -193,6 +214,7 @@ export function QuotationFlowBoard({
           />
           {error && <ErrorMessage>{error}</ErrorMessage>}
           <div className="mt-7 flex flex-wrap justify-end gap-3">
+            {expired && <p>La cotización venció. Solicita una propuesta actualizada.</p>}
             <button
               className="quote-secondary"
               disabled={busy}
@@ -204,6 +226,7 @@ export function QuotationFlowBoard({
               className="quote-primary"
               disabled={
                 busy ||
+                expired ||
                 !isDeliveryDateConfirmed(request.quotation, request.request.delivery.requiredBy)
               }
               onClick={() => onDecision('accepted')}

@@ -8,11 +8,15 @@ import { productionStage, trackingLabel, type CustomerTrackingItem } from './cus
 import { isDeliveryDateConfirmed } from '../../../../src/domain/quotation-requests';
 import { DeliveryConfirmationSummary } from './DeliveryConfirmation';
 import { CustomerEmailStatus } from './CustomerEmailStatus';
+import { quotationExpired } from '../../../../src/domain/delivery-estimate';
 
 export function CustomerOrderPage({ quotationId }: { quotationId: string }) {
   const [item, setItem] = useState<CustomerTrackingItem>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const expired = item?.quotation.quotation
+    ? quotationExpired(item.quotation.quotation.validUntil)
+    : false;
   const [connection, setConnection] = useState<'connecting' | 'live' | 'reconnecting'>(
     'connecting',
   );
@@ -90,7 +94,13 @@ export function CustomerOrderPage({ quotationId }: { quotationId: string }) {
                 <div className="customer-order-meta">
                   <span>Actualizado {formatDateTime(item.lastUpdatedAt)}</span>
                   <span>
-                    Entrega solicitada {formatDate(item.quotation.request.delivery.requiredBy)}
+                    {item.quotation.buyerDecision?.deliveryDate
+                      ? 'Entrega confirmada '
+                      : 'Entrega solicitada '}
+                    {formatDate(
+                      item.quotation.buyerDecision?.deliveryDate ??
+                        item.quotation.request.delivery.requiredBy,
+                    )}
                   </span>
                   <span className={`customer-live-state ${connection}`} aria-live="polite">
                     <i />
@@ -154,6 +164,9 @@ export function CustomerOrderPage({ quotationId }: { quotationId: string }) {
                 {error && <p className="customer-orders-error">{error}</p>}
                 {item.quotation.status === 'quoted' ? (
                   <div className="customer-decision-actions">
+                    {expired && (
+                      <p>La cotización venció. Solicita a Perú Activa una propuesta actualizada.</p>
+                    )}
                     <button
                       className="quote-secondary"
                       disabled={busy}
@@ -165,6 +178,7 @@ export function CustomerOrderPage({ quotationId }: { quotationId: string }) {
                       className="quote-primary"
                       disabled={
                         busy ||
+                        expired ||
                         !isDeliveryDateConfirmed(
                           item.quotation.quotation,
                           item.quotation.request.delivery.requiredBy,
@@ -223,8 +237,7 @@ function NextAction({ item }: { item: CustomerTrackingItem }) {
 
   if (request.status === 'quoted') {
     title = 'Revisa y responde la cotización';
-    description =
-      'Revisa el precio, la fecha confirmada y las condiciones. Al aceptar, confirmas tu pedido.';
+    description = 'Revisa el precio, el plazo y las condiciones. Al aceptar, confirmas tu pedido.';
   } else if (request.status === 'rejected') {
     title = 'La cotización quedó rechazada';
     description = 'Crea una nueva solicitud si deseas pedir otra propuesta.';
@@ -233,7 +246,9 @@ function NextAction({ item }: { item: CustomerTrackingItem }) {
     description = 'Perú Activa coordinará contigo la entrega del pedido.';
   } else if (request.status === 'accepted' && stage === 2) {
     title = 'Tu pedido está en producción';
-    description = `La entrega solicitada es el ${formatDate(request.request.delivery.requiredBy)}.`;
+    description = request.buyerDecision?.deliveryDate
+      ? `La entrega confirmada es el ${formatDate(request.buyerDecision.deliveryDate)}.`
+      : `La entrega solicitada es el ${formatDate(request.request.delivery.requiredBy)}.`;
   }
 
   return (

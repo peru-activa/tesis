@@ -144,11 +144,20 @@ describe('CustomerOrderPage', () => {
       requiredBy: quoted.quotation.request.delivery.requiredBy,
       confirmed: true,
     };
+    quoted.quotation.quotation!.validUntil = '2099-12-31';
     render(<CustomerOrderPage quotationId={item.quotation.id} />);
     expect(await screen.findByText('Fecha de entrega confirmada por Perú Activa')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Aceptar cotización/ })).toHaveProperty(
       'disabled',
       false,
+    );
+    cleanup();
+    quoted.quotation.quotation!.validUntil = '2000-01-01';
+    render(<CustomerOrderPage quotationId={item.quotation.id} />);
+    expect(await screen.findByText(/La cotización venció/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Aceptar cotización/ })).toHaveProperty(
+      'disabled',
+      true,
     );
   });
 

@@ -291,6 +291,8 @@ export const quotationRequestDraftSchema = z.object({
 
 export const sellerQuotationDraftSchema = z.object({
   totalPricePEN: z.number().positive().max(10_000_000),
+  priceAmountPEN: z.number().positive().max(10_000_000).optional(),
+  taxMode: z.enum(['included', 'not_included']).optional(),
   lineItems: z
     .array(
       z.object({
@@ -304,7 +306,7 @@ export const sellerQuotationDraftSchema = z.object({
     .optional(),
   selectedFabric: z.string().trim().min(2).max(80),
   fabricBuyer: fabricBuyerSchema,
-  validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isActualIsoDate, 'Indica una fecha válida.'),
   conditions: z.string().trim().min(3).max(500),
   deliveryConfirmation: z
     .object({
@@ -325,11 +327,14 @@ export type QuotationStatus = 'pending_quote' | 'quoted' | 'accepted' | 'rejecte
 
 export interface SellerQuotation extends SellerQuotationDraft {
   quotedAt: string;
+  taxRate?: number;
+  deliveryTerms?: { calendarDays: number; startsOn: 'acceptance' };
 }
 
 export interface BuyerDecision {
   decision: 'accepted' | 'rejected';
   respondedAt: string;
+  deliveryDate?: string;
 }
 
 export interface QuotationRequest extends WorkshopScope, PreviewScope {

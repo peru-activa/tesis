@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { quotationLineAmount, quotationPricing } from '../domain/quotation-pricing.js';
 import {
   garmentSizeOrderLabel,
   isDeliveryDateConfirmed,
@@ -33,6 +34,7 @@ const date = (value: string) => value.split('-').reverse().join('/');
 export async function quotationDocumentInput(request: QuotationRequest): Promise<QuotePdfInput> {
   const quote = request.quotation;
   if (!quote) throw new Error('quotation_required');
+  const amounts = quotationPricing(quote.priceAmountPEN ?? quote.totalPricePEN, quote.taxMode, quote.taxRate);
   const deliveryLabel = isDeliveryDateConfirmed(quote, request.request.delivery.requiredBy)
     ? 'Entrega confirmada'
     : 'Entrega solicitada';
@@ -71,11 +73,9 @@ export async function quotationDocumentInput(request: QuotationRequest): Promise
       quantity: garment.quantity,
       unitPrice: quote.lineItems!.find((item) => item.garmentIndex === index)!.unitPricePEN,
     }));
-    const sum =
-      Math.round(
-        priceItems.reduce((total, item) => total + item.quantity * item.unitPrice!, 0) * 100,
-      ) / 100;
-    if (sum !== quote.totalPricePEN) throw new Error('quotation_amount_mismatch');
+    const sum = quotationLineAmount(garments.map((g) => g.quantity), quote.lineItems!);
+    if (quotationPricing(sum, quote.taxMode, quote.taxRate).totalPricePEN !== quote.totalPricePEN)
+      throw new Error('quotation_amount_mismatch');
   } else {
     // A global quotation is rendered as one bundle using its registered total.
     priceItems = [
@@ -83,7 +83,7 @@ export async function quotationDocumentInput(request: QuotationRequest): Promise
         item: 'Pedido completo',
         description: descriptions.join('\n\n'),
         quantity: 1,
-        unitPrice: quote.totalPricePEN,
+        unitPrice: amounts.enteredPricePEN,
       },
     ];
   }
@@ -100,14 +100,17 @@ export async function quotationDocumentInput(request: QuotationRequest): Promise
     },
     subject: `Cotización ${request.id}`,
     priceItems,
-    scope: `Propuesta para la solicitud ${request.id}. ${deliveryLabel}: ${date(request.request.delivery.requiredBy)}. Lugar de entrega: ${plain(request.request.delivery.location)}.`,
+    scope: `Propuesta para la solicitud ${request.id}. Fecha solicitada: ${date(request.request.delivery.requiredBy)}. Lugar de entrega: ${plain(request.request.delivery.location)}.${quote.taxMode ? ` Precios ${quote.taxMode === 'included' ? 'con' : 'sin'} IGV.` : ''}`,
     notes: plain(quote.conditions),
     validity: date(quote.validUntil),
-    productionTime: date(request.request.delivery.requiredBy),
-    productionLabel: 'ENTREGA',
-    productionTermLabel: deliveryLabel,
+    productionTime: quote.deliveryTerms
+      ? `${quote.deliveryTerms.calendarDays} días calendario desde la aceptación`
+      : date(request.request.delivery.requiredBy),
+    productionLabel: quote.deliveryTerms ? 'PLAZO DE ENTREGA' : 'ENTREGA',
+    productionTermLabel: quote.deliveryTerms ? 'Plazo de entrega' : deliveryLabel,
     total: quote.totalPricePEN,
-    taxMode: 'unspecified',
+    taxMode: quote.taxMode ?? 'unspecified',
+    ...(quote.taxMode ? { subtotal: amounts.subtotalPEN, tax: amounts.taxPEN } : {}),
   };
 }
 

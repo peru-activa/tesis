@@ -15,6 +15,9 @@ import { OrderItemPreview } from './OrderItemPreview';
 import { fetchAsPeruActiva } from '../../lib/actor-api';
 import { dateAfter, ErrorMessage, InputField, StepTitle } from '../quotation/QuoteUi';
 import { QuotationPriceBreakdown } from '../quotation/QuotationPriceBreakdown';
+import { QuotationAmounts } from '../quotation/QuotationAmounts';
+import { quotationLineAmount, quotationPricing } from '../../../../src/domain/quotation-pricing';
+import { limaDate } from '../../../../src/domain/delivery-estimate';
 import { CustomerEmailStatus } from '../quotation/CustomerEmailStatus';
 import type { CustomerEmailDelivery } from '../../../../src/domain/customer-email';
 import { QuotationRequestSummary } from '../quotation/QuotationRequestSummary';
@@ -35,6 +38,7 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
     resolver: zodResolver(sellerQuotationDraftSchema),
     defaultValues: {
       totalPricePEN: 0,
+      taxMode: 'not_included',
       lineItems: [],
       selectedFabric: '',
       fabricBuyer: 'workshop',
@@ -92,14 +96,12 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
 
   const garments = request ? [request.request.garment, ...request.request.additionalGarments] : [];
   const lineItems = useWatch({ control: form.control, name: 'lineItems' }) ?? [];
-  const totalPricePEN = Number(
-    garments
-      .reduce(
-        (total, garment, index) => total + garment.quantity * (lineItems[index]?.unitPricePEN || 0),
-        0,
-      )
-      .toFixed(2),
+  const taxMode = useWatch({ control: form.control, name: 'taxMode' });
+  const enteredAmount = quotationLineAmount(
+    garments.map((g) => g.quantity),
+    lineItems.map((line) => ({ ...line, unitPricePEN: line.unitPricePEN || 0 })),
   );
+  const totalPricePEN = quotationPricing(enteredAmount, taxMode).totalPricePEN;
 
   useEffect(() => {
     if (!request) return;
@@ -109,6 +111,7 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
       .join(' / ');
     form.reset({
       totalPricePEN: request.quotation?.totalPricePEN ?? 0,
+      taxMode: request.quotation?.taxMode ?? 'not_included',
       lineItems: garments.map((garment, garmentIndex) => ({
         garmentIndex,
         unitPricePEN:
@@ -122,7 +125,8 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
       })),
       selectedFabric: request.quotation?.selectedFabric ?? requestedFabrics,
       fabricBuyer: request.quotation?.fabricBuyer ?? 'workshop',
-      validUntil: request.quotation?.validUntil ?? dateAfter(7),
+      validUntil:
+        request.quotation?.validUntil ?? request.deliveryEstimate?.approvalBy ?? dateAfter(2),
       conditions:
         request.quotation?.conditions ??
         'Incluye confección y personalización. Pago y entrega según coordinación.',
@@ -197,13 +201,12 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
             <div>
               <dt>
                 <OrderIcon name="calendar" />
-                Entrega
+                {request.buyerDecision?.deliveryDate ? 'Entrega confirmada' : 'Entrega solicitada'}
               </dt>
               <dd>
-                {new Date(`${request.request.delivery.requiredBy}T12:00:00`).toLocaleDateString(
-                  'es-PE',
-                  { day: 'numeric', month: 'short' },
-                )}
+                {new Date(
+                  `${request.buyerDecision?.deliveryDate ?? request.request.delivery.requiredBy}T12:00:00`,
+                ).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' })}
               </dd>
             </div>
             <div>
@@ -370,12 +373,14 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
                               );
                             })}
                           </div>
-                          <div className="pa-quote-total">
-                            <span>Total de la cotización</span>
-                            <strong>
-                              S/{' '}
-                              {totalPricePEN.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                            </strong>
+                          <InputField label="IGV en los precios ingresados">
+                            <select {...form.register('taxMode')}>
+                              <option value="not_included">Añadir IGV (18 %)</option>
+                              <option value="included">Ya incluyen IGV (18 %)</option>
+                            </select>
+                          </InputField>
+                          <div className="quote-price-breakdown">
+                            <QuotationAmounts amount={enteredAmount} taxMode={taxMode} />
                           </div>
                           <input type="hidden" {...form.register('selectedFabric')} />
                           <div className="pa-quote-options">
@@ -388,7 +393,7 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
                             <InputField label="Cotización válida hasta">
                               <input
                                 type="date"
-                                min={dateAfter(1)}
+                                min={limaDate(new Date().toISOString())}
                                 {...form.register('validUntil')}
                               />
                             </InputField>
@@ -399,6 +404,8 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
                           <DeliveryConfirmationField
                             requiredBy={request.request.delivery.requiredBy}
                             register={form.register}
+                            quotationId={quotationId}
+                            control={form.control}
                           />
                           {error && <ErrorMessage>{error}</ErrorMessage>}
                           <button

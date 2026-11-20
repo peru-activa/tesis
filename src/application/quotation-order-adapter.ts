@@ -62,7 +62,7 @@ export function adaptAcceptedQuotation(
         .join(', ') ||
       garment.designAttachment?.name ||
       'Sin referencia de diseño',
-    requiredBy: quotation.request.delivery.requiredBy,
+    requiredBy: quotation.buyerDecision?.deliveryDate ?? quotation.request.delivery.requiredBy,
     deliveryDistrict: quotation.request.delivery.location,
     notes: [
       `Modelo: ${garment.model}`,
