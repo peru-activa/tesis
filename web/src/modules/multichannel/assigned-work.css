@@ -1,0 +1,52 @@
+.assigned-work {
+  text-align: left;
+}
+.assigned-work-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+.assigned-work-card {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #d7dee8;
+  background: #fff;
+}
+.assigned-work-card h4 {
+  margin: 0;
+  color: #17243a;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.assigned-work-state {
+  color: #1b365d;
+  font-weight: 800;
+}
+.assigned-work-card dl {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+.assigned-work-card dt {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.assigned-work-card dd {
+  margin: 0.2rem 0 0;
+  color: #17243a;
+  font-size: 0.85rem;
+}
+.assigned-work-preview {
+  border-left: 3px solid #b93235;
+  background: #fff8e7;
+  padding: 0.8rem;
+  color: #8a4615;
+  font-weight: 800;
+}
+.assigned-work-note {
+  margin-top: 1rem;
+  color: #64748b;
+  font-size: 0.8rem;
+}

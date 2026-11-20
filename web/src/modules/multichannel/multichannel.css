@@ -184,7 +184,7 @@
 .mc-incoming > header > strong {
   padding: 8px 11px;
   background: #fff1f1;
-  color: var(--quote-dark-red);
+  color: var(--quote-red-dark);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -213,6 +213,23 @@
 .mc-incoming-list article:last-child {
   border-bottom: 0;
 }
+.mc-incoming-divider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 24px;
+  border-block: 1px solid #d9dfe8;
+  background: #f1f3f6;
+  color: var(--quote-navy);
+  font-size: 13px;
+  font-weight: 700;
+}
+.mc-incoming-divider span {
+  color: #657086;
+  font-weight: 500;
+}
 .mc-incoming-list b {
   font:
     800 12px ui-monospace,
@@ -239,7 +256,7 @@
 }
 .mc-quotation-state.pending_quote {
   background: #fff1f1;
-  color: var(--quote-dark-red);
+  color: var(--quote-red-dark);
 }
 .mc-quotation-state.recommended {
   background: #e8f4ef;
@@ -268,7 +285,7 @@
   color: #fff;
 }
 .mc-open-quotation:hover {
-  background: var(--quote-dark-red);
+  background: var(--quote-red-dark);
 }
 .mc-queue-placeholder {
   color: #64748b;
@@ -662,7 +679,7 @@
   box-shadow: 5px 5px 0 var(--quote-thread);
 }
 .mc-primary:hover {
-  background: var(--quote-dark-red);
+  background: var(--quote-red-dark);
   transform: translate(1px, 1px);
   box-shadow: 4px 4px 0 var(--quote-thread);
 }
@@ -1566,7 +1583,7 @@
 }
 .r5-scenario-card > button:hover,
 .r5-verdict button:hover {
-  background: var(--quote-dark-red);
+  background: var(--quote-red-dark);
 }
 .r5-scenario-card > button:disabled {
   cursor: wait;
@@ -2042,3 +2059,21 @@
     min-height: 78px;
   }
 }
+
+.mc-availability { margin: 1.25rem 0; padding: 1rem 0; border-top: 1px solid #d9dfe8; border-bottom: 1px solid #d9dfe8; }
+.mc-workshops-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.mc-workshops-heading h3 { margin: 0; }
+.mc-workshops-heading > small, .mc-workshops-help, .mc-workshop-contact small { color: #657086; }
+.mc-availability ul { list-style: none; padding: 0; margin: 1rem 0; display: grid; gap: .75rem; }
+.mc-availability li, .mc-workshop-coordination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; padding: .6rem 0; }
+.mc-workshop-contact { display: grid; gap: .2rem; min-width: 0; flex: 1 1 12rem; }
+.mc-workshop-contact strong { overflow-wrap: anywhere; }
+.mc-workshop-status { display: inline-flex; align-items: center; border-radius: 99px; padding: .35rem .7rem; background: #eef0f4; color: #475569; font-size: .85rem; font-weight: 700; white-space: nowrap; }
+.mc-workshop-status.capacity_pending, .mc-workshop-status.order_pending, .mc-workshop-status.progress_pending { background: #fff4d8; color: #775700; }
+.mc-workshop-status.capacity_yes, .mc-workshop-status.accepted, .mc-workshop-status.finished { background: #e5f3eb; color: #236044; }
+.mc-workshop-status.capacity_no, .mc-workshop-status.declined, .mc-workshop-status.blocked, .mc-workshop-status.send_failed, .mc-workshop-status.missing_phone { background: #fbe9e9; color: #972e31; }
+.mc-workshops-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-bottom: .65rem; }
+.mc-availability .mc-primary { width: auto; max-width: 100%; flex: 0 1 auto; }
+.mc-availability .mc-workshops-refresh { width: auto; border: 0; padding: .5rem; background: transparent; color: #657086; text-decoration: underline; }
+.mc-workshops-help { display: block; font-size: .85rem; }
+.mc-workshop-error { flex-basis: 100%; margin: 0; color: #972e31; font-size: .9rem; }
