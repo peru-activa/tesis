@@ -1,3 +1,4 @@
+export const RECOMMENDATION_VERSION = '0.8.0';
 import { z } from 'zod';
 
 export const processSchema = z.enum([
@@ -105,12 +106,25 @@ export const orderSchema = z.object({
   requiresNewPattern: z.boolean().default(false),
   embroideryApplicationsPerGarment: z.number().int().positive().max(20).default(1),
   requiredProcesses: z.array(processSchema).min(1),
+  productionNotBefore: z.iso.datetime({ offset: true }).optional(),
   requiredBy: z.iso.datetime({ offset: true }),
 });
 
+const materialProductionProfileSchema = z.object({
+  materials: z.array(z.string().trim().min(1)).min(1),
+  capacityStatus: z.enum(['known', 'unknown']),
+  productionRate: z.object({ quantity: z.number().positive(), days: z.number().positive() }).optional(),
+  estimatedLeadTimeDays: z.number().nonnegative().optional(),
+}).refine(profile => profile.capacityStatus === 'unknown' || Boolean(profile.productionRate), {
+  message: 'Un perfil de material conocido debe registrar su tasa de producción.',
+});
+
 export const workshopSchema = z.object({
+  baseProductionMaterials: z.array(z.string().trim().min(1)).min(1).optional(),
+  productionByMaterial: z.array(materialProductionProfileSchema).max(100).optional(),
   id: z.string().min(1),
   displayName: z.string().min(1),
+  testOnly: z.boolean().optional(),
   contactPhone: z
     .string()
     .regex(/^9\d{8}$/)
@@ -164,9 +178,7 @@ export const workshopSchema = z.object({
   workingDays: z.array(workingDaySchema).min(1).optional(),
   availableFrom: z.iso.datetime({ offset: true }).optional(),
   estimatedLeadTimeDays: z.number().nonnegative(),
-  minimumLeadTimeDaysByProcess: z
-    .partialRecord(processSchema, z.number().nonnegative())
-    .optional(),
+  minimumLeadTimeDaysByProcess: z.partialRecord(processSchema, z.number().nonnegative()).optional(),
   estimatedTotalCost: z.number().nonnegative(),
   onTimeRate: z.number().min(0).max(1),
   defectRate: z.number().min(0).max(1),
@@ -187,9 +199,24 @@ export const weightsSchema = z
 
 export const recommendationRequestSchema = z.object({
   evaluatedAt: z.iso.datetime({ offset: true }),
-  algorithmVersion: z.literal('0.6.0').default('0.6.0'),
+  routeTiming: z.enum(['declared_overlap', 'sequential_phases']).default('declared_overlap'),
+  handoffDays: z.number().nonnegative().max(30).default(0),
+  algorithmVersion: z.enum(['0.6.0', '0.7.0', '0.8.0']).default(RECOMMENDATION_VERSION),
   order: orderSchema,
   workshops: z.array(workshopSchema).min(1),
+  committedWork: z
+    .array(
+      z.object({
+        orderId: z.string().min(1),
+        workshopId: z.string().min(1),
+        reservedUntil: z.iso.datetime({ offset: true }).optional(),
+        material: z.string().trim().min(1).optional(),
+        quantity: z.number().int().positive(),
+        assignedProcesses: z.array(processSchema).min(1),
+        embroideryApplicationsPerGarment: z.number().int().positive().default(1),
+      }),
+    )
+    .optional(),
   weights: weightsSchema.default({
     delivery: 0.3,
     cost: 0,
@@ -200,6 +227,7 @@ export const recommendationRequestSchema = z.object({
 });
 
 export type RecommendationRequest = z.infer<typeof recommendationRequestSchema>;
+export type CommittedWork = NonNullable<RecommendationRequest['committedWork']>[number];
 export type Process = z.infer<typeof processSchema>;
 export type FabricBuyer = z.infer<typeof fabricBuyerSchema>;
 export type FabricSupply = z.infer<typeof fabricSupplySchema>;
@@ -250,7 +278,7 @@ export interface RejectedCandidate {
 }
 
 export interface RecommendationResult {
-  algorithmVersion: '0.6.0';
+  algorithmVersion: '0.6.0' | '0.7.0' | '0.8.0';
   orderId: string;
   evaluatedAt: string;
   candidates: RankedCandidate[];

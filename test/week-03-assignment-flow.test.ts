@@ -64,7 +64,7 @@ describe('flujo multicanal simulado de Semana 3', () => {
     assert.equal(payload.seed, 20_260_827);
     assert.equal(payload.comparison.baseline.algorithm, 'deterministic-baseline');
     assert.equal(payload.comparison.genetic.algorithm, 'genetic');
-    assert.equal(payload.comparison.genetic.value.algorithmVersion, 'ga-0.6.0');
+    assert.equal(payload.comparison.genetic.value.algorithmVersion, 'ga-0.8.0');
     assert.equal(payload.comparison.summary.sameAllocation, true);
     assert.equal(payload.comparison.summary.scoreDifference, 0);
   });

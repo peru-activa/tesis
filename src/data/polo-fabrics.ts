@@ -8,9 +8,10 @@ export interface PoloFabricCatalogEntry {
   family: MaterialFamily;
 }
 
-export const POLO_FABRIC_CATALOG_VERSION = 'polo-fabrics-peru-activa-v1';
+export const POLO_FABRIC_CATALOG_VERSION = 'polo-fabrics-peru-activa-v2';
 
 export const poloFabricCatalog: PoloFabricCatalogEntry[] = [
+  { id: 'umbrela', displayName: 'Umbrela', aliases: ['umbrela'], use: 'main', family: 'sports_knit' },
   {
     id: 'cotton',
     displayName: 'Algodón',

@@ -1,3 +1,6 @@
+import { productionForMaterial } from './material-production.js';
+import { RECOMMENDATION_VERSION } from './contracts.js';
+import { withoutRedundantSplits } from './assignment-plans.js';
 import type {
   DimensionScores,
   RecommendationRequest,
@@ -63,9 +66,14 @@ function calendarDaysForWork(
 ) {
   if (requiredWorkingDays <= 0) return 0;
   if (!workshop.workingDays) return requiredWorkingDays;
-  let elapsed = 0;
-  let completed = 0;
-  while (completed < requiredWorkingDays && elapsed < 366) {
+  const workingDaysPerWeek = new Set(workshop.workingDays).size;
+  const fullWeeks = Math.max(
+    0,
+    Math.floor((Math.ceil(requiredWorkingDays) - 1) / workingDaysPerWeek),
+  );
+  let elapsed = fullWeeks * 7;
+  let completed = fullWeeks * workingDaysPerWeek;
+  while (completed < requiredWorkingDays) {
     const day = WORKING_DAY_BY_UTC_INDEX[new Date(startTimestamp + elapsed * DAY_MS).getUTCDay()]!;
     if (workshop.workingDays.includes(day)) completed += 1;
     elapsed += 1;
@@ -92,6 +100,74 @@ function workload(request: RecommendationRequest, assignedProcesses: Process[]):
   return request.order.quantity;
 }
 
+function committedWork(request: RecommendationRequest, workshop: Workshop) {
+  return (request.committedWork ?? []).filter(
+    (work) => work.workshopId === workshop.id && work.orderId !== request.order.id,
+  );
+}
+
+function committedUnits(request: RecommendationRequest, workshop: Workshop): number {
+  return committedWork(request, workshop).reduce(
+    (total, work) =>
+      total +
+      workload(
+        {
+          ...request,
+          order: {
+            ...request.order,
+            quantity: work.quantity,
+            embroideryApplicationsPerGarment: work.embroideryApplicationsPerGarment,
+          },
+        },
+        work.assignedProcesses,
+      ),
+    0,
+  );
+}
+
+// Conservative queue: unfinished allocations retain all their work until completed.
+// Rates share a workshop's working calendar; no progress or parallel machines are inferred.
+function committedDaysAfterReady(
+  request: RecommendationRequest,
+  workshop: Workshop,
+  startsAt: number,
+): number {
+  const work = committedWork(request, workshop);
+  const committedDays = work.filter((entry) => !entry.reservedUntil).reduce((total, entry) => {
+    const rate = effectiveRate(productionForMaterial(workshop, entry.material ?? request.order.material), entry.assignedProcesses);
+    if (!rate) return Number.POSITIVE_INFINITY;
+    const units = workload({ ...request, order: { ...request.order, quantity: entry.quantity,
+      embroideryApplicationsPerGarment: entry.embroideryApplicationsPerGarment } }, entry.assignedProcesses);
+    return total + units * rate.days / rate.quantity;
+  }, 0);
+  const queueStartsAt = Math.max(Date.parse(request.evaluatedAt),
+    workshop.availableFrom ? Date.parse(workshop.availableFrom) : 0);
+  const remaining = Math.max(0, committedDays - workingDaysBetween(queueStartsAt, startsAt, workshop));
+  // Hypothetical plans carry a complete schedule; do not consume their work again
+  // or assume they can be produced during the customer's approval window.
+  const reservedUntil = Math.max(0, ...work.map((entry) => entry.reservedUntil ? Date.parse(entry.reservedUntil) : 0));
+  const reservedDays = Math.max(0, Math.ceil((reservedUntil - startsAt) / DAY_MS));
+  return Math.max(remaining, reservedDays);
+}
+
+function remainingFixedCapacity(request: RecommendationRequest, workshop: Workshop): number {
+  return Math.max(
+    0,
+    Math.min(workshop.maximumUnits, workshop.availableCapacity) - committedUnits(request, workshop),
+  );
+}
+
+function fixedCapacityFor(
+  request: RecommendationRequest,
+  workshop: Workshop,
+  processes: Process[] = effectiveRequiredProcesses(request),
+): number {
+  const units = remainingFixedCapacity(request, workshop);
+  return processes.includes('embroidery')
+    ? Math.floor(units / request.order.embroideryApplicationsPerGarment)
+    : units;
+}
+
 function effectiveLeadTimeDays(
   request: RecommendationRequest,
   workshop: Workshop,
@@ -100,24 +176,77 @@ function effectiveLeadTimeDays(
   const evaluatedAt = Date.parse(request.evaluatedAt);
   const fabricReadyAt = evaluatedAt + request.order.fabricSupply.remainingLeadTimeDays * DAY_MS;
   const availableFrom = workshop.availableFrom ? Date.parse(workshop.availableFrom) : evaluatedAt;
-  const startsAt = Math.max(fabricReadyAt, availableFrom);
+  const startsAt = Math.max(
+    fabricReadyAt, availableFrom,
+    request.order.productionNotBefore ? Date.parse(request.order.productionNotBefore) : evaluatedAt,
+  );
   const waitingDays = Math.max(0, Math.ceil((startsAt - evaluatedAt) / DAY_MS));
-  const rate = effectiveRate(workshop, assignedProcesses);
+  const production = productionForMaterial(workshop, request.order.material);
+  const rate = effectiveRate(production, assignedProcesses);
   const productionWorkingDays = rate
     ? Math.ceil((workload(request, assignedProcesses) * rate.days) / rate.quantity)
     : 0;
   const processMinimumWorkingDays = Math.max(
     0,
-    ...assignedProcesses.map(
-      (process) => workshop.minimumLeadTimeDaysByProcess?.[process] ?? 0,
-    ),
+    ...assignedProcesses.map((process) => workshop.minimumLeadTimeDaysByProcess?.[process] ?? 0),
   );
   const requiredWorkingDays = Math.max(
-    workshop.estimatedLeadTimeDays,
+    production.estimatedLeadTimeDays,
     processMinimumWorkingDays,
     productionWorkingDays,
   );
-  return waitingDays + calendarDaysForWork(startsAt, requiredWorkingDays, workshop);
+  const queueDays = rate ? committedDaysAfterReady(request, workshop, startsAt) : 0;
+  if (!Number.isFinite(queueDays)) return Number.POSITIVE_INFINITY;
+  return (
+    waitingDays +
+    calendarDaysForWork(startsAt, Math.ceil(requiredWorkingDays + queueDays), workshop)
+  );
+}
+
+/** Independent providers within a phase run in parallel.
+ * A provider revisited after another phase retains its declared service time.
+ * Phase-specific durations and batch overlap require explicit scheduling data.
+ */
+export function planLeadTimeDays(
+  request: RecommendationRequest,
+  allocations: WorkshopAllocation[],
+  workflowSteps?: WorkflowStep[],
+): number {
+  const duration = (allocation: WorkshopAllocation, processes: Process[], readyAt: number) => {
+    const workshop = request.workshops.find((item) => item.id === allocation.workshopId)!;
+    return effectiveLeadTimeDays({
+      ...request,
+      order: { ...request.order, quantity: allocation.quantity,
+        productionNotBefore: new Date(readyAt).toISOString() },
+    }, workshop, processes);
+  };
+  const origin = Date.parse(request.evaluatedAt);
+  let readyAt = Math.max(origin, Date.parse(request.order.productionNotBefore ?? request.evaluatedAt));
+  if (!workflowSteps?.length || request.routeTiming !== 'sequential_phases') return Math.max(...allocations.map((allocation) =>
+    duration(allocation, allocation.assignedProcesses ?? effectiveRequiredProcesses(request), readyAt)));
+  const phases: WorkflowStep[][] = [];
+  for (const step of workflowSteps) {
+    const previous = phases.at(-1);
+    if (previous?.[0]?.process === step.process) previous.push(step);
+    else phases.push([step]);
+  }
+  const merged: WorkflowStep[][] = [];
+  const owners = (phase: WorkflowStep[]) => JSON.stringify([...new Set(phase.map((step) => step.workshopId))].sort());
+  for (const phase of phases) {
+    const previous = merged.at(-1);
+    if (previous && owners(previous) === owners(phase)) previous.push(...phase);
+    else merged.push([...phase]);
+  }
+  for (const [index, phase] of merged.entries()) {
+    if (index > 0) readyAt += request.handoffDays * DAY_MS;
+    const elapsed = Math.max(...allocations.filter((allocation) =>
+      phase.some((step) => step.workshopId === allocation.workshopId)).map((allocation) =>
+      duration(allocation, [...new Set(phase.filter((step) => step.workshopId === allocation.workshopId)
+        .map((step) => step.process))], readyAt)));
+    if (!Number.isFinite(elapsed)) return Number.POSITIVE_INFINITY;
+    readyAt = origin + elapsed * DAY_MS;
+  }
+  return (readyAt - origin) / DAY_MS;
 }
 
 function effectiveEmbroideryRate(
@@ -137,21 +266,30 @@ function capacityBeforeDeadline(
   workshop: Workshop,
   assignedProcesses: Process[] = effectiveRequiredProcesses(request),
 ): number | undefined {
-  const rate = effectiveRate(workshop, assignedProcesses);
+  const production = productionForMaterial(workshop, request.order.material);
+  const rate = effectiveRate(production, assignedProcesses);
   if (!rate) return undefined;
   const evaluatedAt = Date.parse(request.evaluatedAt);
   const fabricReadyAt = evaluatedAt + request.order.fabricSupply.remainingLeadTimeDays * DAY_MS;
   const availableFrom = workshop.availableFrom ? Date.parse(workshop.availableFrom) : evaluatedAt;
-  const startsAt = Math.max(fabricReadyAt, availableFrom);
+  const startsAt = Math.max(
+    fabricReadyAt, availableFrom,
+    request.order.productionNotBefore ? Date.parse(request.order.productionNotBefore) : evaluatedAt,
+  );
   const deadline = Date.parse(request.order.requiredBy);
-  const workingDays = workingDaysBetween(startsAt, deadline, workshop);
-  const serviceUnits = Math.floor((workingDays * rate.quantity) / rate.days);
-  if (assignedProcesses.includes('embroidery')) {
-    return Math.floor(serviceUnits / request.order.embroideryApplicationsPerGarment);
-  }
-  return workshop.capacityPlanningMode === 'throughput'
-    ? serviceUnits
-    : Math.min(serviceUnits, workshopCapacity(workshop));
+  const workingDays = Math.max(
+    0,
+    workingDaysBetween(startsAt, deadline, workshop) -
+      committedDaysAfterReady(request, workshop, startsAt),
+  );
+  const serviceUnits = Math.floor((workingDays * rate.quantity) / rate.days + 1e-9);
+  const availableUnits =
+    workshop.capacityPlanningMode === 'throughput'
+      ? serviceUnits
+      : Math.min(serviceUnits, remainingFixedCapacity(request, workshop));
+  return assignedProcesses.includes('embroidery')
+    ? Math.floor(availableUnits / request.order.embroideryApplicationsPerGarment)
+    : availableUnits;
 }
 
 function supportsMaterial(material: string, workshop: Workshop): boolean {
@@ -181,7 +319,7 @@ function rejectionReasons(request: RecommendationRequest, workshop: Workshop): s
   if (!products.has(normalize(request.order.product))) reasons.push('producto no atendido');
   if (!supportsPoloType(request, workshop)) reasons.push('tipo de polo no atendido');
   if (!supportsMaterial(request.order.material, workshop)) reasons.push('material no atendido');
-  if (workshop.capacityStatus === 'unknown') reasons.push('capacidad productiva no registrada');
+  if (productionForMaterial(workshop, request.order.material).capacityStatus === 'unknown') reasons.push('capacidad productiva no registrada');
   if (missing.includes('fabric_sourcing')) reasons.push('no gestiona la compra de tela');
   const missingProduction = missing.filter((process) => process !== 'fabric_sourcing');
   if (missingProduction.length > 0)
@@ -197,7 +335,7 @@ function rejectionReasons(request: RecommendationRequest, workshop: Workshop): s
       );
   } else {
     if (request.order.quantity > workshop.maximumUnits) reasons.push('cantidad mayor al máximo');
-    if (request.order.quantity > workshop.availableCapacity)
+    if (request.order.quantity > fixedCapacityFor(request, workshop))
       reasons.push('capacidad disponible insuficiente');
   }
   if (availableDays < 0 || effectiveLeadTimeDays(request, workshop) > availableDays) {
@@ -219,19 +357,25 @@ function compatibilityReasons(request: RecommendationRequest, workshop: Workshop
   if (!supportsPoloType(request, workshop)) reasons.push('tipo de polo no atendido');
   if (!supportsMaterial(request.order.material, workshop))
     reasons.push('tela o material no atendido');
-  if (workshop.capacityStatus === 'unknown') reasons.push('capacidad productiva no registrada');
+  if (productionForMaterial(workshop, request.order.material).capacityStatus === 'unknown') reasons.push('capacidad productiva no registrada');
   if (missing.includes('fabric_sourcing')) reasons.push('no gestiona la compra de tela');
   const missingProduction = missing.filter((process) => process !== 'fabric_sourcing');
   if (missingProduction.length > 0)
     reasons.push(`procesos faltantes: ${missingProduction.join(', ')}`);
-  if (availableDays < 0 || effectiveLeadTimeDays(request, workshop) > availableDays) {
+  // A distributed plan asks each workshop for a fraction, not the full order.
+  const minimumRequest = {
+    ...request,
+    order: { ...request.order, quantity: Math.max(1, workshop.minimumUnits) },
+  };
+  const capacity = capacityBeforeDeadline(request, workshop) ?? fixedCapacityFor(request, workshop);
+  if (
+    capacity < minimumRequest.order.quantity ||
+    availableDays < 0 ||
+    effectiveLeadTimeDays(minimumRequest, workshop) > availableDays
+  ) {
     reasons.push('disponibilidad o plazo insuficiente');
   }
   return reasons;
-}
-
-function workshopCapacity(workshop: Workshop): number {
-  return Math.min(workshop.maximumUnits, workshop.availableCapacity);
 }
 
 function combinations<T>(items: T[], size: number): T[][] {
@@ -256,7 +400,9 @@ function allocateQuantity(
   const minimum = ordered.reduce((sum, workshop) => sum + workshop.minimumUnits, 0);
   const capacityFor = (workshop: Workshop) =>
     (request && capacityBeforeDeadline(request, workshop, assignedProcesses)) ??
-    workshopCapacity(workshop);
+    (request
+      ? fixedCapacityFor(request, workshop, assignedProcesses)
+      : Math.min(workshop.maximumUnits, workshop.availableCapacity));
   const maximum = ordered.reduce((sum, workshop) => sum + capacityFor(workshop), 0);
   if (quantity < minimum || quantity > maximum) return undefined;
 
@@ -308,16 +454,66 @@ function baseRouteReasons(
   if (!products.has(normalize(request.order.product))) reasons.push('producto no atendido');
   if (!supportsPoloType(request, workshop)) reasons.push('tipo de polo no atendido');
   if (!supportsMaterial(request.order.material, workshop)) reasons.push('material no atendido');
-  if (workshop.capacityStatus === 'unknown') reasons.push('capacidad productiva no registrada');
+  if (productionForMaterial(workshop, request.order.material).capacityStatus === 'unknown') reasons.push('capacidad productiva no registrada');
   const requiredUnits =
     assignedProcesses.length === 1 && assignedProcesses[0] === 'patternmaking'
       ? 1
       : request.order.quantity;
   if (requiredUnits < workshop.minimumUnits) reasons.push('cantidad menor al mínimo');
   const capacity =
-    capacityBeforeDeadline(request, workshop, assignedProcesses) ?? workshopCapacity(workshop);
+    capacityBeforeDeadline(request, workshop, assignedProcesses) ??
+    fixedCapacityFor(request, workshop, assignedProcesses);
   if (requiredUnits > capacity) reasons.push('capacidad insuficiente');
   return reasons;
+}
+
+export function allocationCapacityProblems(
+  request: RecommendationRequest,
+  allocations: Array<Pick<WorkshopAllocation, 'workshopId' | 'quantity' | 'assignedProcesses'>>,
+  workflowSteps?: WorkflowStep[],
+): RecommendationResult['rejected'] {
+  if (workflowSteps && allocations.every((allocation) => request.workshops.some((workshop) => workshop.id === allocation.workshopId))) {
+    const lead = planLeadTimeDays(request, allocations.map((allocation) => ({ ...allocation,
+      displayName: allocation.workshopId, availableCapacity: 0, effectiveLeadTimeDays: 0, estimatedCost: 0 })), workflowSteps);
+    const availableDays = Math.floor((Date.parse(request.order.requiredBy) - Date.parse(request.evaluatedAt)) / DAY_MS);
+    if (lead > availableDays) return allocations.map((allocation) => ({
+      workshopId: allocation.workshopId, displayName: allocation.workshopId,
+      reasons: ['la ruta completa ya no cumple el plazo disponible'],
+    }));
+  }
+  return allocations.flatMap((allocation) => {
+    const workshop = request.workshops.find((item) => item.id === allocation.workshopId);
+    if (!workshop)
+      return [
+        {
+          workshopId: allocation.workshopId,
+          displayName: allocation.workshopId,
+          reasons: ['taller no disponible'],
+        },
+      ];
+    const allocatedRequest = {
+      ...request,
+      order: { ...request.order, quantity: allocation.quantity },
+    };
+    const processes = allocation.assignedProcesses ?? effectiveRequiredProcesses(request);
+    const capacity =
+      capacityBeforeDeadline(allocatedRequest, workshop, processes) ??
+      fixedCapacityFor(allocatedRequest, workshop, processes);
+    const units =
+      processes.length === 1 && processes[0] === 'patternmaking' ? 1 : allocation.quantity;
+    const reasons: string[] = [];
+    if (productionForMaterial(workshop, request.order.material).capacityStatus === 'unknown') reasons.push('capacidad productiva no registrada');
+    if (units < workshop.minimumUnits) reasons.push('cantidad menor al mínimo del taller');
+    if (units > capacity) reasons.push('capacidad disponible insuficiente');
+    const availableDays = Math.floor(
+      (Date.parse(request.order.requiredBy) - Date.parse(request.evaluatedAt)) / DAY_MS,
+    );
+    if (availableDays < effectiveLeadTimeDays(allocatedRequest, workshop, processes))
+      reasons.push('disponibilidad o plazo insuficiente');
+    return reasons.length
+      ? [{ workshopId: workshop.id, displayName: workshop.displayName, reasons }]
+      : [];
+  });
 }
 
 function specializedRoutePlans(request: RecommendationRequest): CandidatePlan[] {
@@ -465,17 +661,14 @@ function specializedRoutePlans(request: RecommendationRequest): CandidatePlan[] 
               inputState: needsSublimation ? 'sublimated_cut_panels' : 'cut_panels',
               outputState: 'assembled_garment',
             });
-            add('printing', producer);
           }
+          for (const producer of producerGroup) add('printing', producer);
           if (vinylProvider) add('vinyl', vinylProvider, { inputState: 'assembled_garment' });
-          for (const producer of producerGroup) {
-            for (const process of ['notions', 'ironing'] as Process[]) add(process, producer);
-            add('finishing', producer, {
-              inputState: 'assembled_garment',
-              outputState: 'finished_garment',
-            });
-            add('quality_control', producer);
-            add('delivery', producer);
+          for (const process of ['notions', 'ironing', 'finishing', 'quality_control', 'delivery'] as Process[]) {
+            for (const producer of producerGroup) {
+              add(process, producer, process === 'finishing'
+                ? { inputState: 'assembled_garment', outputState: 'finished_garment' } : {});
+            }
           }
 
           const routeWorkshops = Array.from(
@@ -506,24 +699,15 @@ function specializedRoutePlans(request: RecommendationRequest): CandidatePlan[] 
                   .map((step) => step.process),
               ),
             );
-          const leadTime = Math.max(
-            ...routeWorkshops.map((workshop) => {
-              const producerAllocation = producerAllocations.find(
-                (allocation) => allocation.workshopId === workshop.id,
-              );
-              const allocationRequest = producerAllocation
-                ? {
-                    ...request,
-                    order: { ...request.order, quantity: producerAllocation.quantity },
-                  }
-                : request;
-              return effectiveLeadTimeDays(
-                allocationRequest,
-                workshop,
-                assignedProcesses(workshop),
-              );
-            }),
-          );
+          const leadTime = planLeadTimeDays(request, routeWorkshops.map((workshop) => ({
+            workshopId: workshop.id,
+            displayName: workshop.displayName,
+            quantity: producerAllocations.find((item) => item.workshopId === workshop.id)?.quantity ?? request.order.quantity,
+            availableCapacity: 0,
+            effectiveLeadTimeDays: 0,
+            estimatedCost: 0,
+            assignedProcesses: assignedProcesses(workshop),
+          })), workflowSteps);
           const availableDays = Math.floor(
             (Date.parse(request.order.requiredBy) - Date.parse(request.evaluatedAt)) / DAY_MS,
           );
@@ -543,7 +727,7 @@ function specializedRoutePlans(request: RecommendationRequest): CandidatePlan[] 
                   quantity: producerAllocation?.quantity ?? request.order.quantity,
                   availableCapacity:
                     capacityBeforeDeadline(request, workshop, processes) ??
-                    workshop.availableCapacity,
+                    fixedCapacityFor(request, workshop, processes),
                   effectiveLeadTimeDays: 0,
                   estimatedCost: 0,
                   assignedProcesses: processes,
@@ -575,6 +759,7 @@ function round(value: number): number {
 export function recommendWorkshops(
   request: RecommendationRequest,
   scoringReferenceWorkshops: Workshop[] = request.workshops,
+  enumeratePlans = false,
 ): RecommendationResult {
   const rejected: RecommendationResult['rejected'] = [];
   const individuallyEligible = request.workshops.filter((workshop) => {
@@ -600,9 +785,9 @@ export function recommendWorkshops(
     return allocations ? [{ workshops: [workshop], allocations }] : [];
   });
 
-  if (plans.length === 0) plans.push(...specializedRoutePlans(request));
+  if (enumeratePlans || plans.length === 0) plans.push(...specializedRoutePlans(request));
 
-  if (plans.length === 0) {
+  if (enumeratePlans || plans.length === 0) {
     for (const size of [2, 3]) {
       for (const group of combinations(compatible, size)) {
         const allocations = allocateQuantity(
@@ -613,7 +798,7 @@ export function recommendWorkshops(
         );
         if (allocations) plans.push({ workshops: group, allocations });
       }
-      if (plans.length > 0) break;
+      if (!enumeratePlans && plans.length > 0) break;
     }
   }
 
@@ -626,7 +811,7 @@ export function recommendWorkshops(
     .map((workshop) => workshop.estimatedTotalCost);
   const lowestCost = referenceCosts.length > 0 ? Math.min(...referenceCosts) : 0;
 
-  const candidates = plans
+  const rankedCandidates = plans
     .map(({ workshops, allocations, workflowSteps, pipeline }) => {
       const hydratedAllocations = allocations.map((allocation) => {
         const workshop = workshops.find((item) => item.id === allocation.workshopId)!;
@@ -645,9 +830,7 @@ export function recommendWorkshops(
           ),
         };
       });
-      const effectiveLeadTime = pipeline
-        ? Math.max(...hydratedAllocations.map((allocation) => allocation.effectiveLeadTimeDays))
-        : Math.max(...hydratedAllocations.map((allocation) => allocation.effectiveLeadTimeDays));
+      const effectiveLeadTime = planLeadTimeDays(request, hydratedAllocations, workflowSteps);
       const estimatedCost = hydratedAllocations.reduce(
         (sum, allocation) => sum + allocation.estimatedCost,
         0,
@@ -698,7 +881,9 @@ export function recommendWorkshops(
             ? 'el taller gestiona la compra de la tela especificada por Perú Activa'
             : 'Perú Activa compra la tela y la entrega al taller',
           workflowSteps
-            ? `ruta superpuesta de ${workflowSteps.length} etapas por lotes entre ${hydratedAllocations.length} proveedores`
+            ? (request.routeTiming === 'sequential_phases'
+                ? `ruta de ${workflowSteps.length} etapas secuenciales entre ${hydratedAllocations.length} proveedores`
+                : `ruta superpuesta de ${workflowSteps.length} etapas por lotes entre ${hydratedAllocations.length} proveedores`)
             : hydratedAllocations.length === 1
               ? 'un taller cubre el pedido completo'
               : `pedido distribuido entre ${hydratedAllocations.length} talleres`,
@@ -713,6 +898,11 @@ export function recommendWorkshops(
         ...(workflowSteps ? { workflowSteps } : {}),
       };
     })
+    .filter((candidate) =>
+      candidate.allocations.every(
+        (allocation) => allocation.effectiveLeadTimeDays <= availableDays,
+      ),
+    )
     .sort(
       (left, right) =>
         right.score - left.score ||
@@ -720,6 +910,7 @@ export function recommendWorkshops(
         left.candidateId.localeCompare(right.candidateId),
     );
 
+  const candidates = enumeratePlans ? rankedCandidates : withoutRedundantSplits(rankedCandidates);
   candidates.forEach((candidate, index) => {
     candidate.rank = index + 1;
   });
@@ -731,7 +922,7 @@ export function recommendWorkshops(
   );
 
   return {
-    algorithmVersion: '0.6.0',
+    algorithmVersion: RECOMMENDATION_VERSION,
     orderId: request.order.id,
     evaluatedAt: request.evaluatedAt,
     candidates,

@@ -22,7 +22,7 @@ describe('algoritmo genético de asignación', () => {
     const second = recommendWorkshopsGenetically(request, WEEK_03_SEED);
 
     assert.deepEqual(first, second);
-    assert.equal(first.algorithmVersion, 'ga-0.6.0');
+    assert.equal(first.algorithmVersion, 'ga-0.8.0');
     assert.equal(first.result.candidates[0]?.candidateId, 'sim-workshop-b');
     assert.equal(
       first.result.candidates[0]?.allocations.reduce((sum, item) => sum + item.quantity, 0),
