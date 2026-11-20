@@ -64,3 +64,11 @@ export function limaDate(timestamp: string): string {
 export function addDateDays(date: string, days: number): string {
   return new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 }
+
+export function calendarDaysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000);
+}
+
+export function quotationExpired(validUntil: string, timestamp = new Date().toISOString()): boolean {
+  return validUntil < limaDate(timestamp);
+}

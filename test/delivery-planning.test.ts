@@ -117,9 +117,9 @@ describe('delivery feasibility before requesting a quotation', () => {
     const created = await service.create(draft);
     assert.equal(created.deliveryEstimate?.earliestDate, '2099-11-10');
     await service.quote(created.id, { selectedFabric: 'Algodón', fabricBuyer: 'peru_activa', totalPricePEN: 100,
-      validUntil: '2099-11-10', conditions: 'Datos de prueba', deliveryConfirmation: { requiredBy: '2099-11-10', confirmed: true } });
+      validUntil: '2099-11-03', conditions: 'Datos de prueba', deliveryConfirmation: { requiredBy: '2099-11-10', confirmed: true } });
     now = new Date('2099-11-09T10:00:00-05:00');
-    await assert.rejects(service.respond(created.id, { decision: 'accepted' }), (error: unknown) => error instanceof QuotationFlowError && error.code === 'delivery_unavailable');
+    await assert.rejects(service.respond(created.id, { decision: 'accepted' }), (error: unknown) => error instanceof QuotationFlowError && error.code === 'quotation_expired');
     assert.equal(accepted, 0);
     assert.equal((await store.get(created.id))?.status, 'quoted');
     now = start;

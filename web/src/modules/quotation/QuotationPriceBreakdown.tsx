@@ -1,4 +1,6 @@
 import type { QuotationRequest } from '../../../../src/domain/quotation-requests';
+import { QuotationAmounts } from './QuotationAmounts';
+import { moneyCents } from '../../../../src/domain/quotation-pricing';
 
 export function QuotationPriceBreakdown({ request }: { request: QuotationRequest }) {
   if (!request.quotation) return null;
@@ -6,6 +8,11 @@ export function QuotationPriceBreakdown({ request }: { request: QuotationRequest
 
   return (
     <div className="quote-price-breakdown">
+      {request.quotation.taxMode && (
+        <small>
+          Precios unitarios {request.quotation.taxMode === 'included' ? 'con IGV' : 'sin IGV'}
+        </small>
+      )}
       {request.quotation.lineItems?.map((item) => {
         const garment = garments[item.garmentIndex];
         if (!garment) return null;
@@ -20,22 +27,18 @@ export function QuotationPriceBreakdown({ request }: { request: QuotationRequest
             </span>
             <b>
               S/{' '}
-              {(garment.quantity * item.unitPricePEN).toLocaleString('es-PE', {
+              {(moneyCents(garment.quantity * item.unitPricePEN) / 100).toLocaleString('es-PE', {
                 minimumFractionDigits: 2,
               })}
             </b>
           </div>
         );
       })}
-      <div className="total">
-        <span>Total</span>
-        <strong>
-          S/{' '}
-          {request.quotation.totalPricePEN.toLocaleString('es-PE', {
-            minimumFractionDigits: 2,
-          })}
-        </strong>
-      </div>
+      <QuotationAmounts
+        amount={request.quotation.priceAmountPEN ?? request.quotation.totalPricePEN}
+        taxMode={request.quotation.taxMode}
+        taxRate={request.quotation.taxRate}
+      />
     </div>
   );
 }

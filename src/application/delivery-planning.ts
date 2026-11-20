@@ -8,6 +8,7 @@ import {
 } from '../domain/contracts.js';
 import {
   addDateDays,
+  calendarDaysBetween,
   deliveryPlanningInputSchema,
   deliveryPolicySchema,
   limaDate,
@@ -37,16 +38,19 @@ export class DeliveryPlanningService {
     options: {
       quotation?: QuotationRequest;
       approving?: boolean;
+      approvalDate?: string;
       requiredBy?: string;
     } = {},
   ): Promise<DeliveryEstimate> {
     const parsed = deliveryPlanningInputSchema.parse(input);
     const evaluatedAt = this.now().toISOString();
     const today = limaDate(evaluatedAt);
-    const approvalDays = options.approving ? 0 : this.policy.approvalDays;
+    const approvalDays = options.approving ? 0 : options.approvalDate
+      ? Math.max(0, calendarDaysBetween(today, options.approvalDate)) : this.policy.approvalDays;
     const approvalBy = addDateDays(today, approvalDays);
     const horizonDate = addDateDays(today, this.policy.horizonDays);
-    const productionNotBefore = new Date(
+    const productionNotBefore = options.approvalDate && !options.approving
+      ? `${approvalBy}T23:59:59.999-05:00` : new Date(
       Date.parse(evaluatedAt) + approvalDays * 86_400_000,
     ).toISOString();
     const [allWorkshops, orders] = await Promise.all([this.workshops.list(), this.orders.list()]);

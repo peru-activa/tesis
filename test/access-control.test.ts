@@ -180,7 +180,7 @@ describe('aislamiento de datos por identidad', () => {
       lineItems: [{ garmentIndex: 0, unitPricePEN: 50 }],
       selectedFabric: 'Algodón pima 20/1',
       fabricBuyer: 'workshop',
-      validUntil: '2026-09-05',
+      validUntil: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10),
       conditions: 'Cotización simulada.',
       deliveryConfirmation: { requiredBy: draft.delivery.requiredBy, confirmed: true },
     };

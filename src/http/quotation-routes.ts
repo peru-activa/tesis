@@ -132,6 +132,15 @@ export function createQuotationRouter(
     });
   });
 
+  router.post('/:id/quotation-preview', async (request, response) => {
+    await runAuthorizedAction(request, response, resolveIdentity, async (identity) => {
+      requireRole(identity, 'peru_activa');
+      response.set('Cache-Control', 'private, no-store');
+      response.json({ ok: true, ...(await service.previewQuotation(request.params.id,
+        sellerQuotationDraftSchema.parse(request.body))) });
+    });
+  });
+
   router.get('/:id/draft', async (request, response) => {
     await runAuthorizedAction(request, response, resolveIdentity, async (identity) => {
       requireRole(identity, 'client', 'peru_activa');
