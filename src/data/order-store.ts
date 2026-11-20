@@ -14,6 +14,7 @@ export interface OrderStore {
   get(id: string): Promise<PortalOrder | undefined>;
   history(id: string): Promise<OrderStatusHistoryEntry[]>;
   create(order: PortalOrder): Promise<PortalOrder>;
+  createMany(orders: PortalOrder[]): Promise<PortalOrder[]>;
   assign(
     id: string,
     assignment: OrderAssignment,
@@ -58,9 +59,31 @@ export class MemoryOrderStore implements OrderStore {
   }
 
   async create(order: PortalOrder): Promise<PortalOrder> {
-    this.orders.set(order.id, order);
-    this.statusHistory.set(order.id, [{ status: order.status, occurredAt: order.createdAt }]);
-    return order;
+    return (await this.createMany([order]))[0]!;
+  }
+
+  async createMany(orders: PortalOrder[]): Promise<PortalOrder[]> {
+    const next = new Map(this.orders);
+    const created: PortalOrder[] = [];
+    const result = orders.map((order) => {
+      const existing =
+        order.source &&
+        [...next.values()].find(
+          (item) =>
+            item.source?.quotationId === order.source!.quotationId &&
+            item.source.garmentIndex === order.source!.garmentIndex,
+        );
+      if (existing) return existing;
+      if (next.has(order.id)) throw new Error('El identificador del pedido ya existe.');
+      next.set(order.id, order);
+      created.push(order);
+      return order;
+    });
+    for (const order of created) {
+      this.orders.set(order.id, order);
+      this.statusHistory.set(order.id, [{ status: order.status, occurredAt: order.createdAt }]);
+    }
+    return result;
   }
 
   async assign(
@@ -203,12 +226,37 @@ export class PostgresOrderStore implements OrderStore {
   }
 
   async create(order: PortalOrder): Promise<PortalOrder> {
+    return (await this.createMany([order]))[0]!;
+  }
+
+  async createMany(orders: PortalOrder[]): Promise<PortalOrder[]> {
     await this.ready;
     const client = await this.pool.connect();
+    const result: PortalOrder[] = [];
     try {
       await client.query('BEGIN');
-      await client.query(
-        `INSERT INTO orders (
+      const sources = [
+        ...new Set(orders.flatMap((order) => (order.source ? [order.source.quotationId] : []))),
+      ].sort();
+      for (const source of sources) {
+        await client.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended(current_schema() || ':quotation-orders:' || $1, 0))",
+          [source],
+        );
+      }
+      for (const order of orders) {
+        if (order.source) {
+          const existing = await client.query<{ payload: PortalOrder }>(
+            'SELECT payload FROM orders WHERE source_quotation_id = $1 AND source_garment_index = $2',
+            [order.source.quotationId, order.source.garmentIndex],
+          );
+          if (existing.rows[0]) {
+            result.push(existing.rows[0].payload);
+            continue;
+          }
+        }
+        await client.query(
+          `INSERT INTO orders (
           id, created_at, updated_at, status, product, polo_type, quantity, material, color,
           customization, required_by, delivery_district, design_reference, notes,
           requires_new_pattern, embroidery_applications_per_garment,
@@ -217,13 +265,15 @@ export class PostgresOrderStore implements OrderStore {
           $1, $2, $3, $4, $5, $6, $7, $8, $9,
           $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
         )`,
-        this.orderValues(order),
-      );
-      await this.replaceOrderDetails(client, order);
-      await client.query(
-        'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
-        [order.id, order.status, order.createdAt],
-      );
+          this.orderValues(order),
+        );
+        await this.replaceOrderDetails(client, order);
+        await client.query(
+          'INSERT INTO order_status_history (order_id, status, occurred_at) VALUES ($1, $2, $3)',
+          [order.id, order.status, order.createdAt],
+        );
+        result.push(order);
+      }
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -231,7 +281,7 @@ export class PostgresOrderStore implements OrderStore {
     } finally {
       client.release();
     }
-    return order;
+    return result;
   }
 
   async assign(

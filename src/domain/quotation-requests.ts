@@ -269,6 +269,7 @@ export const sellerQuotationDraftSchema = z.object({
       z.object({
         garmentIndex: z.number().int().nonnegative().max(4),
         unitPricePEN: z.number().positive().max(1_000_000),
+        selectedFabric: z.string().trim().min(2).max(80).optional(),
       }),
     )
     .min(1)
@@ -308,7 +309,7 @@ export interface QuotationRequest {
   quotation?: SellerQuotation;
   buyerDecision?: BuyerDecision;
   production?: {
-    status: 'recommended' | 'no_eligible_workshop' | 'requires_scope_decision';
+    status: 'recommended' | 'partially_recommended' | 'no_eligible_workshop' | 'requires_scope_decision';
     orderIds: string[];
     message: string;
   };

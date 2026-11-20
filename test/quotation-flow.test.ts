@@ -220,10 +220,7 @@ describe('quotation request flow', () => {
         (entry: { label: string }) => entry.label === 'Cotización aceptada y pedido confirmado',
       ),
     );
-    assert.equal(
-      completedTracking.item.timeline.at(-1).label,
-      'Producción terminada',
-    );
+    assert.equal(completedTracking.item.timeline.at(-1).label, 'Producción terminada');
 
     const repeatedCompletionResponse = await fetch(
       `${baseUrl}/v1/orders/${productionOrder.id}/status`,
@@ -366,8 +363,21 @@ describe('quotation request flow', () => {
       },
     );
     const decision = await decisionResponse.json();
-    assert.equal(decision.request.production.status, 'requires_scope_decision');
-    assert.deepEqual(decision.request.production.orderIds, []);
+    assert.equal(decisionResponse.status, 200);
+    assert.equal(decision.request.production.orderIds.length, 2);
+    const tracking = await fetch(`${baseUrl}/v1/my-orders/${payload.request.id}`).then((response) =>
+      response.json(),
+    );
+    assert.deepEqual(
+      tracking.item.productionOrders
+        .map((order: { garmentIndex: number }) => order.garmentIndex)
+        .sort(),
+      [0, 1],
+    );
+    assert.deepEqual(
+      tracking.item.productionOrders.map((order: { product: string }) => order.product).sort(),
+      ['buzo', 'polo'],
+    );
   });
 
   it('does not require a design when the garment has no customization', async () => {
