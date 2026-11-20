@@ -12,6 +12,10 @@ import { fetchAsPeruActiva } from '../../lib/actor-api';
 import { dateAfter, ErrorMessage, InputField, StepTitle } from '../quotation/QuoteUi';
 import { QuotationPriceBreakdown } from '../quotation/QuotationPriceBreakdown';
 import { QuotationRequestSummary } from '../quotation/QuotationRequestSummary';
+import {
+  DeliveryConfirmationField,
+  DeliveryConfirmationSummary,
+} from '../quotation/DeliveryConfirmation';
 import './multichannel.css';
 
 export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }) {
@@ -27,6 +31,7 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
       fabricBuyer: 'workshop',
       validUntil: dateAfter(7),
       conditions: 'Incluye confección y personalización. Pago y entrega según coordinación.',
+      deliveryConfirmation: { requiredBy: '', confirmed: false },
     },
     mode: 'onChange',
   });
@@ -110,6 +115,10 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
       conditions:
         request.quotation?.conditions ??
         'Incluye confección y personalización. Pago y entrega según coordinación.',
+      deliveryConfirmation: request.quotation?.deliveryConfirmation ?? {
+        requiredBy: request.request.delivery.requiredBy,
+        confirmed: false,
+      },
     });
   }, [form, request?.id]);
 
@@ -249,6 +258,10 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
                     <InputField label="Condiciones">
                       <textarea rows={4} {...form.register('conditions')} />
                     </InputField>
+                    <DeliveryConfirmationField
+                      requiredBy={request.request.delivery.requiredBy}
+                      register={form.register}
+                    />
                     {error && <ErrorMessage>{error}</ErrorMessage>}
                     <button
                       className="quote-primary pa-send-quotation"
@@ -271,6 +284,11 @@ export function PeruActivaQuotationPage({ quotationId }: { quotationId: string }
                         : 'Taller productor'}
                     </p>
                     <p>{request.quotation.conditions}</p>
+                    <DeliveryConfirmationSummary
+                      quotation={request.quotation}
+                      requiredBy={request.request.delivery.requiredBy}
+                      accepted={request.status === 'accepted'}
+                    />
                     <small>Válida hasta {request.quotation.validUntil}</small>
                   </div>
                 ) : null}
