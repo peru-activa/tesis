@@ -2995,3 +2995,5 @@ summary:focus-visible {
     font-size: 0.66rem;
   }
 }
+
+.mc-open-orders { display: flex; flex-wrap: wrap; gap: 8px; }

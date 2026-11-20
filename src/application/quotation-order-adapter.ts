@@ -26,6 +26,9 @@ export function adaptAcceptedQuotation(
   const garments = [quotation.request.garment, ...quotation.request.additionalGarments];
   const garment = garments[garmentIndex];
   if (!garment) throw new Error('La prenda solicitada no existe.');
+  const selectedFabric =
+    quotation.quotation.lineItems?.find((item) => item.garmentIndex === garmentIndex)
+      ?.selectedFabric ?? quotation.quotation.selectedFabric;
 
   const customizations = garmentCustomizations(garment);
   const requiredProcesses: Process[] = ['design'];
@@ -35,11 +38,9 @@ export function adaptAcceptedQuotation(
 
   const draft = orderDraftSchema.parse({
     product: garment.product,
-    poloType:
-      garment.poloType ??
-      inferPoloType(garment, fabricCategory(quotation.quotation.selectedFabric)),
+    poloType: garment.poloType ?? inferPoloType(garment, fabricCategory(selectedFabric)),
     quantity: garment.quantity,
-    material: fabricCategory(quotation.quotation.selectedFabric),
+    material: fabricCategory(selectedFabric),
     color: garment.color,
     sizes: Object.fromEntries(
       garment.sizes.map((item) => [garmentSizeOrderLabel(item), item.quantity]),

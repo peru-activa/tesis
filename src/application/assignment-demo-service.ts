@@ -18,7 +18,7 @@ import type { QuotationRequest } from '../domain/quotation-requests.js';
 import { recommendationFromQuotation } from './quotation-order-adapter.js';
 
 export interface QuotationProductionOutcome {
-  status: 'recommended' | 'no_eligible_workshop' | 'requires_scope_decision';
+  status: 'recommended' | 'partially_recommended' | 'no_eligible_workshop' | 'requires_scope_decision';
   orderIds: string[];
   message: string;
   orders: PortalOrder[];
@@ -118,53 +118,56 @@ export class AssignmentDemoService {
   async createFromAcceptedQuotation(
     quotation: QuotationRequest,
   ): Promise<QuotationProductionOutcome> {
-    const garmentCount = 1 + quotation.request.additionalGarments.length;
-    if (garmentCount > 1) {
-      return {
-        status: 'requires_scope_decision',
-        orderIds: [],
-        message:
-          'La cotización contiene varias prendas; falta definir si se asignan juntas o por separado.',
-        orders: [],
-      };
-    }
-
-    const id = this.createOrderId();
+    const garments = [quotation.request.garment, ...quotation.request.additionalGarments];
     const evaluatedAt = this.now();
     const workshops = await this.workshops.list();
-    const adapted = recommendationFromQuotation({
-      orderId: id,
-      quotation,
-      garmentIndex: 0,
-      evaluatedAt,
-      workshops,
-    });
-    const recommendation = recommendWorkshops(adapted.request);
-    const hasCandidate = recommendation.candidates.length > 0;
-    const order: PortalOrder = {
-      id,
-      createdAt: evaluatedAt,
-      updatedAt: evaluatedAt,
-      status: hasCandidate ? 'recommended' : 'registered',
-      draft: adapted.draft,
-      requiredProcesses: adapted.requiredProcesses,
-      ...(quotation.quotation ? { fabricBuyer: quotation.quotation.fabricBuyer } : {}),
-      recommendation,
-      simulation: {
-        datasetVersion: WEEK_03_DATASET_VERSION,
-        scenarioId: `quotation:${quotation.id}:garment-1`,
-        seed: WEEK_03_SEED,
-      },
-      source: { type: 'quotation', quotationId: quotation.id, garmentIndex: 0 },
-    };
-    await this.orders.create(order);
+    // Prepare all garments before the store atomically saves and deduplicates the batch.
+    const prepared = await Promise.all(
+      garments.map(async (_garment, garmentIndex): Promise<PortalOrder> => {
+        const id = this.createOrderId();
+        const adapted = recommendationFromQuotation({
+          orderId: id,
+          quotation,
+          garmentIndex,
+          evaluatedAt,
+          workshops,
+        });
+        const recommendation = recommendWorkshops(adapted.request);
+        const hasCandidate = recommendation.candidates.length > 0;
+        const order: PortalOrder = {
+          id,
+          createdAt: evaluatedAt,
+          updatedAt: evaluatedAt,
+          status: hasCandidate ? 'recommended' : 'registered',
+          draft: adapted.draft,
+          requiredProcesses: adapted.requiredProcesses,
+          ...(quotation.quotation ? { fabricBuyer: quotation.quotation.fabricBuyer } : {}),
+          recommendation,
+          simulation: {
+            datasetVersion: WEEK_03_DATASET_VERSION,
+            scenarioId: `quotation:${quotation.id}:garment-${garmentIndex + 1}`,
+            seed: WEEK_03_SEED,
+          },
+          source: { type: 'quotation', quotationId: quotation.id, garmentIndex },
+        };
+        return order;
+      }),
+    );
+    const orders = await this.orders.createMany(prepared);
+    const feasible = orders.filter((order) => order.recommendation.candidates.length > 0).length;
     return {
-      status: hasCandidate ? 'recommended' : 'no_eligible_workshop',
-      orderIds: [order.id],
-      message: hasCandidate
-        ? 'Orden creada y evaluada automáticamente; Perú Activa debe confirmar el plan de asignación.'
-        : 'Orden creada, pero ningún taller simulado cumple todas las restricciones.',
-      orders: [order],
+      status:
+        feasible === orders.length
+          ? 'recommended'
+          : feasible > 0
+            ? 'partially_recommended'
+            : 'no_eligible_workshop',
+      orderIds: orders.map((order) => order.id),
+      message:
+        feasible === orders.length
+          ? `${orders.length === 1 ? 'Orden creada y evaluada' : `${orders.length} órdenes creadas y evaluadas por prenda`}. Perú Activa debe confirmar la asignación antes de iniciar el trabajo.`
+          : `${orders.length} órdenes creadas: ${feasible} con propuesta y ${orders.length - feasible} pendientes de una alternativa de Perú Activa. No necesitas volver a registrar el pedido.`,
+      orders,
     };
   }
 
