@@ -9,6 +9,8 @@ import {
 import { dateAfter, ErrorMessage, InputField, StepTitle } from './QuoteUi';
 import { QuotationPriceBreakdown } from './QuotationPriceBreakdown';
 import type { QuotationRequest } from './types';
+import { DeliveryConfirmationField, DeliveryConfirmationSummary } from './DeliveryConfirmation';
+import { isDeliveryDateConfirmed } from '../../../../src/domain/quotation-requests';
 
 export function QuotationFlowBoard({
   request,
@@ -43,6 +45,7 @@ export function QuotationFlowBoard({
       fabricBuyer: 'workshop',
       validUntil: dateAfter(7),
       conditions: 'Incluye confección y personalización. Pago y entrega según coordinación.',
+      deliveryConfirmation: { requiredBy: request.request.delivery.requiredBy, confirmed: false },
     },
     mode: 'onChange',
   });
@@ -136,6 +139,10 @@ export function QuotationFlowBoard({
           <InputField label="Condiciones">
             <textarea rows={3} {...quoteForm.register('conditions')} />
           </InputField>
+          <DeliveryConfirmationField
+            requiredBy={request.request.delivery.requiredBy}
+            register={quoteForm.register}
+          />
           {error && <ErrorMessage>{error}</ErrorMessage>}
           <div className="mt-7 flex justify-end">
             <button
@@ -180,6 +187,10 @@ export function QuotationFlowBoard({
             </div>
           </div>
           <QuotationPriceBreakdown request={request} />
+          <DeliveryConfirmationSummary
+            quotation={request.quotation}
+            requiredBy={request.request.delivery.requiredBy}
+          />
           {error && <ErrorMessage>{error}</ErrorMessage>}
           <div className="mt-7 flex flex-wrap justify-end gap-3">
             <button
@@ -191,7 +202,10 @@ export function QuotationFlowBoard({
             </button>
             <button
               className="quote-primary"
-              disabled={busy}
+              disabled={
+                busy ||
+                !isDeliveryDateConfirmed(request.quotation, request.request.delivery.requiredBy)
+              }
               onClick={() => onDecision('accepted')}
             >
               Aceptar cotización <span>✓</span>

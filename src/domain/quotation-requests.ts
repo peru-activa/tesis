@@ -279,6 +279,12 @@ export const sellerQuotationDraftSchema = z.object({
   fabricBuyer: fabricBuyerSchema,
   validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   conditions: z.string().trim().min(3).max(500),
+  deliveryConfirmation: z
+    .object({
+      requiredBy: z.string().refine(isActualIsoDate, 'Indica una fecha válida.'),
+      confirmed: z.boolean().refine((value) => value, 'Confirma expresamente la fecha solicitada.'),
+    })
+    .optional(),
 });
 
 export const buyerDecisionSchema = z.object({
@@ -313,6 +319,16 @@ export interface QuotationRequest {
     orderIds: string[];
     message: string;
   };
+}
+
+export function isDeliveryDateConfirmed(
+  quotation: SellerQuotationDraft | undefined,
+  requiredBy: string,
+): boolean {
+  return (
+    quotation?.deliveryConfirmation?.confirmed === true &&
+    quotation.deliveryConfirmation.requiredBy === requiredBy
+  );
 }
 
 function isActualIsoDate(value: string): boolean {

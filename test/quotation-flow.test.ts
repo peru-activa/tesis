@@ -106,6 +106,7 @@ describe('quotation request flow', () => {
         body: JSON.stringify({
           totalPricePEN: 1_920,
           lineItems: [{ garmentIndex: 0, unitPricePEN: 60 }],
+          deliveryConfirmation: { requiredBy: draft.delivery.requiredBy, confirmed: true },
           selectedFabric: 'Zanetti 100 % poliéster',
           fabricBuyer: 'workshop',
           validUntil: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
@@ -340,6 +341,7 @@ describe('quotation request flow', () => {
             { garmentIndex: 0, unitPricePEN: 60 },
             { garmentIndex: 1, unitPricePEN: 80 },
           ],
+          deliveryConfirmation: { requiredBy: draft.delivery.requiredBy, confirmed: true },
           selectedFabric: 'Microtec poliéster',
           fabricBuyer: 'peru_activa',
           validUntil: '2026-09-05',
