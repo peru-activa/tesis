@@ -7,12 +7,47 @@ export function QuotationDemo() {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [initialDraft, setInitialDraft] = useState<QuotationRequestDraft>();
+  const copyFrom = new URLSearchParams(window.location.search).get('copiar');
+  const [loading, setLoading] = useState(Boolean(copyFrom));
 
   useEffect(() => {
-    void fetch('/v1/session')
-      .then((response) => response.json())
-      .then((payload) => setEmail(payload.identity?.email || ''));
-  }, []);
+    let active = true;
+    async function load() {
+      const [session, copy] = await Promise.all([
+        fetch('/v1/session').then(async (response) => {
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.message || 'No se pudo validar la sesión.');
+          return payload;
+        }),
+        copyFrom
+          ? fetch(`/v1/quotation-requests/${encodeURIComponent(copyFrom)}/draft`).then(
+              async (response) => {
+                const payload = await response.json();
+                if (!response.ok)
+                  throw new Error(payload.message || 'No se pudo copiar el pedido.');
+                return payload;
+              },
+            )
+          : undefined,
+      ]);
+      if (!active) return;
+      setEmail(session.identity?.email || '');
+      if (copy) setInitialDraft(copy.draft);
+    }
+    void load()
+      .catch((cause) => {
+        if (active)
+          setLoadError(cause instanceof Error ? cause.message : 'No se pudo cargar el pedido.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [copyFrom]);
 
   async function createRequest(draft: QuotationRequestDraft) {
     setBusy(true);
@@ -46,12 +81,27 @@ export function QuotationDemo() {
         }
       />
       <main className="mx-auto max-w-7xl px-4 py-3 sm:px-7 sm:py-4">
-        <QuotationRequestForm
-          busy={busy}
-          error={error}
-          authenticatedEmail={email}
-          onSubmit={createRequest}
-        />
+        {loading && <p>Cargando los datos del pedido…</p>}
+        {loadError && (
+          <p role="alert" className="customer-orders-error">
+            {loadError}
+          </p>
+        )}
+        {initialDraft && (
+          <p className="customer-copy-notice">
+            Pedido copiado. Ajusta cantidades, tallas y la nueva fecha de entrega. El precio y la
+            asignación se evaluarán de nuevo.
+          </p>
+        )}
+        {!loading && !loadError && (
+          <QuotationRequestForm
+            busy={busy}
+            error={error}
+            authenticatedEmail={email}
+            initialDraft={initialDraft}
+            onSubmit={createRequest}
+          />
+        )}
       </main>
     </div>
   );

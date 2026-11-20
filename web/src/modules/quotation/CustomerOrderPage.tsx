@@ -101,6 +101,17 @@ export function CustomerOrderPage({ quotationId }: { quotationId: string }) {
 
             <NextAction item={item} />
 
+            <a
+              className="quote-secondary customer-copy-order"
+              href={`/nueva-solicitud?copiar=${encodeURIComponent(quotationId)}`}
+            >
+              Copiar pedido
+            </a>
+            <p className="customer-copy-hint">
+              Reutiliza las características y cambia cantidades, tallas y fecha. Recibirás una nueva
+              cotización.
+            </p>
+
             {item.productionOrders.length > 0 && <ProductionProgress item={item} />}
             {item.quotation.status === 'accepted' && <GarmentAssignments item={item} />}
 
