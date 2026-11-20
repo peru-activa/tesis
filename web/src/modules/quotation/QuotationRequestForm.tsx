@@ -5,8 +5,14 @@ import {
   quotationRequestDraftSchema,
   type QuotationRequestDraft,
 } from '../../../../src/domain/quotation-requests';
-import { ErrorMessage, dateAfter } from './QuoteUi';
-import { FormErrorSummary } from './FormErrorSummary';
+import { ErrorMessage } from './QuoteUi';
+import { useDeliveryEstimate } from './useDeliveryEstimate';
+import {
+  FieldValidationFeedback,
+  FieldFeedbackContext,
+  firstFieldIssue,
+  type ValidationRequest,
+} from './FieldValidationFeedback';
 import { ProductStep } from './ProductStep';
 import {
   ContactStep,
@@ -26,8 +32,11 @@ import {
 interface QuotationRequestFormProps {
   busy: boolean;
   error: string;
-  onSubmit: (draft: QuotationRequestDraft) => Promise<void>;
+  onSubmit: (draft: QuotationRequestDraft) => Promise<void | boolean>;
+  deliveryRevision?: number;
   authenticatedEmail?: string;
+  customerProfile?:
+    Pick<QuotationRequestDraft['customer'], 'contactName' | 'businessName'> | undefined;
   initialDraft?: QuotationRequestDraft;
 }
 
@@ -42,19 +51,29 @@ export function QuotationRequestForm({
   error,
   onSubmit,
   authenticatedEmail,
+  customerProfile,
   initialDraft,
+  deliveryRevision = 0,
 }: QuotationRequestFormProps) {
-  const [restoredSession] = useState(() => loadQuotationSession(window.sessionStorage));
+  const [restoredSession] = useState(() => {
+    const restored = loadQuotationSession(window.sessionStorage);
+    if (authenticatedEmail && restored?.draft.customer?.contact !== authenticatedEmail)
+      return undefined;
+    return restored;
+  });
   const form = useForm<QuotationRequestDraft>({
     resolver: zodResolver(quotationRequestDraftSchema),
-    defaultValues: initialDraft ?? restoredSession?.draft ?? createEmptyDraft(dateAfter(14)),
+    defaultValues: initialDraft ?? restoredSession?.draft ?? createEmptyDraft(''),
     mode: 'onChange',
+    shouldFocusError: false,
   });
   const [step, setStep] = useState(initialDraft ? 1 : (restoredSession?.step ?? 1));
   const [hasGarments, setHasGarments] = useState(
     Boolean(initialDraft) || (restoredSession?.hasGarments ?? false),
   );
-  const errorSummaryRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const validationAttempt = useRef(0);
+  const [validationRequest, setValidationRequest] = useState<ValidationRequest>();
   const primaryProduct = useWatch({ control: form.control, name: 'garment.product' });
   const additionalGarments = useWatch({ control: form.control, name: 'additionalGarments' });
   const draft = useWatch({ control: form.control });
@@ -80,12 +99,31 @@ export function QuotationRequestForm({
     if (authenticatedEmail) {
       form.setValue('customer.contact', authenticatedEmail, { shouldValidate: true });
     }
-  }, [authenticatedEmail, initialDraft, form]);
+    if (customerProfile) {
+      for (const field of ['contactName', 'businessName'] as const) {
+        if (!form.getValues(`customer.${field}`))
+          form.setValue(`customer.${field}`, customerProfile[field], { shouldValidate: true });
+      }
+    }
+  }, [authenticatedEmail, customerProfile, initialDraft, form]);
   const detailSteps = garments.reduce<FormStep[]>((result, garment, index) => {
     result.push(...createGarmentSteps(garment.path, garment.product, index + 1, 2 + result.length));
     return result;
   }, []);
   const contactStepNumber = 2 + detailSteps.length;
+  const availability = useDeliveryEstimate(
+    form.getValues(),
+    hasGarments && step >= contactStepNumber,
+    deliveryRevision,
+  );
+
+  useEffect(() => {
+    const minimum = availability.estimate?.earliestDate;
+    const selected = form.getValues('delivery.requiredBy');
+    if (minimum && selected && selected < minimum) {
+      form.setValue('delivery.requiredBy', '', { shouldDirty: true, shouldValidate: true });
+    }
+  }, [availability.estimate, form]);
   const contactFields: FieldPath<QuotationRequestDraft>[] = [
     'delivery.requiredBy',
     'delivery.location',
@@ -119,16 +157,16 @@ export function QuotationRequestForm({
       label: 'Agrega las prendas',
       fields: garments.flatMap((garment) => [
         garmentField(garment.path, 'product'),
-        garmentField(garment.path, 'quantity'),
         ...(garment.product === 'polo'
           ? [
               garmentField(garment.path, 'model'),
+              garmentField(garment.path, 'cut'),
               garmentField(garment.path, 'audience'),
               garmentField(garment.path, 'sleeve'),
-              garmentField(garment.path, 'cut'),
               garmentField(garment.path, 'fabric'),
             ]
           : []),
+        garmentField(garment.path, 'quantity'),
       ]),
       content: <ProductStep hasGarments={hasGarments} onHasGarmentsChange={setHasGarments} />,
     },
@@ -137,7 +175,11 @@ export function QuotationRequestForm({
       label: 'Entrega',
       fields: contactFields,
       content: (
-        <ContactStep number={formatStepNumber(contactStepNumber)} email={authenticatedEmail} />
+        <ContactStep
+          number={formatStepNumber(contactStepNumber)}
+          email={authenticatedEmail}
+          availability={availability}
+        />
       ),
     },
     {
@@ -160,17 +202,56 @@ export function QuotationRequestForm({
     });
   }, [draft, hasGarments, step]);
 
+  function validateDeliveryDate() {
+    const selected = form.getValues('delivery.requiredBy');
+    const minimum = availability.estimate?.earliestDate;
+    if (selected && minimum && selected < minimum) {
+      form.setError('delivery.requiredBy', {
+        type: 'delivery',
+        message: `Elige una fecha desde el ${minimum}.`,
+      });
+      showFieldError(['delivery.requiredBy']);
+      return false;
+    }
+    return true;
+  }
+
   async function nextStep() {
     if (!currentStep || (step === 1 && !hasGarments)) return;
+    if (step === contactStepNumber && (!availability.ready || !validateDeliveryDate())) return;
     if (await form.trigger(currentStep.fields)) {
+      setValidationRequest(undefined);
       setStep((current) => Math.min(current + 1, steps.length));
       return;
     }
-    focusErrorSummary();
+    showFieldError(currentStep.fields);
   }
 
-  function focusErrorSummary() {
-    requestAnimationFrame(() => errorSummaryRef.current?.focus());
+  function showFieldError(fields: FieldPath<QuotationRequestDraft>[]) {
+    const issue = fields
+      .map((field) => firstFieldIssue(form.getFieldState(field).error, field))
+      .find(Boolean);
+    if (!issue) return;
+    activateField(issue.field);
+  }
+
+  function activateField(fieldPath: string, message?: string) {
+    const targetStep = steps.findIndex((item) =>
+      item.fields.some((field) => fieldPath === field || fieldPath.startsWith(`${field}.`)),
+    );
+    if (
+      targetStep >= 0 &&
+      (step === steps.length ||
+        !currentStep?.fields.some(
+          (field) => fieldPath === field || fieldPath.startsWith(`${field}.`),
+        ))
+    )
+      setStep(targetStep + 1);
+    setValidationRequest({
+      field: fieldPath,
+      attempt: ++validationAttempt.current,
+      ...(message ? { message } : {}),
+    });
   }
 
   async function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
@@ -179,53 +260,82 @@ export function QuotationRequestForm({
       await nextStep();
       return;
     }
-    await form.handleSubmit(async (values) => {
-      await onSubmit(values);
-      clearQuotationSession(window.sessionStorage);
-    }, focusErrorSummary)();
+    if (!availability.ready) {
+      setStep(contactStepNumber);
+      return;
+    }
+    await form.handleSubmit(
+      async (values) => {
+        if (!validateDeliveryDate()) return;
+        if ((await onSubmit(values)) !== false) clearQuotationSession(window.sessionStorage);
+      },
+      () => showFieldError(steps.slice(0, -1).flatMap((item) => item.fields)),
+    )();
   }
 
   return (
     <FormProvider {...form}>
-      <form className="quote-form-shell mx-auto max-w-5xl" noValidate onSubmit={handleFormSubmit}>
-        <ProgressBar step={step} labels={steps.map((item) => item.label)} />
-        <section className={`quote-sheet${step === 1 && !hasGarments ? ' product-empty' : ''}`}>
-          {currentStep?.content}
-          <FormErrorSummary
-            ref={errorSummaryRef}
-            errors={form.formState.errors}
-            fields={currentStep?.fields ?? []}
-          />
-          {error && <ErrorMessage>{error}</ErrorMessage>}
-          <div className="quote-step-actions mt-8 flex items-center justify-between border-t border-slate-200 pt-5">
-            {step > 1 ? (
-              <button
-                className="quote-secondary"
-                type="button"
-                disabled={busy}
-                onClick={() => setStep((current) => Math.max(1, current - 1))}
-              >
-                Atrás
-              </button>
-            ) : (
-              <span />
-            )}
-            {step < steps.length ? (
-              <button
-                className="quote-primary"
-                type="submit"
-                disabled={busy || (step === 1 && !hasGarments)}
-              >
-                Continuar <span>→</span>
-              </button>
-            ) : (
-              <button className="quote-primary" type="submit" disabled={busy}>
-                {busy ? 'Enviando…' : 'Solicitar cotización'} <span>→</span>
-              </button>
-            )}
-          </div>
-        </section>
-      </form>
+      <FieldFeedbackContext.Provider
+        value={{
+          show: ({ field, message }) => activateField(field, message),
+          clear: (field) =>
+            setValidationRequest((current) =>
+              current?.message && current.field === field ? undefined : current,
+            ),
+        }}
+      >
+        <form
+          ref={formRef}
+          className="quote-form-shell mx-auto max-w-5xl"
+          noValidate
+          onSubmit={handleFormSubmit}
+        >
+          <ProgressBar step={step} labels={steps.map((item) => item.label)} />
+          <section className={`quote-sheet${step === 1 && !hasGarments ? ' product-empty' : ''}`}>
+            {currentStep?.content}
+            <FieldValidationFeedback request={validationRequest} formRef={formRef} />
+            {error && <ErrorMessage>{error}</ErrorMessage>}
+            <div className="quote-step-actions mt-8 flex items-center justify-between border-t border-slate-200 pt-5">
+              {step > 1 ? (
+                <button
+                  className="quote-secondary"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setValidationRequest(undefined);
+                    setStep((current) => Math.max(1, current - 1));
+                  }}
+                >
+                  Atrás
+                </button>
+              ) : (
+                <span />
+              )}
+              {step < steps.length ? (
+                <button
+                  className="quote-primary"
+                  type="submit"
+                  disabled={
+                    busy ||
+                    (step === 1 && !hasGarments) ||
+                    (step === contactStepNumber && !availability.ready)
+                  }
+                >
+                  Continuar <span>→</span>
+                </button>
+              ) : (
+                <button
+                  className="quote-primary"
+                  type="submit"
+                  disabled={busy || !availability.ready}
+                >
+                  {busy ? 'Enviando…' : 'Solicitar cotización'} <span>→</span>
+                </button>
+              )}
+            </div>
+          </section>
+        </form>
+      </FieldFeedbackContext.Provider>
     </FormProvider>
   );
 }

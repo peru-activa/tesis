@@ -14,8 +14,10 @@ export interface PoloCollarOption {
   label: string;
   image: string;
   alt: string;
-  longSleeveImage: string;
-  longSleeveAlt: string;
+  previews: Record<
+    PoloCut,
+    Record<PoloSleeve, { image: string; alt: string; backImage: string; backAlt: string }>
+  >;
 }
 
 export interface FabricOption {
@@ -24,7 +26,7 @@ export interface FabricOption {
   description: string;
   benefit: string;
   specification: string;
-  image: string;
+  image?: string;
   alt: string;
   previewKind?: 'swatch' | 'garment';
 }
@@ -35,24 +37,117 @@ export const poloCollars: readonly PoloCollarOption[] = [
     label: 'Redondo',
     image: '/catalog/polo-cuello-redondo-referencial.webp',
     alt: 'Polo azul marino referencial con cuello redondo',
-    longSleeveImage: '/catalog/polo-cuello-redondo-manga-larga-referencial.webp',
-    longSleeveAlt: 'Polo azul marino referencial de manga larga con cuello redondo',
+    previews: {
+      estandar: {
+        manga_corta: {
+          image: '/catalog/polo-cuello-redondo-referencial.webp',
+          alt: 'Polo azul marino referencial con cuello redondo',
+          backImage: '/catalog/polo-cuello-redondo-referencial-espalda.webp',
+          backAlt: 'Espalda de polo azul marino referencial con cuello redondo',
+        },
+        manga_larga: {
+          image: '/catalog/polo-cuello-redondo-manga-larga-referencial.webp',
+          alt: 'Polo azul marino referencial de manga larga con cuello redondo',
+          backImage: '/catalog/polo-cuello-redondo-manga-larga-referencial-espalda.webp',
+          backAlt: 'Espalda de polo azul marino referencial de manga larga con cuello redondo',
+        },
+      },
+      princesa_dama: {
+        manga_corta: {
+          image: '/catalog/polo-cuello-redondo-princesa-dama-referencial.webp',
+          alt: 'Polo azul marino referencial de corte princesa para dama con cuello redondo',
+          backImage: '/catalog/polo-cuello-redondo-princesa-dama-referencial-espalda.webp',
+          backAlt:
+            'Espalda de polo azul marino referencial de corte princesa para dama con cuello redondo',
+        },
+        manga_larga: {
+          image: '/catalog/polo-cuello-redondo-princesa-dama-manga-larga-referencial.webp',
+          alt: 'Polo azul marino referencial de corte princesa para dama de manga larga con cuello redondo',
+          backImage:
+            '/catalog/polo-cuello-redondo-princesa-dama-manga-larga-referencial-espalda.webp',
+          backAlt:
+            'Espalda de polo azul marino referencial de corte princesa para dama de manga larga con cuello redondo',
+        },
+      },
+    },
   },
   {
     value: 'Cuello V',
     label: 'Cuello V',
     image: '/catalog/polo-cuello-v-referencial.webp',
     alt: 'Polo azul marino referencial con cuello V',
-    longSleeveImage: '/catalog/polo-cuello-v-manga-larga-referencial.webp',
-    longSleeveAlt: 'Polo azul marino referencial de manga larga con cuello V',
+    previews: {
+      estandar: {
+        manga_corta: {
+          image: '/catalog/polo-cuello-v-referencial.webp',
+          alt: 'Polo azul marino referencial con cuello V',
+          backImage: '/catalog/polo-cuello-redondo-referencial-espalda.webp',
+          backAlt: 'Espalda de polo azul marino referencial con cuello v',
+        },
+        manga_larga: {
+          image: '/catalog/polo-cuello-v-manga-larga-referencial.webp',
+          alt: 'Polo azul marino referencial de manga larga con cuello V',
+          backImage: '/catalog/polo-cuello-redondo-manga-larga-referencial-espalda.webp',
+          backAlt: 'Espalda de polo azul marino referencial de manga larga con cuello v',
+        },
+      },
+      princesa_dama: {
+        manga_corta: {
+          image: '/catalog/polo-cuello-v-princesa-dama-referencial.webp',
+          alt: 'Polo azul marino referencial de corte princesa para dama con cuello V',
+          backImage: '/catalog/polo-cuello-redondo-princesa-dama-referencial-espalda.webp',
+          backAlt:
+            'Espalda de polo azul marino referencial de corte princesa para dama con cuello v',
+        },
+        manga_larga: {
+          image: '/catalog/polo-cuello-v-princesa-dama-manga-larga-referencial.webp',
+          alt: 'Polo azul marino referencial de corte princesa para dama de manga larga con cuello V',
+          backImage:
+            '/catalog/polo-cuello-redondo-princesa-dama-manga-larga-referencial-espalda.webp',
+          backAlt:
+            'Espalda de polo azul marino referencial de corte princesa para dama de manga larga con cuello v',
+        },
+      },
+    },
   },
   {
     value: 'Cuello camisero',
     label: 'Camisero',
     image: '/catalog/polo-cuello-camisero-referencial.webp',
     alt: 'Polo azul marino referencial con cuello camisero',
-    longSleeveImage: '/catalog/polo-cuello-camisero-manga-larga-referencial.webp',
-    longSleeveAlt: 'Polo azul marino referencial de manga larga con cuello camisero',
+    previews: {
+      estandar: {
+        manga_corta: {
+          image: '/catalog/polo-cuello-camisero-referencial.webp',
+          alt: 'Polo azul marino referencial con cuello camisero',
+          backImage: '/catalog/polo-cuello-camisero-referencial-espalda.webp',
+          backAlt: 'Espalda de polo azul marino referencial con cuello camisero',
+        },
+        manga_larga: {
+          image: '/catalog/polo-cuello-camisero-manga-larga-referencial.webp',
+          alt: 'Polo azul marino referencial de manga larga con cuello camisero',
+          backImage: '/catalog/polo-cuello-camisero-manga-larga-referencial-espalda.webp',
+          backAlt: 'Espalda de polo azul marino referencial de manga larga con cuello camisero',
+        },
+      },
+      princesa_dama: {
+        manga_corta: {
+          image: '/catalog/polo-cuello-camisero-princesa-dama-referencial.webp',
+          alt: 'Polo azul marino referencial de corte princesa para dama con cuello camisero',
+          backImage: '/catalog/polo-cuello-camisero-princesa-dama-referencial-espalda.webp',
+          backAlt:
+            'Espalda de polo azul marino referencial de corte princesa para dama con cuello camisero',
+        },
+        manga_larga: {
+          image: '/catalog/polo-cuello-camisero-princesa-dama-manga-larga-referencial.webp',
+          alt: 'Polo azul marino referencial de corte princesa para dama de manga larga con cuello camisero',
+          backImage:
+            '/catalog/polo-cuello-camisero-princesa-dama-manga-larga-referencial-espalda.webp',
+          backAlt:
+            'Espalda de polo azul marino referencial de corte princesa para dama de manga larga con cuello camisero',
+        },
+      },
+    },
   },
 ];
 
@@ -68,6 +163,15 @@ export const poloSleeves: readonly TextOption<PoloSleeve>[] = [
 
 export const fabricsByProduct: Record<Product, readonly FabricOption[]> = {
   polo: [
+    {
+      name: 'Umbrela',
+      title: 'Umbrela',
+      description: 'Tela solicitada',
+      benefit: 'Calidad y acabado por confirmar en la cotización',
+      specification: 'Imagen referencial · composición por confirmar',
+      image: '/catalog/tela-umbrela-referencial.webp',
+      alt: 'Muestra referencial de tela Umbrela azul marino, basada en la referencia del usuario',
+    },
     {
       name: 'Zanetti 100 % poliéster',
       title: 'Zanetti',
@@ -119,8 +223,8 @@ export const fabricsByProduct: Record<Product, readonly FabricOption[]> = {
       description: 'Tela deportiva',
       benefit: 'Favorece el manejo de humedad durante el uso',
       specification: 'Categoría: tejido técnico deportivo',
-      image: '/catalog/tela-dry-fit-referencial.webp',
-      alt: 'Muestra referencial de tela dry fit azul marino',
+      image: '/catalog/tela-dry-fit-referencial-v2.webp',
+      alt: 'Muestra referencial de tela dry fit azul marino con perforaciones pequeñas y alargadas',
     },
   ],
   buzo: [
@@ -159,4 +263,20 @@ export const fabricsByProduct: Record<Product, readonly FabricOption[]> = {
 
 export function findFabricOption(product: Product, name?: string): FabricOption | undefined {
   return name ? fabricsByProduct[product].find((option) => option.name === name) : undefined;
+}
+
+/** Shared by configuration, design placement and the persisted request summary. */
+export function findPoloPreview({
+  model,
+  cut,
+  sleeve,
+}: {
+  model?: string;
+  cut?: QuotationRequestDraft['garment']['cut'];
+  sleeve?: QuotationRequestDraft['garment']['sleeve'];
+}) {
+  const collar = poloCollars.find((option) => option.value === model);
+  const previewCut = !cut || cut === 'no_aplica' ? 'estandar' : cut;
+  const previewSleeve = !sleeve || sleeve === 'no_aplica' ? 'manga_corta' : sleeve;
+  return collar?.previews[previewCut][previewSleeve];
 }

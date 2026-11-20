@@ -1,9 +1,11 @@
 import type { QuotationRequest } from './types';
+import type { CustomerEmailDelivery } from '../../../../src/domain/customer-email';
 
 export type ProductionOrderStatus =
   'registered' | 'recommended' | 'assigned' | 'in_production' | 'completed';
 
 export interface CustomerTrackingItem {
+  emailDelivery?: CustomerEmailDelivery;
   quotation: QuotationRequest;
   productionOrders: Array<{
     id: string;
@@ -29,13 +31,7 @@ export function trackingLabel(item: CustomerTrackingItem): string {
     const stage = productionStage(item);
     if (stage === 3) return 'Pedido terminado';
     if (stage === 2) return 'En producción';
-    if (stage === 1)
-      return item.productionOrders.length > 1 ? 'Talleres asignados' : 'Taller asignado';
-    return item.productionOrders.some((order) =>
-      ['assigned', 'in_production', 'completed'].includes(order.status),
-    )
-      ? 'Asignación parcial'
-      : 'Asignación pendiente';
+    return 'Pedido confirmado';
   }
   return {
     pending_quote: 'Esperando cotización',

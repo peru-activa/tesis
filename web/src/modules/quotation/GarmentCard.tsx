@@ -1,3 +1,6 @@
+import { useLayoutEffect } from 'react';
+import { SelectionMark } from './ChoiceTransition';
+import { hasValidGarmentQuantity } from './quotationFormModel';
 import { CollarPicker } from './CollarPicker';
 import { FabricPicker } from './FabricPicker';
 import { GarmentPreview } from './GarmentPreview';
@@ -14,6 +17,7 @@ interface GarmentCardProps {
   onActivate: () => void;
   onChangeQuantity: (value: number) => void;
   onRemove: () => void;
+  onConfigurationStateChange: (key: string, ready: boolean) => void;
 }
 
 export function GarmentCard({
@@ -24,9 +28,12 @@ export function GarmentCard({
   onActivate,
   onChangeQuantity,
   onRemove,
+  onConfigurationStateChange,
 }: GarmentCardProps) {
   const {
     collarOptions,
+    configurationComplete,
+    lastConfirmed,
     commitCustomFabric,
     customFabric,
     cutOptions,
@@ -66,22 +73,40 @@ export function GarmentCard({
     changeCustomFabricName,
   } = useGarmentConfiguration(garment, path);
 
+  const ready = !optionsExpanded && configurationComplete && hasValidGarmentQuantity(garment);
+  useLayoutEffect(() => {
+    onConfigurationStateChange(garmentKey, ready);
+  }, [garmentKey, ready, onConfigurationStateChange]);
+
   if (!active) {
     return (
-      <button type="button" className="quote-garment-collapsed" onClick={onActivate}>
+      <button
+        type="button"
+        className="quote-garment-collapsed"
+        data-validation-fields={path}
+        data-validation-expand
+        onClick={onActivate}
+      >
         <span>
           <strong>{title}</strong>
           <small>{garment.quantity} unidades</small>
         </span>
-        <b>Editar</b>
+        <b>{ready ? 'Editar' : 'Completar'}</b>
       </button>
     );
   }
 
   return (
-    <section className={`quote-garment-row ${!optionsExpanded ? 'completed' : ''}`}>
-      <div className="quote-garment-row-head">
-        <strong>{title}</strong>
+    <section
+      className={`quote-garment-row ${!optionsExpanded ? 'completed' : ''}`}
+      data-confirmed={lastConfirmed === 'fabric'}
+      data-configuration-complete={ready}
+    >
+      <div className="quote-garment-row-head" data-validation-fields={path}>
+        <strong>
+          {!optionsExpanded && <SelectionMark />}
+          <span className="quote-garment-title">{title}</span>
+        </strong>
         <button
           type="button"
           aria-label={`Quitar ${productLabel.toLowerCase()}`}
@@ -97,7 +122,11 @@ export function GarmentCard({
             <div className="quote-visual-options">
               {!optionsExpanded ? (
                 <div className="quote-completed-controls">
-                  <QuantityInput quantity={garment.quantity} onChange={onChangeQuantity} />
+                  <QuantityInput
+                    path={path}
+                    quantity={garment.quantity}
+                    onChange={onChangeQuantity}
+                  />
                   <button
                     type="button"
                     className="quote-edit-options"
@@ -112,22 +141,30 @@ export function GarmentCard({
                     <>
                       <CollarPicker
                         inputName={`${garmentKey}-collar`}
+                        validationFields={`${path}.model`}
                         options={collarOptions}
                         selected={selectedCollar}
-                        expanded={editorMode === 'collar' || !selectedCollar}
+                        expanded={editorMode === 'collar'}
+                        confirmed={lastConfirmed === 'collar'}
                         onEdit={() => setEditorMode('collar')}
                         onPreview={setPreviewedCollar}
                         onSelect={selectCollar}
                       />
-                      {selectedCollar && (
-                        <div ref={cutSectionRef}>
+                      {selectedCollar && (editorMode !== 'collar' || selectedCut) && (
+                        <div
+                          ref={cutSectionRef}
+                          className="quote-config-next"
+                          data-entering={lastConfirmed === 'collar' && editorMode === 'cut'}
+                        >
                           <TextOptionPicker
                             inputName={`${garmentKey}-cut`}
+                            validationFields={`${path}.cut ${path}.audience`}
                             legend="Corte"
                             summaryLabel="Corte"
                             options={cutOptions}
                             selected={selectedCut}
-                            expanded={editorMode === 'cut' || !selectedCut}
+                            expanded={editorMode === 'cut'}
+                            confirmed={lastConfirmed === 'cut'}
                             onEdit={() => setEditorMode('cut')}
                             onPreview={setPreviewedCut}
                             onPreviewEnd={() => setPreviewedCut(undefined)}
@@ -135,45 +172,62 @@ export function GarmentCard({
                           />
                         </div>
                       )}
-                      {selectedCollar && selectedCut && (
-                        <div ref={sleeveSectionRef}>
-                          <TextOptionPicker
-                            inputName={`${garmentKey}-sleeve`}
-                            legend="Tipo de manga"
-                            summaryLabel="Manga"
-                            options={sleeveOptions}
-                            selected={selectedSleeve}
-                            expanded={editorMode === 'sleeve' || !selectedSleeve}
-                            onEdit={() => setEditorMode('sleeve')}
-                            onPreview={setPreviewedSleeve}
-                            onPreviewEnd={() => setPreviewedSleeve(undefined)}
-                            onSelect={selectSleeve}
-                          />
-                        </div>
-                      )}
+                      {selectedCollar &&
+                        selectedCut &&
+                        (['sleeve', 'fabric', 'custom-fabric', 'complete'].includes(editorMode) ||
+                          selectedSleeve) && (
+                          <div
+                            ref={sleeveSectionRef}
+                            className="quote-config-next"
+                            data-entering={lastConfirmed === 'cut' && editorMode === 'sleeve'}
+                          >
+                            <TextOptionPicker
+                              inputName={`${garmentKey}-sleeve`}
+                              validationFields={`${path}.sleeve`}
+                              legend="Tipo de manga"
+                              summaryLabel="Manga"
+                              options={sleeveOptions}
+                              selected={selectedSleeve}
+                              expanded={editorMode === 'sleeve'}
+                              confirmed={lastConfirmed === 'sleeve'}
+                              onEdit={() => setEditorMode('sleeve')}
+                              onPreview={setPreviewedSleeve}
+                              onPreviewEnd={() => setPreviewedSleeve(undefined)}
+                              onSelect={selectSleeve}
+                            />
+                          </div>
+                        )}
                     </>
                   )}
                   {(garment.product === 'buzo' ||
-                    (selectedCollar && selectedCut && selectedSleeve)) && (
-                    <div ref={fabricSectionRef}>
-                      <FabricPicker
-                        inputName={`${garmentKey}-fabric`}
-                        options={fabricOptions}
-                        selected={selectedFabric}
-                        selectedName={fabricName}
-                        isProposal={garment.fabric.mode === 'proposal'}
-                        isCustom={customFabric}
-                        isOpen={fabricPickerOpen}
-                        onToggle={toggleFabricPicker}
-                        onPreview={setPreviewedFabric}
-                        onSelect={selectFabric}
-                        onSelectProposal={selectFabricProposal}
-                        onSelectCustom={selectCustomFabric}
-                        onCustomNameChange={changeCustomFabricName}
-                        onCustomNameCommit={commitCustomFabric}
-                      />
-                    </div>
-                  )}
+                    (selectedCollar && selectedCut && selectedSleeve)) &&
+                    (configurationComplete ||
+                      editorMode === 'fabric' ||
+                      editorMode === 'custom-fabric') && (
+                      <div
+                        ref={fabricSectionRef}
+                        className="quote-config-next"
+                        data-entering={lastConfirmed === 'sleeve' && editorMode === 'fabric'}
+                      >
+                        <FabricPicker
+                          inputName={`${garmentKey}-fabric`}
+                          validationFields={`${path}.fabric`}
+                          options={fabricOptions}
+                          selected={selectedFabric}
+                          selectedName={fabricName}
+                          isProposal={garment.fabric.mode === 'proposal'}
+                          isCustom={customFabric}
+                          isOpen={fabricPickerOpen}
+                          onToggle={toggleFabricPicker}
+                          onPreview={setPreviewedFabric}
+                          onSelect={selectFabric}
+                          onSelectProposal={selectFabricProposal}
+                          onSelectCustom={selectCustomFabric}
+                          onCustomNameChange={changeCustomFabricName}
+                          onCustomNameCommit={commitCustomFabric}
+                        />
+                      </div>
+                    )}
                 </>
               )}
             </div>
@@ -195,9 +249,11 @@ export function GarmentCard({
 }
 
 function QuantityInput({
+  path,
   quantity,
   onChange,
 }: {
+  path: GarmentPath;
   quantity: number;
   onChange: (value: number) => void;
 }) {
@@ -205,6 +261,7 @@ function QuantityInput({
     <InputField label="Cantidad">
       <input
         type="number"
+        name={`${path}.quantity`}
         min="1"
         max="5000"
         value={Number.isFinite(quantity) ? quantity : ''}

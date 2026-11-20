@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import { AddGarmentSelect } from './AddGarmentSelect';
 import { GarmentCard } from './GarmentCard';
 import type { GarmentPath } from './quotationFormModel';
@@ -20,12 +21,23 @@ export function ProductStep({ hasGarments, onHasGarmentsChange }: ProductStepPro
     setActiveIndex,
   } = useGarmentCollection({ hasGarments, onHasGarmentsChange });
 
+  const [editorReadiness, setEditorReadiness] = useState<Record<string, boolean>>({});
+  const onConfigurationStateChange = useCallback((key: string, ready: boolean) => {
+    setEditorReadiness((current) =>
+      current[key] === ready ? current : { ...current, [key]: ready },
+    );
+  }, []);
+  const garmentKeys = garments.map((_, index) =>
+    index === 0 ? primaryKey : (fields[index - 1]?.id ?? `garment-${index}`),
+  );
+  const canAddGarment = !hasGarments || garmentKeys.every((key) => editorReadiness[key] === true);
+
   return (
     <>
       {!hasGarments && (
         <div className="quote-garment-empty">
           <h2>Prendas solicitadas</h2>
-          <p>Añade una o más prendas a tu solicitud.</p>
+          <p>Agrega la primera prenda para empezar.</p>
           <svg viewBox="0 0 64 64" role="img" aria-label="Prenda por agregar">
             <path d="M23 11 14 16 8 32l9 4 4-9v26h22V27l4 9 9-4-6-16-9-5c-2 5-16 5-18 0Z" />
             <path d="M23 11c1 6 17 6 18 0M27 17v36M37 17v36" />
@@ -48,15 +60,18 @@ export function ProductStep({ hasGarments, onHasGarmentsChange }: ProductStepPro
               onActivate={() => setActiveIndex(index)}
               onChangeQuantity={(value) => changeQuantity(path, value)}
               onRemove={() => removeGarment(index)}
+              onConfigurationStateChange={onConfigurationStateChange}
             />
           );
         })}
       </div>
-      <AddGarmentSelect
-        another={garments.length > 0}
-        disabled={garments.length >= 5}
-        onAdd={addGarment}
-      />
+      {canAddGarment && (
+        <AddGarmentSelect
+          another={garments.length > 0}
+          disabled={garments.length >= 5}
+          onAdd={addGarment}
+        />
+      )}
     </>
   );
 }
