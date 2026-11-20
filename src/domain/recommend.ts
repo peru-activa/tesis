@@ -398,22 +398,26 @@ function allocateQuantity(
       left.id.localeCompare(right.id),
   );
   const minimum = ordered.reduce((sum, workshop) => sum + workshop.minimumUnits, 0);
-  const capacityFor = (workshop: Workshop) =>
+  const capacities = ordered.map((workshop) =>
     (request && capacityBeforeDeadline(request, workshop, assignedProcesses)) ??
     (request
       ? fixedCapacityFor(request, workshop, assignedProcesses)
-      : Math.min(workshop.maximumUnits, workshop.availableCapacity));
-  const maximum = ordered.reduce((sum, workshop) => sum + capacityFor(workshop), 0);
-  if (quantity < minimum || quantity > maximum) return undefined;
+      : Math.min(workshop.maximumUnits, workshop.availableCapacity)),
+  );
+  const maximum = capacities.reduce((sum, capacity) => sum + capacity, 0);
+  if (
+    quantity < minimum ||
+    quantity > maximum ||
+    ordered.some((workshop, index) => workshop.minimumUnits > capacities[index]!)
+  ) {
+    return undefined;
+  }
 
   let remaining = quantity - minimum;
-  const extraCapacity = ordered.reduce(
-    (sum, workshop) => sum + Math.max(0, capacityFor(workshop) - workshop.minimumUnits),
-    0,
-  );
-  return ordered.map((workshop, index) => {
-    const capacity = capacityFor(workshop);
-    const availableExtra = Math.max(0, capacity - workshop.minimumUnits);
+  const extraCapacity = maximum - minimum;
+  const allocations = ordered.map((workshop, index) => {
+    const capacity = capacities[index]!;
+    const availableExtra = capacity - workshop.minimumUnits;
     const extra =
       remaining === 0 || extraCapacity === 0
         ? 0
@@ -424,17 +428,24 @@ function allocateQuantity(
               Math.floor(((quantity - minimum) * availableExtra) / extraCapacity),
             );
     remaining -= extra;
-    const assigned = workshop.minimumUnits + extra;
     return {
       workshopId: workshop.id,
       displayName: workshop.displayName,
-      quantity: assigned,
+      quantity: workshop.minimumUnits + extra,
       availableCapacity: capacity,
       effectiveLeadTimeDays: 0,
       estimatedCost: 0,
       assignedProcesses,
     };
   });
+
+  for (const allocation of allocations) {
+    if (remaining === 0) break;
+    const extra = Math.min(remaining, allocation.availableCapacity - allocation.quantity);
+    allocation.quantity += extra;
+    remaining -= extra;
+  }
+  return allocations;
 }
 
 interface CandidatePlan {
@@ -481,6 +492,16 @@ export function allocationCapacityProblems(
       reasons: ['la ruta completa ya no cumple el plazo disponible'],
     }));
   }
+  const requiredProcesses = effectiveRequiredProcesses(request);
+  const quantityMismatch = requiredProcesses
+    .filter((process) => process !== 'design' && process !== 'patternmaking')
+    .some((process) => {
+      const coveredQuantity = allocations.reduce((total, allocation) => {
+        const processes = allocation.assignedProcesses ?? requiredProcesses;
+        return processes.includes(process) ? total + allocation.quantity : total;
+      }, 0);
+      return coveredQuantity !== request.order.quantity;
+    });
   return allocations.flatMap((allocation) => {
     const workshop = request.workshops.find((item) => item.id === allocation.workshopId);
     if (!workshop)
@@ -495,13 +516,14 @@ export function allocationCapacityProblems(
       ...request,
       order: { ...request.order, quantity: allocation.quantity },
     };
-    const processes = allocation.assignedProcesses ?? effectiveRequiredProcesses(request);
+    const processes = allocation.assignedProcesses ?? requiredProcesses;
     const capacity =
       capacityBeforeDeadline(allocatedRequest, workshop, processes) ??
       fixedCapacityFor(allocatedRequest, workshop, processes);
     const units =
       processes.length === 1 && processes[0] === 'patternmaking' ? 1 : allocation.quantity;
     const reasons: string[] = [];
+    if (quantityMismatch) reasons.push('el reparto no coincide con la cantidad solicitada');
     if (productionForMaterial(workshop, request.order.material).capacityStatus === 'unknown') reasons.push('capacidad productiva no registrada');
     if (units < workshop.minimumUnits) reasons.push('cantidad menor al mínimo del taller');
     if (units > capacity) reasons.push('capacidad disponible insuficiente');

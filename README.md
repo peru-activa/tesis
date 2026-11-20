@@ -107,9 +107,7 @@ La demostración externa autorizada está disponible en
 `https://pedidos.opentextil.com`. Cloudflare Access usa el proveedor “Código
 por correo” y el backend valida `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` y
 `PERU_ACTIVA_EMAILS`. Un conector saliente ejecutado en AWS dirige el dominio al
-contenedor de la aplicación dentro de su red Docker privada. La operación y
-reversión se documentan en
-[`docs/operations/cloudflare-access-local.md`](docs/operations/cloudflare-access-local.md).
+contenedor de la aplicación dentro de su red Docker privada.
 
 ## PostgreSQL
 
