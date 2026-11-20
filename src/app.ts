@@ -146,6 +146,17 @@ const openApiDocument = {
         },
       },
     },
+    '/v1/quotation-requests/{id}/draft': {
+      get: {
+        summary:
+          'Copiar datos editables de una solicitud propia, sin precio, aceptación ni asignación',
+        security: [{ cloudflareAccess: [] }],
+        responses: {
+          200: { description: 'Borrador editable con nueva fecha pendiente' },
+          404: { description: 'Solicitud inexistente o ajena' },
+        },
+      },
+    },
     '/v1/quotation-requests/{id}': {
       get: {
         summary: 'Obtener una solicitud de cotización por su código visible',
