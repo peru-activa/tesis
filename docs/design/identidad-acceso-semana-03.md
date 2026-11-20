@@ -93,9 +93,7 @@ planchado, acabados, control de calidad y entrega.
 Se publicó temporalmente `pedidos.opentextil.com` mediante un túnel separado
 que apunta al artefacto compilado local. La aplicación Access utiliza solamente
 el proveedor `Código por correo`. El túnel `peruactiva-pos` y
-`pos.opentextil.com` no fueron modificados. La configuración operativa y el
-procedimiento de reversión se encuentran en
-`docs/operations/cloudflare-access-local.md`.
+`pos.opentextil.com` no fueron modificados.
 
 ## Limitaciones
 
